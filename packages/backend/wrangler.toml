@@ -1,0 +1,13 @@
+name = "agilix-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+FRONTEND_URL = "http://localhost:5173"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agilix-db"
+database_id = "local"
+migrations_dir = "drizzle"
