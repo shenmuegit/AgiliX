@@ -3,6 +3,7 @@ import { api } from '@/lib/api'
 import { useUIStore } from '@/stores/uiStore'
 import { IssueForm } from './IssueForm'
 import { CommentThread } from './CommentThread'
+import { TimeLogWidget } from './TimeLogWidget'
 import { ISSUE_TYPE_CONFIG, PRIORITY_CONFIG, type IssueType, type Priority } from '@agilix/shared'
 
 interface IssueDetail {
@@ -108,6 +109,9 @@ export function IssueDetailDrawer() {
                   ))}
                 </div>
               )}
+
+              {/* Time Logs */}
+              <TimeLogWidget issueId={issue.id} />
 
               {/* Comments */}
               <CommentThread issueId={issue.id} />
