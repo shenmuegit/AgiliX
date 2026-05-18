@@ -84,6 +84,31 @@ app.post('/feishu/callback', async (c) => {
   return c.json({ data: { token, user } })
 })
 
+// Dev-only: login as demo user without Feishu
+app.post('/dev-login', async (c) => {
+  const db = c.get('db')
+  let user = await db.query.users.findFirst({
+    where: eq(schema.users.feishuUserId, 'demo_user'),
+  })
+  if (!user) {
+    ;[user] = await db.insert(schema.users)
+      .values({ feishuUserId: 'demo_user', name: 'Demo User', email: 'demo@agilix.dev' })
+      .returning()
+  }
+
+  const secret = new TextEncoder().encode(c.env.JWT_SECRET)
+  const token = await new jose.SignJWT({
+    userId: user.id,
+    feishuUserId: user.feishuUserId,
+    name: user.name,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('24h')
+    .sign(secret)
+
+  return c.json({ data: { token, user } })
+})
+
 app.get('/me', authMiddleware, async (c) => {
   const db = c.get('db')
   const user = await db.query.users.findFirst({

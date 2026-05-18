@@ -89,7 +89,8 @@ app.post('/sprints/:id/complete', async (c) => {
     return c.json({ error: 'Bad request', message: 'Sprint is not active' }, 400)
   }
 
-  const { moveToSprintId } = await c.req.json<{ moveToSprintId?: string }>().catch(() => ({}))
+  const body = await c.req.json<{ moveToSprintId?: string }>().catch(() => ({} as { moveToSprintId?: string }))
+  const moveToSprintId = body.moveToSprintId
 
   await db.update(schema.sprints)
     .set({ status: 'COMPLETED', updatedAt: new Date().toISOString() })

@@ -1,6 +1,7 @@
 import { Outlet } from 'react-router'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
+import { IssueDetailDrawer } from '@/components/issue/IssueDetailDrawer'
 import { useUIStore } from '@/stores/uiStore'
 
 export function AppShell() {
@@ -18,6 +19,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+      <IssueDetailDrawer />
     </div>
   )
 }

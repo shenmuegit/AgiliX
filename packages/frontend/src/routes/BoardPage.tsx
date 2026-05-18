@@ -1,14 +1,16 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { useProjectStore } from '@/stores/projectStore'
 import { KanbanBoard } from '@/components/board/KanbanBoard'
+import { BoardFilters, type BoardFilter } from '@/components/board/BoardFilters'
 import type { Project } from '@agilix/shared'
 
 export function BoardPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject)
+  const [filter, setFilter] = useState<BoardFilter>({ type: '', priority: '', assigneeId: '', search: '' })
 
   const { data: projectData } = useQuery({
     queryKey: ['project', projectId],
@@ -27,15 +29,52 @@ export function BoardPage() {
     enabled: !!projectId,
   })
 
+  const assignees = useMemo(() => {
+    if (!boardData?.data) return []
+    const map = new Map<string, { id: string; name: string }>()
+    for (const col of boardData.data.columns) {
+      for (const issue of col.issues) {
+        if (issue.assignee) map.set(issue.assignee.id, issue.assignee)
+      }
+    }
+    return Array.from(map.values())
+  }, [boardData])
+
+  const filteredBoard = useMemo(() => {
+    if (!boardData?.data) return null
+    const hasFilter = filter.type || filter.priority || filter.assigneeId || filter.search
+    if (!hasFilter) return boardData.data
+
+    return {
+      ...boardData.data,
+      columns: boardData.data.columns.map((col) => ({
+        ...col,
+        issues: col.issues.filter((issue) => {
+          if (filter.type && issue.type !== filter.type) return false
+          if (filter.priority && issue.priority !== filter.priority) return false
+          if (filter.assigneeId === 'unassigned' && issue.assignee) return false
+          if (filter.assigneeId && filter.assigneeId !== 'unassigned' && issue.assignee?.id !== filter.assigneeId) return false
+          if (filter.search && !issue.title.toLowerCase().includes(filter.search.toLowerCase()) && !issue.key.toLowerCase().includes(filter.search.toLowerCase())) return false
+          return true
+        }),
+      })),
+    }
+  }, [boardData, filter])
+
   if (isLoading) {
     return <div className="text-[var(--color-text-secondary)]">加载看板...</div>
   }
 
-  if (!boardData?.data) {
+  if (!filteredBoard) {
     return <div className="text-[var(--color-text-secondary)]">看板未找到</div>
   }
 
-  return <KanbanBoard board={boardData.data} />
+  return (
+    <div>
+      <BoardFilters filter={filter} onChange={setFilter} assignees={assignees} />
+      <KanbanBoard board={filteredBoard} />
+    </div>
+  )
 }
 
 interface BoardResponse {

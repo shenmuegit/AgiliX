@@ -10,25 +10,10 @@ export function ProjectListPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [form, setForm] = useState({ key: '', name: '', description: '' })
 
-  const { data, isPending, isFetching } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['projects'],
-    queryFn: async () => {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 3000)
-      try {
-        const res = await fetch('/api/projects', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('agilix_token') || ''}` },
-          signal: controller.signal,
-        })
-        clearTimeout(timeout)
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        return res.json() as Promise<{ data: Project[] }>
-      } catch {
-        clearTimeout(timeout)
-        return { data: [] as Project[] }
-      }
-    },
-    retry: false,
+    queryFn: () => api.get<{ data: Project[] }>('/projects'),
+    retry: 1,
   })
 
   const createMutation = useMutation({
@@ -111,7 +96,7 @@ export function ProjectListPage() {
         </div>
       )}
 
-      {isPending && isFetching ? (
+      {isLoading ? (
         <div className="text-center text-[var(--color-text-secondary)]">加载中...</div>
       ) : projects.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--color-border)] p-12 text-center">

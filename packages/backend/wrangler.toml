@@ -5,6 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 FRONTEND_URL = "http://localhost:5173"
+JWT_SECRET = "dev-secret-not-for-production-1234567890"
+FEISHU_APP_ID = "dev"
+FEISHU_APP_SECRET = "dev"
 
 [[d1_databases]]
 binding = "DB"

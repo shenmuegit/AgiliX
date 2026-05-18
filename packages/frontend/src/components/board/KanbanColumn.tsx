@@ -1,9 +1,11 @@
 import { useDroppable } from '@dnd-kit/core'
 import { KanbanCard } from './KanbanCard'
+import { QuickAddCard } from './QuickAddCard'
 
 interface ColumnProps {
   column: {
     id: string
+    order: number
     wipLimit: number | null
     issues: Array<{
       id: string
@@ -54,6 +56,7 @@ export function KanbanColumn({ column }: ColumnProps) {
           .map((issue) => (
             <KanbanCard key={issue.id} issue={issue} />
           ))}
+        {column.order === 0 && <QuickAddCard />}
       </div>
     </div>
   )

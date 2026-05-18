@@ -59,6 +59,12 @@ app.post('/projects/:projectId/issues', async (c) => {
   const defaultStatus = project.workflows[0]?.statuses?.sort((a, b) => a.order - b.order)[0]
   if (!defaultStatus) return c.json({ error: 'Config error', message: 'No workflow status found' }, 500)
 
+  const board = await db.query.boards.findFirst({
+    where: eq(schema.boards.projectId, projectId),
+    with: { columns: true },
+  })
+  const defaultColumn = board?.columns.find((c) => c.statusId === defaultStatus.id)
+
   // Get next sequence number
   const [last] = await db.select({ max: sql<number>`max(${schema.issues.sequenceNum})` })
     .from(schema.issues)
@@ -76,6 +82,7 @@ app.post('/projects/:projectId/issues', async (c) => {
       priority: input.priority,
       storyPoints: input.storyPoints,
       statusId: defaultStatus.id,
+      boardColumnId: defaultColumn?.id,
       reporterId: userId,
       assigneeId: input.assigneeId,
       parentId: input.parentId,

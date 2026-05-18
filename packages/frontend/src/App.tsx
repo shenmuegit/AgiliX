@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router'
+import { useAutoLogin } from './hooks/useAutoLogin'
 import { AppShell } from './components/layout/AppShell'
 import { ProjectListPage } from './routes/ProjectListPage'
 import { BoardPage } from './routes/BoardPage'
@@ -8,6 +9,8 @@ import { ReportsPage } from './routes/ReportsPage'
 import { SettingsPage } from './routes/SettingsPage'
 
 export function App() {
+  useAutoLogin()
+
   return (
     <Routes>
       <Route element={<AppShell />}>
