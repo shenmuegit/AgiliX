@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const issueTypeEnum = z.enum(['EPIC', 'STORY', 'TASK', 'BUG', 'SUB_TASK'])
+const issueTypeEnum = z.enum(['STORY', 'TASK', 'BUG'])
 const priorityEnum = z.enum(['HIGHEST', 'HIGH', 'MEDIUM', 'LOW', 'LOWEST'])
 
 export const createIssueSchema = z.object({
@@ -8,10 +8,8 @@ export const createIssueSchema = z.object({
   description: z.string().optional(),
   type: issueTypeEnum,
   priority: priorityEnum.default('MEDIUM'),
-  storyPoints: z.number().int().min(0).max(100).optional(),
-  assigneeId: z.string().optional(),
   parentId: z.string().optional(),
-  sprintId: z.string().optional(),
+  milestoneId: z.string().optional(),
   labelIds: z.array(z.string()).optional(),
   dueDate: z.string().datetime().optional(),
 })
@@ -21,11 +19,9 @@ export const updateIssueSchema = z.object({
   description: z.string().nullable().optional(),
   type: issueTypeEnum.optional(),
   priority: priorityEnum.optional(),
-  storyPoints: z.number().int().min(0).max(100).nullable().optional(),
   statusId: z.string().optional(),
-  assigneeId: z.string().nullable().optional(),
   parentId: z.string().nullable().optional(),
-  sprintId: z.string().nullable().optional(),
+  milestoneId: z.string().nullable().optional(),
   dueDate: z.string().datetime().nullable().optional(),
 })
 

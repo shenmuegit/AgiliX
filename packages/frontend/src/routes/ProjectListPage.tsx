@@ -8,7 +8,8 @@ export function ProjectListPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ key: '', name: '', description: '' })
+  const [form, setForm] = useState({ key: '', name: '', description: '', gitType: 'GITHUB' as 'GITHUB' | 'GITLAB', repoPath: '', accessToken: '' })
+  const [createError, setCreateError] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['projects'],
@@ -17,14 +18,35 @@ export function ProjectListPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (input: { key: string; name: string; description?: string }) =>
-      api.post<{ data: Project }>('/projects', input),
+    mutationFn: async (input: typeof form) => {
+      const project = await api.post<{ data: Project }>('/projects', {
+        key: input.key,
+        name: input.name,
+        description: input.description || undefined,
+      })
+
+      if (input.repoPath.trim() && input.accessToken.trim()) {
+        const baseUrl = input.gitType === 'GITHUB' ? 'https://api.github.com' : 'https://gitlab.com'
+        const provider = await api.post<{ data: { id: string } }>(`/projects/${project.data.id}/git-providers`, {
+          type: input.gitType,
+          baseUrl,
+          accessToken: input.accessToken.trim(),
+        })
+        await api.post(`/git-providers/${provider.data.id}/repos`, {
+          fullPath: input.repoPath.trim(),
+        }).catch(() => {})
+      }
+
+      return project
+    },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       setShowCreate(false)
-      setForm({ key: '', name: '', description: '' })
+      setCreateError('')
+      setForm({ key: '', name: '', description: '', gitType: 'GITHUB', repoPath: '', accessToken: '' })
       navigate(`/projects/${res.data.id}/board`)
     },
+    onError: (e: Error) => setCreateError(e.message || '创建失败'),
   })
 
   const projects = data?.data ?? []
@@ -77,9 +99,44 @@ export function ProjectListPage() {
                 rows={2}
               />
             </div>
+
+            <div className="border-t border-[var(--color-border)] pt-4">
+              <h3 className="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">Git 仓库（可选）</h3>
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <select
+                    value={form.gitType}
+                    onChange={(e) => setForm({ ...form, gitType: e.target.value as 'GITHUB' | 'GITLAB' })}
+                    className="w-32 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm"
+                  >
+                    <option value="GITHUB">GitHub</option>
+                    <option value="GITLAB">GitLab</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="owner/repo"
+                    value={form.repoPath}
+                    onChange={(e) => setForm({ ...form, repoPath: e.target.value })}
+                    className="flex-1 rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none"
+                  />
+                </div>
+                {form.repoPath && (
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    placeholder="Personal Access Token"
+                    value={form.accessToken}
+                    onChange={(e) => setForm({ ...form, accessToken: e.target.value })}
+                    className="w-full rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm focus:border-[var(--color-primary)] focus:outline-none"
+                  />
+                )}
+              </div>
+            </div>
+
+            {createError && <p className="text-xs text-red-600 bg-red-50 rounded px-3 py-2">{createError}</p>}
             <div className="flex gap-2">
               <button
-                onClick={() => createMutation.mutate(form)}
+                onClick={() => { setCreateError(''); createMutation.mutate(form) }}
                 disabled={!form.key || !form.name || createMutation.isPending}
                 className="rounded-lg bg-[var(--color-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-primary-hover)] disabled:opacity-50 transition-colors"
               >

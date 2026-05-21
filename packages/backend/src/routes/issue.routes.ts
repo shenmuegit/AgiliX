@@ -1,9 +1,11 @@
 import { Hono } from 'hono'
-import { eq, and, isNull, desc, sql } from 'drizzle-orm'
+import { eq, and, or, desc, like, sql } from 'drizzle-orm'
 import { createIssueSchema, updateIssueSchema, moveIssueSchema } from '@agilix/shared'
 import { schema } from '../db'
 import type { AppContext } from '../types'
 import { authMiddleware } from '../middleware/auth'
+import { notifyStatusChange } from '../services/notify'
+import { pushIssueToGit } from '../services/issue-sync'
 
 const app = new Hono<AppContext>()
 app.use(authMiddleware)
@@ -12,34 +14,19 @@ app.use(authMiddleware)
 app.get('/projects/:projectId/issues', async (c) => {
   const db = c.get('db')
   const projectId = c.req.param('projectId')
-  const { type, priority, assigneeId, sprintId } = c.req.query()
+  const { type, priority, milestoneId } = c.req.query()
 
   let conditions = [eq(schema.issues.projectId, projectId)]
   if (type) conditions.push(eq(schema.issues.type, type as any))
   if (priority) conditions.push(eq(schema.issues.priority, priority as any))
-  if (assigneeId) conditions.push(eq(schema.issues.assigneeId, assigneeId))
-  if (sprintId) conditions.push(eq(schema.issues.sprintId, sprintId))
+  if (milestoneId) conditions.push(eq(schema.issues.milestoneId, milestoneId))
 
   const issues = await db.query.issues.findMany({
     where: and(...conditions),
-    with: { status: true, assignee: true, reporter: true, labels: { with: { label: true } } },
+    with: { status: true, labels: { with: { label: true } } },
     orderBy: desc(schema.issues.updatedAt),
   })
 
-  return c.json({ data: issues })
-})
-
-// Backlog
-app.get('/projects/:projectId/backlog', async (c) => {
-  const db = c.get('db')
-  const issues = await db.query.issues.findMany({
-    where: and(
-      eq(schema.issues.projectId, c.req.param('projectId')),
-      isNull(schema.issues.sprintId),
-    ),
-    with: { status: true, assignee: true, reporter: true, labels: { with: { label: true } } },
-    orderBy: schema.issues.columnOrder,
-  })
   return c.json({ data: issues })
 })
 
@@ -80,13 +67,11 @@ app.post('/projects/:projectId/issues', async (c) => {
       description: input.description,
       type: input.type,
       priority: input.priority,
-      storyPoints: input.storyPoints,
       statusId: defaultStatus.id,
       boardColumnId: defaultColumn?.id,
       reporterId: userId,
-      assigneeId: input.assigneeId,
       parentId: input.parentId,
-      sprintId: input.sprintId,
+      milestoneId: input.milestoneId,
       dueDate: input.dueDate,
     })
     .returning()
@@ -99,9 +84,11 @@ app.post('/projects/:projectId/issues', async (c) => {
       detail: JSON.stringify({ type: issue.type, priority: issue.priority }),
     })
 
+  pushIssueToGit(db, issue.id).catch(() => {})
+
   const full = await db.query.issues.findFirst({
     where: eq(schema.issues.id, issue.id),
-    with: { status: true, assignee: true, reporter: true },
+    with: { status: true },
   })
 
   return c.json({ data: full }, 201)
@@ -114,10 +101,8 @@ app.get('/issues/:id', async (c) => {
     where: eq(schema.issues.id, c.req.param('id')),
     with: {
       status: true,
-      assignee: true,
-      reporter: true,
       labels: { with: { label: true } },
-      children: { with: { status: true, assignee: true } },
+      children: { with: { status: true } },
       mergeRequests: true,
       gitBranches: true,
     },
@@ -132,22 +117,43 @@ app.patch('/issues/:id', async (c) => {
   const input = updateIssueSchema.parse(await c.req.json())
   const userId = c.get('user').userId
 
+  const oldIssue = await db.query.issues.findFirst({
+    where: eq(schema.issues.id, c.req.param('id')),
+    with: { status: true },
+  })
+
   const [issue] = await db.update(schema.issues)
     .set({ ...input, updatedAt: new Date().toISOString() })
     .where(eq(schema.issues.id, c.req.param('id')))
     .returning()
 
-  await db.insert(schema.activityLogs)
-    .values({
+  if (input.statusId && oldIssue && input.statusId !== oldIssue.statusId) {
+    const newStatus = await db.query.workflowStatuses.findFirst({
+      where: eq(schema.workflowStatuses.id, input.statusId),
+    })
+    await db.insert(schema.activityLogs).values({
+      issueId: issue.id,
+      userId,
+      action: 'status_changed',
+      detail: JSON.stringify({ from: oldIssue.status.name, to: newStatus?.name }),
+    })
+    if (newStatus) {
+      notifyStatusChange(c.env, db, schema, issue, oldIssue.status.name, newStatus.name, c.get('user').name).catch(() => {})
+    }
+  } else {
+    await db.insert(schema.activityLogs).values({
       issueId: issue.id,
       userId,
       action: 'updated',
       detail: JSON.stringify(input),
     })
+  }
+
+  pushIssueToGit(db, issue.id).catch(() => {})
 
   const full = await db.query.issues.findFirst({
     where: eq(schema.issues.id, issue.id),
-    with: { status: true, assignee: true, reporter: true },
+    with: { status: true },
   })
   return c.json({ data: full })
 })
@@ -181,11 +187,35 @@ app.patch('/issues/:id/move', async (c) => {
       detail: JSON.stringify({ columnOrder: input.columnOrder }),
     })
 
+  pushIssueToGit(db, issue.id).catch(() => {})
+
   const full = await db.query.issues.findFirst({
     where: eq(schema.issues.id, issue.id),
-    with: { status: true, assignee: true, reporter: true },
+    with: { status: true },
   })
   return c.json({ data: full })
+})
+
+// Search issues
+app.get('/projects/:projectId/search', async (c) => {
+  const db = c.get('db')
+  const q = c.req.query('q')?.trim()
+  if (!q) return c.json({ data: [] })
+
+  const pattern = `%${q}%`
+  const issues = await db.query.issues.findMany({
+    where: and(
+      eq(schema.issues.projectId, c.req.param('projectId')),
+      or(
+        like(schema.issues.key, pattern),
+        like(schema.issues.title, pattern),
+      ),
+    ),
+    with: { status: true },
+    orderBy: desc(schema.issues.updatedAt),
+    limit: 20,
+  })
+  return c.json({ data: issues })
 })
 
 // Delete issue

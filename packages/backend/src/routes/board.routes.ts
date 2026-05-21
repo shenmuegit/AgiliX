@@ -17,7 +17,6 @@ app.get('/projects/:projectId/board', async (c) => {
           issues: {
             with: {
               status: true,
-              assignee: true,
               labels: { with: { label: true } },
             },
           },

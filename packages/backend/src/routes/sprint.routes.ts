@@ -4,6 +4,7 @@ import { createSprintSchema, updateSprintSchema } from '@agilix/shared'
 import { schema } from '../db'
 import type { AppContext } from '../types'
 import { authMiddleware } from '../middleware/auth'
+import { notifySprintStarted } from '../services/notify'
 
 const app = new Hono<AppContext>()
 app.use(authMiddleware)
@@ -30,7 +31,7 @@ app.get('/sprints/:id', async (c) => {
   const db = c.get('db')
   const sprint = await db.query.sprints.findFirst({
     where: eq(schema.sprints.id, c.req.param('id')),
-    with: { issues: { with: { status: true, assignee: true } } },
+    with: { issues: { with: { status: true } } },
   })
   if (!sprint) return c.json({ error: 'Not found', message: 'Sprint not found' }, 404)
   return c.json({ data: sprint })
@@ -75,6 +76,12 @@ app.post('/sprints/:id/start', async (c) => {
     })
     .where(eq(schema.sprints.id, c.req.param('id')))
     .returning()
+
+  const sprintIssues = await db.query.issues.findMany({
+    where: eq(schema.issues.sprintId, updated.id),
+  })
+  const totalPts = sprintIssues.reduce((s, i) => s + (i.storyPoints ?? 0), 0)
+  notifySprintStarted(c.env, db, schema, updated, sprintIssues.length, totalPts).catch(() => {})
 
   return c.json({ data: updated })
 })

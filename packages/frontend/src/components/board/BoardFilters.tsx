@@ -3,17 +3,15 @@ import { ISSUE_TYPE_CONFIG, PRIORITY_CONFIG, type IssueType, type Priority } fro
 export interface BoardFilter {
   type: IssueType | ''
   priority: Priority | ''
-  assigneeId: string
   search: string
 }
 
 interface Props {
   filter: BoardFilter
   onChange: (filter: BoardFilter) => void
-  assignees: Array<{ id: string; name: string }>
 }
 
-export function BoardFilters({ filter, onChange, assignees }: Props) {
+export function BoardFilters({ filter, onChange }: Props) {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3">
       <input
@@ -46,21 +44,9 @@ export function BoardFilters({ filter, onChange, assignees }: Props) {
         ))}
       </select>
 
-      <select
-        value={filter.assigneeId}
-        onChange={(e) => onChange({ ...filter, assigneeId: e.target.value })}
-        className="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none"
-      >
-        <option value="">所有负责人</option>
-        <option value="unassigned">未分配</option>
-        {assignees.map((a) => (
-          <option key={a.id} value={a.id}>{a.name}</option>
-        ))}
-      </select>
-
-      {(filter.type || filter.priority || filter.assigneeId || filter.search) && (
+      {(filter.type || filter.priority || filter.search) && (
         <button
-          onClick={() => onChange({ type: '', priority: '', assigneeId: '', search: '' })}
+          onClick={() => onChange({ type: '', priority: '', search: '' })}
           className="rounded-lg px-3 py-1.5 text-xs text-[var(--color-text-secondary)] hover:bg-gray-100"
         >
           清除筛选

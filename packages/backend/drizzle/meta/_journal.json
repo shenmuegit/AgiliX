@@ -8,6 +8,20 @@
       "when": 1779084225069,
       "tag": "0000_sloppy_puppet_master",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1779151140928,
+      "tag": "0001_mighty_grey_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1779155369364,
+      "tag": "0002_bent_korvac",
+      "breakpoints": true
     }
   ]
 }

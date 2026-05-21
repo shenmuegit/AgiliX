@@ -10,10 +10,8 @@ interface IssueData {
   description: string | null
   type: string
   priority: string
-  storyPoints: number | null
   dueDate: string | null
   status: { id: string; name: string; color: string }
-  assignee: { id: string; name: string; avatarUrl: string | null } | null
   reporter: { id: string; name: string }
 }
 
@@ -22,7 +20,6 @@ export function IssueForm({ issue }: { issue: IssueData }) {
   const [title, setTitle] = useState(issue.title)
   const [description, setDescription] = useState(issue.description || '')
   const [priority, setPriority] = useState(issue.priority)
-  const [storyPoints, setStoryPoints] = useState(issue.storyPoints?.toString() || '')
   const [dueDate, setDueDate] = useState(issue.dueDate?.split('T')[0] || '')
 
   const updateMutation = useMutation({
@@ -93,24 +90,6 @@ export function IssueForm({ issue }: { issue: IssueData }) {
               <option key={key} value={key}>{cfg.label}</option>
             ))}
           </select>
-        </div>
-
-        {/* Story Points */}
-        <div>
-          <label className="mb-1 block text-xs text-[var(--color-text-secondary)]">Story Points</label>
-          <input
-            type="number"
-            min="0"
-            max="100"
-            value={storyPoints}
-            onChange={(e) => setStoryPoints(e.target.value)}
-            onBlur={() => {
-              const val = storyPoints ? Number(storyPoints) : null
-              if (val !== issue.storyPoints) saveField('storyPoints', val)
-            }}
-            className="w-full rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm focus:border-[var(--color-primary)] focus:outline-none"
-            placeholder="—"
-          />
         </div>
 
         {/* Due Date */}

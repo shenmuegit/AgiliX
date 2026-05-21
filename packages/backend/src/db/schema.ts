@@ -38,7 +38,7 @@ export const projects = sqliteTable('projects', {
 export const projectsRelations = relations(projects, ({ many }) => ({
   members: many(projectMembers),
   issues: many(issues),
-  sprints: many(sprints),
+  milestones: many(milestones),
   boards: many(boards),
   workflows: many(workflows),
   labels: many(labels),
@@ -97,23 +97,27 @@ export const issues = sqliteTable('issues', {
   sequenceNum: integer('sequence_num').notNull(),
   title: text('title').notNull(),
   description: text('description'),
-  type: text('type', { enum: ['EPIC', 'STORY', 'TASK', 'BUG', 'SUB_TASK'] }).notNull(),
+  type: text('type', { enum: ['STORY', 'TASK', 'BUG'] }).notNull(),
   priority: text('priority', { enum: ['HIGHEST', 'HIGH', 'MEDIUM', 'LOW', 'LOWEST'] }).default('MEDIUM').notNull(),
   storyPoints: integer('story_points'),
   statusId: text('status_id').notNull().references(() => workflowStatuses.id),
   assigneeId: text('assignee_id').references(() => users.id),
   reporterId: text('reporter_id').notNull().references(() => users.id),
   parentId: text('parent_id'),
-  sprintId: text('sprint_id').references(() => sprints.id),
+  milestoneId: text('milestone_id').references(() => milestones.id),
   boardColumnId: text('board_column_id').references(() => boardColumns.id),
   columnOrder: integer('column_order').default(0).notNull(),
   dueDate: text('due_date'),
+  externalIssueId: text('external_issue_id'),
+  externalIssueUrl: text('external_issue_url'),
+  syncEnabled: integer('sync_enabled', { mode: 'boolean' }).default(true),
   createdAt: text('created_at').$defaultFn(() => new Date().toISOString()).notNull(),
   updatedAt: text('updated_at').$defaultFn(() => new Date().toISOString()).notNull(),
 }, (t) => [
-  index('issues_project_sprint').on(t.projectId, t.sprintId),
+  index('issues_project_milestone').on(t.projectId, t.milestoneId),
   index('issues_project_type').on(t.projectId, t.type),
   index('issues_assignee').on(t.assigneeId),
+  index('issues_external').on(t.projectId, t.externalIssueId),
 ])
 
 export const issuesRelations = relations(issues, ({ one, many }) => ({
@@ -123,7 +127,7 @@ export const issuesRelations = relations(issues, ({ one, many }) => ({
   reporter: one(users, { fields: [issues.reporterId], references: [users.id], relationName: 'reporter' }),
   parent: one(issues, { fields: [issues.parentId], references: [issues.id], relationName: 'subtasks' }),
   children: many(issues, { relationName: 'subtasks' }),
-  sprint: one(sprints, { fields: [issues.sprintId], references: [sprints.id] }),
+  milestone: one(milestones, { fields: [issues.milestoneId], references: [milestones.id] }),
   boardColumn: one(boardColumns, { fields: [issues.boardColumnId], references: [boardColumns.id] }),
   comments: many(comments),
   timeLogs: many(timeLogs),
@@ -160,38 +164,23 @@ export const issueLabelsRelations = relations(issueLabels, ({ one }) => ({
   label: one(labels, { fields: [issueLabels.labelId], references: [labels.id] }),
 }))
 
-// ──────────────────── Sprints ────────────────────
+// ──────────────────── Milestones ────────────────────
 
-export const sprints = sqliteTable('sprints', {
+export const milestones = sqliteTable('milestones', {
   id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
   projectId: text('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  goal: text('goal'),
-  status: text('status', { enum: ['PLANNED', 'ACTIVE', 'COMPLETED'] }).default('PLANNED').notNull(),
-  startDate: text('start_date'),
-  endDate: text('end_date'),
+  description: text('description'),
+  status: text('status', { enum: ['ACTIVE', 'COMPLETED'] }).default('ACTIVE').notNull(),
+  gitRef: text('git_ref'),
   createdAt: text('created_at').$defaultFn(() => new Date().toISOString()).notNull(),
   updatedAt: text('updated_at').$defaultFn(() => new Date().toISOString()).notNull(),
 })
 
-export const sprintsRelations = relations(sprints, ({ one, many }) => ({
-  project: one(projects, { fields: [sprints.projectId], references: [projects.id] }),
+export const milestonesRelations = relations(milestones, ({ one, many }) => ({
+  project: one(projects, { fields: [milestones.projectId], references: [projects.id] }),
   issues: many(issues),
-  snapshots: many(sprintSnapshots),
 }))
-
-export const sprintSnapshots = sqliteTable('sprint_snapshots', {
-  id: text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
-  sprintId: text('sprint_id').notNull().references(() => sprints.id, { onDelete: 'cascade' }),
-  date: text('date').notNull(),
-  totalPoints: integer('total_points').notNull(),
-  completedPoints: integer('completed_points').notNull(),
-  remainingPoints: integer('remaining_points').notNull(),
-  totalIssues: integer('total_issues').notNull(),
-  completedIssues: integer('completed_issues').notNull(),
-}, (t) => [
-  uniqueIndex('sprint_snapshots_unique').on(t.sprintId, t.date),
-])
 
 // ──────────────────── Board ────────────────────
 
@@ -362,6 +351,8 @@ export const commitRefs = sqliteTable('commit_refs', {
   sha: text('sha').notNull(),
   message: text('message').notNull(),
   author: text('author').notNull(),
+  branch: text('branch'),
+  committedAt: text('committed_at'),
   createdAt: text('created_at').$defaultFn(() => new Date().toISOString()).notNull(),
 }, (t) => [
   uniqueIndex('commit_refs_unique').on(t.repoId, t.sha),

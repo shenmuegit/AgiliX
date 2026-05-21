@@ -4,6 +4,7 @@ import { useUIStore } from '@/stores/uiStore'
 import { IssueForm } from './IssueForm'
 import { CommentThread } from './CommentThread'
 import { TimeLogWidget } from './TimeLogWidget'
+import { ActivityFeed } from './ActivityFeed'
 import { ISSUE_TYPE_CONFIG, PRIORITY_CONFIG, type IssueType, type Priority } from '@agilix/shared'
 
 interface IssueDetail {
@@ -13,13 +14,11 @@ interface IssueDetail {
   description: string | null
   type: string
   priority: string
-  storyPoints: number | null
   dueDate: string | null
   status: { id: string; name: string; color: string; category: string }
-  assignee: { id: string; name: string; avatarUrl: string | null } | null
   reporter: { id: string; name: string; avatarUrl: string | null }
   labels: Array<{ label: { id: string; name: string; color: string } }>
-  children: Array<{ id: string; key: string; title: string; status: { name: string; color: string }; assignee: { name: string } | null }>
+  children: Array<{ id: string; key: string; title: string; status: { name: string; color: string } }>
   mergeRequests: Array<{ id: string; title: string; state: string; sourceBranch: string; webUrl: string | null }>
   gitBranches: Array<{ id: string; name: string }>
 }
@@ -41,7 +40,7 @@ export function IssueDetailDrawer() {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20" onClick={closeDrawer} />
-      <div className="fixed right-0 top-0 z-50 flex h-full w-[560px] flex-col border-l border-[var(--color-border)] bg-white shadow-xl">
+      <div className="fixed right-0 top-0 z-50 flex h-full w-full flex-col border-l border-[var(--color-border)] bg-white shadow-xl sm:w-[560px]">
         <div className="flex items-center justify-between border-b border-[var(--color-border)] px-6 py-4">
           {issue ? (
             <div className="flex items-center gap-2">
@@ -112,6 +111,9 @@ export function IssueDetailDrawer() {
 
               {/* Time Logs */}
               <TimeLogWidget issueId={issue.id} />
+
+              {/* Activity */}
+              <ActivityFeed issueId={issue.id} />
 
               {/* Comments */}
               <CommentThread issueId={issue.id} />

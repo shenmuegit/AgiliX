@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
-    "deploy": "wrangler deploy",
+    "deploy": "echo 'Backend deploys via Pages Functions. Run pnpm deploy from root.'",
     "db:generate": "drizzle-kit generate",
     "db:migrate:local": "wrangler d1 migrations apply agilix-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply agilix-db --remote",

@@ -29,10 +29,8 @@ interface BoardProps {
         title: string
         type: string
         priority: string
-        storyPoints: number | null
         columnOrder: number
         status: { name: string; color: string }
-        assignee: { id: string; name: string; avatarUrl: string | null } | null
         labels: Array<{ label: { id: string; name: string; color: string } }>
       }>
     }>
@@ -52,6 +50,12 @@ export function KanbanBoard({ board }: BoardProps) {
         boardColumnId: params.boardColumnId,
         columnOrder: params.columnOrder,
       }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', projectId] }),
+  })
+
+  const wipMutation = useMutation({
+    mutationFn: (params: { columnId: string; wipLimit: number | null }) =>
+      api.patch(`/projects/${projectId}/board-columns/${params.columnId}`, { wipLimit: params.wipLimit }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['board', projectId] }),
   })
 
@@ -85,9 +89,13 @@ export function KanbanBoard({ board }: BoardProps) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 140px)' }}>
+      <div className="flex gap-2 md:gap-4 overflow-x-auto pb-4" style={{ minHeight: 'calc(100vh - 140px)' }}>
         {board.columns.map((column) => (
-          <KanbanColumn key={column.id} column={column} />
+          <KanbanColumn
+            key={column.id}
+            column={column}
+            onWipLimitChange={(columnId, wipLimit) => wipMutation.mutate({ columnId, wipLimit })}
+          />
         ))}
       </div>
       <DragOverlay>

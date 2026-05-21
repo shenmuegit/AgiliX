@@ -71,8 +71,8 @@ export function ReportsPage() {
       </div>
 
       {tab === 'burndown' && (
-        <div className="rounded-lg border border-[var(--color-border)] bg-white p-6">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="rounded-lg border border-[var(--color-border)] bg-white p-3 md:p-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-medium">Sprint 燃尽图</h3>
             <select
               value={burndownSprintId ?? ''}

@@ -29,7 +29,6 @@ interface SprintIssue {
   title: string
   type: string
   priority: string
-  storyPoints: number | null
   status: { name: string; color: string; category: string }
   assignee: { name: string; avatarUrl: string | null } | null
 }
@@ -77,7 +76,7 @@ export function SprintPage() {
     mutationFn: (sprintId: string) => api.post(`/sprints/${sprintId}/complete`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sprints', projectId] })
-      queryClient.invalidateQueries({ queryKey: ['backlog', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['board', projectId] })
     },
   })
 
@@ -85,8 +84,6 @@ export function SprintPage() {
   const sprintDetail = detailData?.data
   const sprintIssues = sprintDetail?.issues ?? []
   const doneCount = sprintIssues.filter((i) => i.status.category === 'DONE').length
-  const totalPoints = sprintIssues.reduce((s, i) => s + (i.storyPoints ?? 0), 0)
-  const donePoints = sprintIssues.filter((i) => i.status.category === 'DONE').reduce((s, i) => s + (i.storyPoints ?? 0), 0)
 
   function handleCreate() {
     const input: Record<string, string> = { name: form.name }
@@ -180,17 +177,17 @@ export function SprintPage() {
             return (
               <div key={sprint.id} className="rounded-lg border border-[var(--color-border)] bg-white">
                 <div
-                  className="flex cursor-pointer items-center justify-between p-5"
+                  className="flex cursor-pointer flex-wrap items-center justify-between gap-2 p-3 md:p-5"
                   onClick={() => setExpandedId(isExpanded ? null : sprint.id)}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3">
                     <span className="text-xs text-[var(--color-text-secondary)]">{isExpanded ? '▼' : '▶'}</span>
-                    <h3 className="font-medium">{sprint.name}</h3>
+                    <h3 className="font-medium text-sm md:text-base">{sprint.name}</h3>
                     <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[sprint.status]}`}>
                       {STATUS_LABELS[sprint.status]}
                     </span>
                     {sprint.startDate && sprint.endDate && (
-                      <span className="text-xs text-[var(--color-text-secondary)]">
+                      <span className="hidden sm:inline text-xs text-[var(--color-text-secondary)]">
                         {new Date(sprint.startDate).toLocaleDateString('zh-CN')} — {new Date(sprint.endDate).toLocaleDateString('zh-CN')}
                       </span>
                     )}
@@ -211,7 +208,7 @@ export function SprintPage() {
                         disabled={completeMutation.isPending}
                         className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                       >
-                        完成 Sprint
+                        完成
                       </button>
                     )}
                   </div>
@@ -223,9 +220,8 @@ export function SprintPage() {
 
                 {isExpanded && sprintDetail && (
                   <div className="border-t border-[var(--color-border)]">
-                    <div className="flex items-center gap-6 px-5 py-3 text-xs text-[var(--color-text-secondary)]">
+                    <div className="flex flex-wrap items-center gap-3 md:gap-6 px-3 md:px-5 py-3 text-xs text-[var(--color-text-secondary)]">
                       <span>Issue: {doneCount}/{sprintIssues.length}</span>
-                      <span>Story Points: {donePoints}/{totalPoints}</span>
                       {sprintIssues.length > 0 && (
                         <div className="flex items-center gap-2 flex-1">
                           <div className="h-2 flex-1 rounded-full bg-gray-100 overflow-hidden">
@@ -249,24 +245,21 @@ export function SprintPage() {
                           <div
                             key={issue.id}
                             onClick={() => openIssueDrawer(issue.id)}
-                            className="flex cursor-pointer items-center gap-4 border-t border-[var(--color-border)] px-5 py-3 hover:bg-gray-50 transition-colors"
+                            className="flex cursor-pointer items-center gap-2 md:gap-4 border-t border-[var(--color-border)] px-3 md:px-5 py-3 hover:bg-gray-50 transition-colors"
                           >
-                            <span className="text-xs font-medium" style={{ color: ISSUE_TYPE_CONFIG[issue.type as IssueType]?.color }}>
+                            <span className="text-xs font-medium shrink-0" style={{ color: ISSUE_TYPE_CONFIG[issue.type as IssueType]?.color }}>
                               {ISSUE_TYPE_CONFIG[issue.type as IssueType]?.label}
                             </span>
-                            <span className="w-20 text-xs text-[var(--color-text-secondary)]">{issue.key}</span>
-                            <span className="flex-1 text-sm">{issue.title}</span>
-                            <span className="text-xs" style={{ color: PRIORITY_CONFIG[issue.priority as Priority]?.color }}>
+                            <span className="hidden sm:inline w-20 text-xs text-[var(--color-text-secondary)] shrink-0">{issue.key}</span>
+                            <span className="flex-1 truncate text-sm">{issue.title}</span>
+                            <span className="hidden sm:inline text-xs shrink-0" style={{ color: PRIORITY_CONFIG[issue.priority as Priority]?.color }}>
                               {PRIORITY_CONFIG[issue.priority as Priority]?.label}
                             </span>
-                            {issue.storyPoints != null && (
-                              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px]">{issue.storyPoints} SP</span>
-                            )}
-                            <span className="rounded px-2 py-0.5 text-xs text-white" style={{ backgroundColor: issue.status.color }}>
+                            <span className="rounded px-1.5 md:px-2 py-0.5 text-[10px] md:text-xs text-white shrink-0" style={{ backgroundColor: issue.status.color }}>
                               {issue.status.name}
                             </span>
                             {issue.assignee && (
-                              <span className="text-xs text-[var(--color-text-secondary)]">{issue.assignee.name}</span>
+                              <span className="hidden md:inline text-xs text-[var(--color-text-secondary)] shrink-0">{issue.assignee.name}</span>
                             )}
                           </div>
                         ))}

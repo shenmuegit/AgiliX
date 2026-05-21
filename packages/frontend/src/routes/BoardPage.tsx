@@ -10,7 +10,7 @@ import type { Project } from '@agilix/shared'
 export function BoardPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const setCurrentProject = useProjectStore((s) => s.setCurrentProject)
-  const [filter, setFilter] = useState<BoardFilter>({ type: '', priority: '', assigneeId: '', search: '' })
+  const [filter, setFilter] = useState<BoardFilter>({ type: '', priority: '', search: '' })
 
   const { data: projectData } = useQuery({
     queryKey: ['project', projectId],
@@ -29,20 +29,9 @@ export function BoardPage() {
     enabled: !!projectId,
   })
 
-  const assignees = useMemo(() => {
-    if (!boardData?.data) return []
-    const map = new Map<string, { id: string; name: string }>()
-    for (const col of boardData.data.columns) {
-      for (const issue of col.issues) {
-        if (issue.assignee) map.set(issue.assignee.id, issue.assignee)
-      }
-    }
-    return Array.from(map.values())
-  }, [boardData])
-
   const filteredBoard = useMemo(() => {
     if (!boardData?.data) return null
-    const hasFilter = filter.type || filter.priority || filter.assigneeId || filter.search
+    const hasFilter = filter.type || filter.priority || filter.search
     if (!hasFilter) return boardData.data
 
     return {
@@ -52,8 +41,6 @@ export function BoardPage() {
         issues: col.issues.filter((issue) => {
           if (filter.type && issue.type !== filter.type) return false
           if (filter.priority && issue.priority !== filter.priority) return false
-          if (filter.assigneeId === 'unassigned' && issue.assignee) return false
-          if (filter.assigneeId && filter.assigneeId !== 'unassigned' && issue.assignee?.id !== filter.assigneeId) return false
           if (filter.search && !issue.title.toLowerCase().includes(filter.search.toLowerCase()) && !issue.key.toLowerCase().includes(filter.search.toLowerCase())) return false
           return true
         }),
@@ -71,7 +58,7 @@ export function BoardPage() {
 
   return (
     <div>
-      <BoardFilters filter={filter} onChange={setFilter} assignees={assignees} />
+      <BoardFilters filter={filter} onChange={setFilter} />
       <KanbanBoard board={filteredBoard} />
     </div>
   )
@@ -91,10 +78,8 @@ interface BoardResponse {
       title: string
       type: string
       priority: string
-      storyPoints: number | null
       columnOrder: number
       status: { id: string; name: string; category: string; color: string }
-      assignee: { id: string; name: string; avatarUrl: string | null } | null
       labels: Array<{ label: { id: string; name: string; color: string } }>
     }>
   }>
