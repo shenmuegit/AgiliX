@@ -1,0 +1,8 @@
+name = "agilix-api"
+compatibility_date = "2026-05-18"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agilix-v2-db"
+database_id = "0a81d3c1-1326-4b22-a63b-5b9c3ab67ff1"
+migrations_dir = "drizzle"

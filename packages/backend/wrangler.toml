@@ -11,6 +11,6 @@ FEISHU_APP_SECRET = "dev"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "agilix-db"
+database_name = "agilix-v2-db"
 database_id = "local"
 migrations_dir = "drizzle"

@@ -8,11 +8,11 @@
     "build": "wrangler deploy --dry-run",
     "deploy": "echo 'Backend deploys via Pages Functions. Run pnpm deploy from root.'",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:local": "wrangler d1 migrations apply agilix-db --local",
-    "db:migrate:remote": "wrangler d1 migrations apply agilix-db --remote",
+    "db:migrate:local": "wrangler d1 migrations apply agilix-v2-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply agilix-v2-db --remote",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "wrangler d1 execute agilix-db --local --file=./drizzle/seed.sql",
-    "test": "vitest run --passWithNoTests"
+    "db:seed": "wrangler d1 execute agilix-v2-db --local --file=./drizzle/seed.sql",
+    "test": "vitest run"
   },
   "dependencies": {
     "@agilix/shared": "workspace:*",
