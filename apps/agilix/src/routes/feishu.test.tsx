@@ -12,7 +12,7 @@ describe('FeishuPage', () => {
     render(<FeishuPage data={seedData} onNotify={onNotify} onQuery={onQuery} />)
 
     expect(screen.getByRole('heading', { name: '飞书通知与查询' })).toBeInTheDocument()
-    expect(screen.getByText('AgiliX 团队群')).toBeInTheDocument()
+    expect(screen.getAllByText('AgiliX 团队群').length).toBeGreaterThan(0)
     expect(screen.getByText('站会摘要')).toBeInTheDocument()
     expect(screen.getByText('/team')).toBeInTheDocument()
     expect(screen.getByText('/blockers')).toBeInTheDocument()

@@ -35,7 +35,7 @@ describe('App API wiring', () => {
     expect(client.recordedMilestoneSaves()).toContain('ms-beta')
     await waitFor(() => expect(client.loadCount()).toBeGreaterThan(milestoneLoadCount))
 
-    await userEvent.click(screen.getByRole('link', { name: '飞书' }))
+    await userEvent.click(screen.getByRole('link', { name: '群机器人' }))
     await userEvent.click(await screen.findByRole('button', { name: '记录 站会摘要' }))
     expect(client.recordedFeishuNotifications()).toContain('站会摘要')
 

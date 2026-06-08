@@ -17,6 +17,8 @@ export function FeishuPage({
   onQuery: (command: FeishuQueryCommand) => Promise<Reply>
 }) {
   const [reply, setReply] = useState<Reply | null>(null)
+  const group = data.feishu.groups[0]
+  if (!group) throw new Error('Feishu group not found')
 
   async function runQuery(command: FeishuQueryCommand) {
     setReply(await onQuery(command))
@@ -40,7 +42,7 @@ export function FeishuPage({
         <article>
           <span>绑定群</span>
           <strong>{data.feishu.groups.length}</strong>
-          <em>研发小队</em>
+          <em>{group}</em>
         </article>
         <article>
           <span>通知类型</span>
@@ -64,7 +66,7 @@ export function FeishuPage({
           <div className="panel-h">
             <div>
               <span>群</span>
-              <h2>单群通知 · 研发小队</h2>
+              <h2>单群通知 · {group}</h2>
             </div>
             <span className="tag ok">已连接</span>
           </div>

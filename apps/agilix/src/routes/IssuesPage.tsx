@@ -1,32 +1,24 @@
+import { Fragment } from 'react'
 import { ProjectFilter, type ProjectFilterValue } from '../components/ProjectFilter'
-import type { SeedData } from '../domain/types'
-
-const ledgerRows = [
-  { group: '史诗 · 召回与语义' },
-  { key: 'SRCH-198', type: 'S', title: '召回阶段引入语义向量检索', priority: '高', status: '进行中', badge: 'b-doing', assignee: '高远', avatar: '高', points: 8, updated: '2 小时前' },
-  { key: 'SRCH-209', type: 'B', title: '空格开头的 query 命中率骤降', priority: '高', status: '进行中', badge: 'b-doing', assignee: '苏晴', avatar: '苏', points: 3, updated: '40 分钟前' },
-  { key: 'SRCH-224', type: 'D', title: '统一检索网关的超时与降级策略', priority: '中', status: '待办', badge: 'b-todo', assignee: '何川', avatar: '何', points: 8, updated: '昨天' },
-  { key: 'SRCH-177', type: 'S', title: '联想词接口缓存与防抖', priority: '中', status: '测试', badge: 'b-block', assignee: '高远', avatar: '高', points: 3, updated: '今天 09:20' },
-  { group: '史诗 · 结果页体验' },
-  { key: 'SRCH-212', type: 'S', title: '结果卡片重设计 · 摘要高亮与来源标', priority: '中', status: '进行中', badge: 'b-doing', assignee: '陈牧', avatar: '陈', points: 5, updated: '1 小时前', extra: '审批 · 设计评审' },
-  { key: 'SRCH-218', type: 'S', title: '结果页支持「按团队/项目」二级聚合', priority: '高', status: '待办', badge: 'b-todo', assignee: '陈牧', avatar: '陈', points: 5, updated: '昨天' },
-  { key: 'SRCH-190', type: 'B', title: '高亮在中英混排下偶发错位', priority: '中', status: '测试', badge: 'b-block', assignee: '陈牧', avatar: '陈', points: 2, updated: '今天 11:05' },
-  { key: 'SRCH-205', type: 'S', title: '移动端搜索框联想词键盘上下选择', priority: '中', status: '待办', badge: 'b-todo', assignee: '周屿', avatar: '周', points: 3, updated: '2 天前' },
-  { key: 'SRCH-186', type: 'S', title: '搜索历史与「我的收藏」打通', priority: '中', status: '评审', badge: 'b-review', assignee: '周屿', avatar: '周', points: 5, updated: '3 小时前' },
-  { group: '史诗 · 检索基建' },
-  { key: 'SRCH-201', type: 'D', title: '检索日志接入多维表格做留存分析', priority: '低', status: '评审', badge: 'b-review', assignee: '林夏', avatar: '林', points: 3, updated: '今天 10:40', feishu: true },
-  { key: 'SRCH-170', type: 'D', title: '检索指标看板上线(P95 / 空结果率)', priority: '高', status: '已完成', badge: 'b-done', assignee: '何川', avatar: '何', points: 5, updated: '2 天前' },
-  { key: 'SRCH-231', type: 'T', title: '整理近 30 天高频空结果 query 清单', priority: '低', status: '待办', badge: 'b-todo', assignee: '林夏', avatar: '林', points: 2, updated: '昨天' },
-]
+import type { Issue, SeedData } from '../domain/types'
+import { getActiveIteration, getIteration, getMember, getProject, issuesForProjectFilter, issueTypeLabel, memberInitial, priorityMeta, statusMeta, sumPoints } from '../domain/view-models'
 
 export function IssuesPage({ data, projectId, onProjectChange }: { data: SeedData; projectId: ProjectFilterValue; onProjectChange: (projectId: ProjectFilterValue) => void }) {
+  const issues = issuesForProjectFilter(data, projectId)
+  const selectedProject = projectId === 'all' ? null : getProject(data, projectId)
+  const selectedIteration = selectedProject ? getActiveIteration(data, selectedProject) : null
+  const groups = groupIssues(data, issues)
+  const doingCount = issues.filter((issue) => issue.status === 'doing').length
+  const bugCount = issues.filter((issue) => issue.type === 'bug').length
+  const assigneeCount = new Set(issues.map((issue) => issue.assigneeId)).size
+
   return (
     <>
       <header className="top">
         <div className="top-title">
           <h1>需求 & 缺陷</h1>
           <div className="sub">
-            <span>搜索体验重构 · 工作项台账</span>
+            <span>{selectedIteration ? `${selectedIteration.name} · 工作项台账` : '全部项目 · 工作项台账'}</span>
           </div>
         </div>
         <div className="top-sp" />
@@ -46,12 +38,12 @@ export function IssuesPage({ data, projectId, onProjectChange }: { data: SeedDat
           <button>缺陷</button>
           <button>技术债</button>
         </div>
-        <div className="chip-flat">状态:进行中 +2</div>
-        <div className="chip-flat">迭代:S24</div>
-        <div className="chip-flat">经办:全部</div>
+        <div className="chip-flat">状态:进行中 +{doingCount}</div>
+        <div className="chip-flat">迭代:{selectedProject ? selectedProject.activeIterationCode : '全部'}</div>
+        <div className="chip-flat">经办:{assigneeCount} 人</div>
         <ProjectFilter projects={data.projects} value={projectId} onChange={onProjectChange} />
         <div className="top-sp" />
-        <span className="label">58 项 · 故事点 182 · 缺陷 9</span>
+        <span className="label">{issues.length} 项 · 故事点 {sumPoints(issues)} · 缺陷 {bugCount}</span>
       </div>
       <main className="lg-body">
         <table className="lg-table">
@@ -67,51 +59,68 @@ export function IssuesPage({ data, projectId, onProjectChange }: { data: SeedDat
             </tr>
           </thead>
           <tbody>
-            {ledgerRows.map((row) =>
-              'group' in row ? (
-                <tr className="grp-row" key={row.group}>
+            {groups.map((group) => (
+              <Fragment key={group.label}>
+                <tr className="grp-row" key={group.label}>
                   <td colSpan={7}>
-                    <span className="label">{row.group}</span>
+                    <span className="label">{group.label}</span>
                   </td>
                 </tr>
-              ) : (
-                <tr key={row.key}>
+                {group.issues.map((issue) => {
+                  const member = getMember(data, issue.assigneeId)
+                  const iteration = getIteration(data, issue.iterationId)
+                  return (
+                <tr key={issue.key}>
                   <td>
-                    <span className="wid">{row.key}</span>
+                    <span className="wid">{issue.key}</span>
                   </td>
                   <td>
                     <div className="lg-title">
-                      <span className="type-tag">{row.type}</span>
-                      <span>{row.title}</span>
-                      {row.feishu ? <span className="feishu-dot">飞书</span> : null}
-                      {row.extra ? <span className="badge b-review">{row.extra}</span> : null}
+                      <span className="type-tag">{issueTypeLabel[issue.type]}</span>
+                      <span>{issue.title}</span>
+                      {issue.linkedDocIds.length > 0 ? <span className="feishu-dot">文档</span> : null}
                     </div>
                   </td>
                   <td>
-                    <span className={`pri ${row.priority === '高' ? 'p1' : row.priority === '中' ? 'p2' : 'p3'}`}>{row.priority}</span>
+                    <span className={`pri ${priorityMeta[issue.priority].className}`}>{priorityMeta[issue.priority].label}</span>
                   </td>
                   <td>
-                    <span className={`badge ${row.badge}`}>
+                    <span className={`badge ${statusMeta[issue.status].badgeClass}`}>
                       <span className="dot" />
-                      {row.status}
+                      {statusMeta[issue.status].label}
                     </span>
                   </td>
                   <td>
                     <div className="assignee">
-                      <div className="av sm">{row.avatar}</div>
-                      {row.assignee}
+                      <div className="av sm">{memberInitial(member)}</div>
+                      {member.name}
                     </div>
                   </td>
                   <td className="r">
-                    <span className="num">{row.points}</span>
+                    <span className="num">{issue.storyPoints}</span>
                   </td>
-                  <td className="r muted">{row.updated}</td>
+                  <td className="r muted">{iteration.code} · 第 {iteration.day} 天</td>
                 </tr>
-              ),
-            )}
+                  )
+                })}
+              </Fragment>
+            ))}
           </tbody>
         </table>
       </main>
     </>
   )
+}
+
+function groupIssues(data: SeedData, issues: Issue[]) {
+  const groups = new Map<string, { label: string; issues: Issue[] }>()
+  for (const issue of issues) {
+    const project = getProject(data, issue.projectId)
+    const iteration = getIteration(data, issue.iterationId)
+    const label = `${project.name} · ${iteration.name}`
+    const group = groups.get(label) ?? { label, issues: [] }
+    group.issues.push(issue)
+    groups.set(label, group)
+  }
+  return Array.from(groups.values())
 }

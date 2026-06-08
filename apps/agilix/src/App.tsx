@@ -14,7 +14,9 @@ import { StatsPage } from './routes/StatsPage'
 import { TeamPage } from './routes/TeamPage'
 import { WorkloadPage } from './routes/WorkloadPage'
 
-export function App({ client = createAgiliXClient() }: { client?: AgiliXClient }) {
+const defaultAgiliXClient = createAgiliXClient((input, init) => fetch(input, init))
+
+export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient }) {
   const [active, setActive] = useState<NavItem>('团队工作台')
   const [projectId, setProjectId] = useState<ProjectFilterValue>('search')
   const [data, setData] = useState<SeedData | null>(null)
@@ -117,7 +119,7 @@ export function App({ client = createAgiliXClient() }: { client?: AgiliXClient }
   }
 
   return (
-    <Shell active={active} onNavigate={setActive}>
+    <Shell active={active} onNavigate={setActive} data={loadedData} projectId={projectId}>
       {page[active]}
     </Shell>
   )

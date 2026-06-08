@@ -12,18 +12,18 @@ describe('DocsPage', () => {
     render(<DocsPage data={seedData} projectId="all" onAddComment={onAddComment} onCreateDoc={onCreateDoc} />)
 
     expect(screen.getByRole('heading', { name: '文档' })).toBeInTheDocument()
-    expect(screen.getAllByText('全局文档').length).toBeGreaterThanOrEqual(2)
-    expect(screen.getAllByText('项目文档').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('全局文档').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText('项目文档').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('统一目录、评论与关联 Issue')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('搜索标题、正文、评论')).toBeInTheDocument()
-    expect(screen.getAllByText('结果卡片重设计方案').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('结果卡片重设计方案').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('灰度发布检查清单')).toBeInTheDocument()
     expect(screen.getByText('SRCH-186')).toBeInTheDocument()
     expect(screen.getByText('Selected Document')).toBeInTheDocument()
     expect(screen.getByText('飞书查询示例')).toBeInTheDocument()
 
     await userEvent.type(screen.getByRole('searchbox', { name: '搜索文档' }), '结果卡片')
-    expect(screen.getAllByText('结果卡片重设计方案').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText('结果卡片重设计方案').length).toBeGreaterThanOrEqual(1)
     expect(screen.queryByText('灰度发布检查清单')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '新增评论' }))

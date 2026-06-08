@@ -1,38 +1,35 @@
-import type { SeedData } from '../domain/types'
+import type { Issue, Member, SeedData } from '../domain/types'
+import { memberInitial, sumPoints } from '../domain/view-models'
 
-const workloadRows = [
-  ['高远', '后端 · 检索召回', 116, 3, 4, 21, '46/40', '超载', 'ls-over'],
-  ['苏晴', '后端 · 语义服务', 104, 2, 2, 18, '42/40', '超载', 'ls-over'],
-  ['陈牧', '前端 · 结果页', 95, 2, 5, 19, '38/40', '偏紧', 'ls-tight'],
-  ['韩雪', '测试 · QA', 78, 2, 6, 13, '31/40', '偏紧', 'ls-tight'],
-  ['林夏', '负责人 · PM', 75, 1, 3, 7, '18/24', '均衡', 'ls-ok'],
-  ['何川', '架构 · 网关', 70, 1, 2, 13, '28/40', '均衡', 'ls-ok'],
-  ['周屿', '前端 · 移动端', 63, 1, 3, 11, '25/40', '均衡', 'ls-ok'],
-  ['江月', '设计 · 体验', 44, 0, 2, 4, '14/32', '有余量', 'ls-light'],
-] as const
+export function WorkloadPage({ data }: { data: SeedData }) {
+  const rows = data.members.map((member) => buildRow(data, member)).sort((left, right) => right.pct - left.pct)
+  const totalCapacity = data.members.reduce((sum, member) => sum + member.capacity, 0)
+  const allocated = rows.reduce((sum, row) => sum + row.points, 0)
+  const overloaded = rows.filter((row) => row.pct > 100)
+  const available = rows.filter((row) => row.pct < 70)
+  const overall = totalCapacity === 0 ? 0 : Math.round((allocated / totalCapacity) * 100)
 
-export function WorkloadPage(_props: { data: SeedData }) {
   return (
     <>
       <header className="top">
         <div className="top-title">
           <h1>成员负载</h1>
           <div className="sub">
-            <span>Sprint 24 · 搜索体验重构</span>
+            <span>全部项目 · 当前迭代</span>
             <span>·</span>
-            <span>第 7 / 10 天</span>
+            <span>{data.members.length} 人</span>
           </div>
         </div>
         <div className="top-sp" />
-        <div className="feishu-dot">成员同步自飞书通讯录</div>
+        <div className="feishu-dot">{data.feishu.groups[0]}</div>
         <button className="btn btn-ghost">分配工单</button>
       </header>
       <main className="wl-body">
         <div className="summary">
-          <Summary label="团队总容量" value="320" unit="人时" note="8 人 · 本迭代两周" />
-          <Summary label="已分配" value="291" unit="人时" note="91% 整体负载" />
-          <Summary label="需关注" value="2" unit="人超载" note="高远 116% · 苏晴 104%" danger />
-          <Summary label="可承接" value="3" unit="人有余量" note="江月 · 周屿 · 何川" success />
+          <Summary label="团队总容量" value={String(totalCapacity)} unit="pt" note={`${data.members.length} 人 · 当前数据`} />
+          <Summary label="已分配" value={String(allocated)} unit="pt" note={`${overall}% 整体负载`} />
+          <Summary label="需关注" value={String(overloaded.length)} unit="人超载" note={overloaded.map((row) => `${row.member.name} ${row.pct}%`).join(' · ')} danger />
+          <Summary label="可承接" value={String(available.length)} unit="人有余量" note={available.map((row) => row.member.name).join(' · ')} success />
         </div>
         <table className="wl-table">
           <thead>
@@ -41,48 +38,51 @@ export function WorkloadPage(_props: { data: SeedData }) {
               <th>本迭代负载</th>
               <th>在办</th>
               <th className="r">分配点数</th>
-              <th className="r">容量 / 人时</th>
+              <th className="r">容量</th>
               <th className="r">状态</th>
             </tr>
           </thead>
           <tbody>
-            {workloadRows.map(([name, role, pct, doing, done, points, capacity, status, statusClass]) => (
-              <tr key={name}>
+            {rows.map((row) => (
+              <tr key={row.member.id}>
                 <td>
                   <div className="who-cell">
-                    <div className="av lg">{name[0]}</div>
+                    <div className="av lg">{memberInitial(row.member)}</div>
                     <div>
-                      <div className="nm">{name}</div>
-                      <div className="rl">{role}</div>
+                      <div className="nm">{row.member.name}</div>
+                      <div className="rl">{row.member.role}</div>
                     </div>
                   </div>
                 </td>
                 <td>
                   <div className="loadbar-wrap">
                     <div className="loadbar">
-                      <i style={{ width: `${Math.min(pct, 100)}%` }} />
+                      <i style={{ width: `${Math.min(row.pct, 100)}%` }} />
                       <span className="cap" />
                     </div>
-                    <span className="num">{pct}%</span>
+                    <span className="num">{row.pct}%</span>
                   </div>
                 </td>
                 <td>
                   <div className="mini-tasks">
-                    {Array.from({ length: doing }).map((_, index) => (
-                      <i key={`doing-${index}`} />
+                    {row.activeIssues.map((issue) => (
+                      <i key={issue.key} title={issue.title} />
                     ))}
-                    {Array.from({ length: done }).map((_, index) => (
-                      <i className="done-i" key={`done-${index}`} />
+                    {row.doneIssues.map((issue) => (
+                      <i className="done-i" key={issue.key} title={issue.title} />
                     ))}
                   </div>
-                  <div className="muted">{doing} 在办 · {done} 完成</div>
+                  <div className="muted">
+                    {row.activeIssues.length} 在办 · {row.doneIssues.length} 完成
+                  </div>
+                  <div className="muted">{row.issueTitles}</div>
                 </td>
                 <td className="r">
-                  <span className="num">{points}</span> pt
+                  <span className="num">{row.points}</span> pt
                 </td>
-                <td className="r">{capacity}</td>
+                <td className="r">{row.points}/{row.member.capacity}</td>
                 <td className="r">
-                  <span className={`lstat ${statusClass}`}>{status}</span>
+                  <span className={`lstat ${row.statusClass}`}>{row.status}</span>
                 </td>
               </tr>
             ))}
@@ -91,6 +91,30 @@ export function WorkloadPage(_props: { data: SeedData }) {
       </main>
     </>
   )
+}
+
+function buildRow(data: SeedData, member: Member) {
+  const issues = data.issues.filter((issue) => issue.assigneeId === member.id)
+  const activeIssues = issues.filter((issue) => issue.status !== 'done')
+  const doneIssues = issues.filter((issue) => issue.status === 'done')
+  const points = sumPoints(issues)
+  const pct = member.capacity === 0 ? 0 : Math.round((points / member.capacity) * 100)
+  const status = pct > 100 ? '超载' : pct >= 80 ? '偏紧' : pct >= 50 ? '均衡' : '有余量'
+  const statusClass = pct > 100 ? 'ls-over' : pct >= 80 ? 'ls-tight' : pct >= 50 ? 'ls-ok' : 'ls-light'
+  return {
+    member,
+    activeIssues,
+    doneIssues,
+    points,
+    pct,
+    status,
+    statusClass,
+    issueTitles: issueTitles(activeIssues),
+  }
+}
+
+function issueTitles(issues: Issue[]): string {
+  return issues.map((issue) => issue.title).join(' · ')
 }
 
 function Summary({ label, value, unit, note, danger, success }: { label: string; value: string; unit: string; note: string; danger?: boolean; success?: boolean }) {

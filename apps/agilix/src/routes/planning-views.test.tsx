@@ -24,9 +24,9 @@ describe('planning statistics and workload routes', () => {
     render(<WorkloadPage data={seedData} />)
 
     expect(screen.getByRole('heading', { name: '成员负载' })).toBeInTheDocument()
-    expect(screen.getByText('成员同步自飞书通讯录')).toBeInTheDocument()
+    expect(screen.getByText('全部项目 · 当前迭代')).toBeInTheDocument()
     expect(screen.getByText('高远')).toBeInTheDocument()
-    expect(screen.getByText('后端 · 检索召回')).toBeInTheDocument()
+    expect(screen.getByText('Backend')).toBeInTheDocument()
   })
 
   it('renders daily standup content and exposes a save callback', async () => {
@@ -34,7 +34,7 @@ describe('planning statistics and workload routes', () => {
     render(<StandupPage data={seedData} projectId="search" onSaveStandup={onSaveStandup} />)
 
     expect(screen.getByRole('heading', { name: '每日站会' })).toBeInTheDocument()
-    expect(screen.getByText('关联飞书日历 · 每日 10:00')).toBeInTheDocument()
+    expect(screen.getByText('AgiliX 团队群 · 10:00-10:15')).toBeInTheDocument()
     expect(screen.getAllByText('昨日完成').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('今日计划')).toBeInTheDocument()
     expect(screen.getByText('阻塞 / 求助')).toBeInTheDocument()
@@ -49,7 +49,7 @@ describe('planning statistics and workload routes', () => {
 
     expect(screen.getByRole('heading', { name: '排期甘特' })).toBeInTheDocument()
     expect(screen.getByText('里程碑')).toBeInTheDocument()
-    expect(screen.getByText('灰度上线')).toBeInTheDocument()
+    expect(screen.getByText('Beta 开关接入')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: '保存 Beta 开关接入' }))
     expect(onSaveMilestone).toHaveBeenCalledWith(seedData.milestones[1])

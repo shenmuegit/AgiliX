@@ -25,7 +25,7 @@ describe('issues ledger and board routes', () => {
 
     expect(screen.getByRole('heading', { name: '看板' })).toBeInTheDocument()
     expect(screen.getAllByText('评审').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('测试')).toBeInTheDocument()
+    expect(screen.getAllByText('阻塞').length).toBeGreaterThanOrEqual(1)
 
     await userEvent.click(screen.getByRole('button', { name: 'SRCH-186 完成' }))
     expect(onMoveIssue).toHaveBeenCalledWith('SRCH-186', 'done')

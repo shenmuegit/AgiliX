@@ -18,7 +18,7 @@ afterEach(() => cleanup())
 describe('prototype parity for core screens', () => {
   it('renders the editorial ledger shell around the team workbench', () => {
     const { container } = render(
-      <Shell active="团队工作台" onNavigate={vi.fn()}>
+      <Shell active="团队工作台" onNavigate={vi.fn()} data={seedData} projectId="search">
         <TeamPage data={seedData} />
       </Shell>,
     )
@@ -29,10 +29,10 @@ describe('prototype parity for core screens', () => {
     expect(screen.getByText('研发台账')).toBeInTheDocument()
     expect(screen.getByText('4 个项目 · 8 人')).toBeInTheDocument()
     expect(screen.getByText('当前项目')).toBeInTheDocument()
-    expect(screen.getByText('搜索平台')).toBeInTheDocument()
+    expect(screen.getAllByText('搜索平台').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByRole('link', { name: /团队工作台/ })).toHaveClass('on')
     expect(screen.getByText('AgiliX 主工作台')).toBeInTheDocument()
-    expect(screen.getByText('单群通知 · 研发小队')).toBeInTheDocument()
+    expect(screen.getByText('单群通知 · AgiliX 团队群')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /新建 Issue/ })).toBeInTheDocument()
   })
 
@@ -51,9 +51,9 @@ describe('prototype parity for core screens', () => {
     expect(screen.getByText('飞书群会看到什么')).toBeInTheDocument()
     expect(screen.getByText('代码动态')).toBeInTheDocument()
     expect(container.querySelectorAll('.person-row')).toHaveLength(4)
-    expect(container.querySelectorAll('.todo')).toHaveLength(3)
+    expect(container.querySelectorAll('.todo')).toHaveLength(4)
     expect(screen.getByText('SRCH-198 向量召回 beta 开关接入')).toBeInTheDocument()
-    expect(screen.getByText('/docs 搜索方案')).toBeInTheDocument()
+    expect(screen.getByText('/docs 结果卡片')).toBeInTheDocument()
   })
 
   it('matches the document management prototype layout', () => {
@@ -78,7 +78,7 @@ describe('prototype parity for core screens', () => {
     expect(screen.getByPlaceholderText('搜索标题、正文、评论')).toBeInTheDocument()
     expect(screen.getByText('全部文档')).toBeInTheDocument()
     expect(screen.getAllByText('最近更新').length).toBeGreaterThanOrEqual(2)
-    expect(container.querySelectorAll('.doc-row-lg')).toHaveLength(5)
+    expect(container.querySelectorAll('.doc-row-lg')).toHaveLength(3)
     expect(screen.getByText('Selected Document')).toBeInTheDocument()
     expect(screen.getByText('飞书查询示例')).toBeInTheDocument()
   })
@@ -92,7 +92,7 @@ describe('prototype parity for core screens', () => {
     expect(screen.getByText('研发组合 · 4 个进行中项目')).toBeInTheDocument()
     expect(screen.getByText('每周一推送组合周报')).toBeInTheDocument()
     expect(screen.getByText('本周完成点数')).toBeInTheDocument()
-    expect(screen.getByText('开放平台 · 鉴权依赖')).toBeInTheDocument()
+    expect(screen.getByText(/鉴权重构/)).toBeInTheDocument()
     expect(screen.getByText(/搜索体验重构/)).toBeInTheDocument()
     expect(screen.getAllByText('近五迭代速度')).toHaveLength(4)
   })
@@ -104,10 +104,9 @@ describe('prototype parity for core screens', () => {
     expect(container.querySelector('.lg-table')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '需求 & 缺陷' })).toBeInTheDocument()
     expect(screen.getByText('搜索体验重构 · 工作项台账')).toBeInTheDocument()
-    expect(screen.getByText('状态:进行中 +2')).toBeInTheDocument()
-    expect(screen.getByText('史诗 · 召回与语义')).toBeInTheDocument()
-    expect(screen.getByText('史诗 · 结果页体验')).toBeInTheDocument()
-    expect(screen.getByText('检索日志接入多维表格做留存分析')).toBeInTheDocument()
+    expect(screen.getByText('状态:进行中 +1')).toBeInTheDocument()
+    expect(screen.getByText('搜索平台 · 搜索体验重构')).toBeInTheDocument()
+    expect(screen.getByText('检索日志接入留存分析')).toBeInTheDocument()
     expect(screen.getByText('新建工单')).toBeInTheDocument()
   })
 
@@ -118,13 +117,13 @@ describe('prototype parity for core screens', () => {
     expect(container.querySelector('.toolbar')).toBeInTheDocument()
     expect(container.querySelector('.board')).toBeInTheDocument()
     expect(container.querySelectorAll('.col')).toHaveLength(5)
-    expect(container.querySelectorAll('.card')).toHaveLength(14)
+    expect(container.querySelectorAll('.card')).toHaveLength(5)
     expect(screen.getByText('搜索体验重构')).toBeInTheDocument()
-    expect(screen.getByText('机器人已同步')).toBeInTheDocument()
+    expect(screen.getByText('AgiliX 团队群')).toBeInTheDocument()
     expect(screen.getByText('表格')).toBeInTheDocument()
     expect(screen.getByText('时间线')).toBeInTheDocument()
-    expect(screen.getByText('召回阶段引入语义向量检索(beta 开关)')).toBeInTheDocument()
-    expect(screen.getByText('检索日志接入多维表格做留存分析')).toBeInTheDocument()
+    expect(screen.getByText('向量召回 beta 开关接入')).toBeInTheDocument()
+    expect(screen.getByText('检索日志接入留存分析')).toBeInTheDocument()
   })
 
   it('matches the iteration statistics prototype layout', () => {
@@ -133,11 +132,11 @@ describe('prototype parity for core screens', () => {
     expect(container.querySelector('.st-body')).toBeInTheDocument()
     expect(container.querySelector('.metric-strip')).toBeInTheDocument()
     expect(container.querySelector('.grid2')).toBeInTheDocument()
-    expect(screen.getByText('每日 18:00 推送至群')).toBeInTheDocument()
+    expect(screen.getByText('AgiliX 团队群')).toBeInTheDocument()
     expect(screen.getByText('故事点燃尽')).toBeInTheDocument()
     expect(screen.getByText('已完成 / 计划')).toBeInTheDocument()
     expect(screen.getByText('工作项分布')).toBeInTheDocument()
-    expect(screen.getByText('准时')).toBeInTheDocument()
+    expect(screen.getByText('有风险')).toBeInTheDocument()
   })
 
   it('matches the workload prototype layout', () => {
@@ -146,10 +145,9 @@ describe('prototype parity for core screens', () => {
     expect(container.querySelector('.wl-body')).toBeInTheDocument()
     expect(container.querySelector('.summary')).toBeInTheDocument()
     expect(container.querySelector('.wl-table')).toBeInTheDocument()
-    expect(screen.getByText('成员同步自飞书通讯录')).toBeInTheDocument()
+    expect(screen.getByText('全部项目 · 当前迭代')).toBeInTheDocument()
     expect(screen.getByText('团队总容量')).toBeInTheDocument()
-    expect(screen.getByText('高远 116% · 苏晴 104%')).toBeInTheDocument()
-    expect(screen.getByText('后端 · 检索召回')).toBeInTheDocument()
+    expect(screen.getByText('Backend')).toBeInTheDocument()
     expect(container.querySelectorAll('.who-cell')).toHaveLength(8)
   })
 
@@ -158,12 +156,12 @@ describe('prototype parity for core screens', () => {
 
     expect(container.querySelector('.su-body')).toBeInTheDocument()
     expect(container.querySelector('.su-head')).toBeInTheDocument()
-    expect(container.querySelectorAll('.su-row')).toHaveLength(8)
-    expect(screen.getByText('06 / 06')).toBeInTheDocument()
+    expect(container.querySelectorAll('.su-row')).toHaveLength(3)
+    expect(screen.getByText('星期五')).toBeInTheDocument()
     expect(screen.getByText('推送纪要到群')).toBeInTheDocument()
     expect(screen.getAllByText('昨日完成').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('今日计划')).toBeInTheDocument()
-    expect(screen.getByText('语义服务的 GPU 资源还没批,影响 198 压测。需何川协助走审批。')).toBeInTheDocument()
+    expect(screen.getByText('SRCH-198')).toBeInTheDocument()
   })
 
   it('matches the gantt prototype layout', () => {
@@ -172,12 +170,12 @@ describe('prototype parity for core screens', () => {
     expect(container.querySelector('.gt-body')).toBeInTheDocument()
     expect(container.querySelector('.gt')).toBeInTheDocument()
     expect(container.querySelector('.gt-head')).toBeInTheDocument()
-    expect(container.querySelectorAll('.gt-row').length).toBeGreaterThanOrEqual(12)
-    expect(screen.getByText('6 月 · Sprint 24 → 25')).toBeInTheDocument()
+    expect(container.querySelectorAll('.gt-row').length).toBeGreaterThanOrEqual(7)
+    expect(screen.getByText('S24 · 搜索体验重构 · 第 7/10 天')).toBeInTheDocument()
     expect(screen.getByText('同步飞书日历')).toBeInTheDocument()
     expect(screen.getByText('工作项 / 里程碑')).toBeInTheDocument()
-    expect(screen.getByText('史诗 · 召回与语义')).toBeInTheDocument()
-    expect(screen.getByText('灰度上线')).toBeInTheDocument()
+    expect(screen.getByText('迭代 · 搜索体验重构')).toBeInTheDocument()
+    expect(screen.getByText('Beta 开关接入')).toBeInTheDocument()
   })
 
   it('matches the Feishu single-group notification and query surface', () => {
@@ -185,7 +183,7 @@ describe('prototype parity for core screens', () => {
 
     expect(container.querySelector('.fs-body')).toBeInTheDocument()
     expect(container.querySelector('.fs-command-grid')).toBeInTheDocument()
-    expect(screen.getByText('单群通知 · 研发小队')).toBeInTheDocument()
+    expect(screen.getByText('单群通知 · AgiliX 团队群')).toBeInTheDocument()
     expect(screen.getByText('群里只做通知和查询')).toBeInTheDocument()
     expect(screen.getByText('通知记录')).toBeInTheDocument()
     expect(screen.getAllByText('查询命令').length).toBeGreaterThanOrEqual(1)
