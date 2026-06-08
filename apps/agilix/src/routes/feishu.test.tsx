@@ -1,0 +1,29 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import { seedData } from '../domain/fixtures'
+import { FeishuPage } from './FeishuPage'
+
+describe('FeishuPage', () => {
+  it('supports one-group notifications and query-only commands', async () => {
+    const onNotify = vi.fn(async () => undefined)
+    const onQuery = vi.fn(async () => ({ title: '团队状态', lines: ['Issue 7', '文档 3'] }))
+
+    render(<FeishuPage data={seedData} onNotify={onNotify} onQuery={onQuery} />)
+
+    expect(screen.getByRole('heading', { name: '飞书' })).toBeInTheDocument()
+    expect(screen.getByText('AgiliX 团队群')).toBeInTheDocument()
+    expect(screen.getByText('站会摘要')).toBeInTheDocument()
+    expect(screen.getByText('/team')).toBeInTheDocument()
+    expect(screen.getByText('/blockers')).toBeInTheDocument()
+    expect(screen.getByText('/docs 结果卡片')).toBeInTheDocument()
+    expect(screen.queryByText('审批流')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '记录 站会摘要' }))
+    expect(onNotify).toHaveBeenCalledWith('站会摘要')
+
+    await userEvent.click(screen.getByRole('button', { name: '查询 /team' }))
+    expect(onQuery).toHaveBeenCalledWith({ type: 'team' })
+    expect(await screen.findByText('团队状态')).toBeInTheDocument()
+  })
+})
