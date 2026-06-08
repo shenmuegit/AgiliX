@@ -20,5 +20,8 @@ Thumbs.db
 # Testing
 coverage/
 
+# Worktrees
+.worktrees/
+
 # Plans
 .claude/plans/
