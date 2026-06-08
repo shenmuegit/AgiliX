@@ -1,8 +1,9 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { ProjectId, SeedData } from '../domain/types'
 import { blockedIssues, donePoints, getProject, issuesForIteration, statusMeta, statusOrder, sumPoints, unresolvedIssues } from '../domain/view-models'
 
 export function StatsPage({ data, projectId, iterationCode }: { data: SeedData; projectId: ProjectId; iterationCode: string }) {
+  const [exportNotice, setExportNotice] = useState('')
   const project = getProject(data, projectId)
   const iteration = data.iterations.find((item) => item.projectId === projectId && item.code === iterationCode)
   if (!iteration) throw new Error(`Iteration not found: ${projectId}/${iterationCode}`)
@@ -44,8 +45,11 @@ export function StatsPage({ data, projectId, iterationCode }: { data: SeedData; 
         </div>
         <div className="top-sp" />
         <div className="feishu-dot">{data.feishu.groups[0]}</div>
-        <button className="btn btn-ghost">导出周报</button>
+        <button className="btn btn-ghost" onClick={() => setExportNotice(`${project.name} ${iteration.code} 周报已准备导出`)}>
+          导出周报
+        </button>
       </header>
+      {exportNotice ? <section className="fs-reply" role="status">{exportNotice}</section> : null}
       <main className="st-body">
         <div className="metric-strip">
           <Metric label="已完成 / 计划" value={String(done)} unit={<><span>/ </span><span>{total}</span></>} note={`${pct}% 故事点燃尽`} />

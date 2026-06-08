@@ -106,15 +106,15 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   }
 
   const page: Record<NavItem, ReactNode> = {
-    团队工作台: <TeamPage data={loadedData} />,
+    团队工作台: <TeamPage data={loadedData} onOpenIssues={() => setActive('Issues')} onOpenDocs={() => setActive('文档')} onOpenStandup={() => setActive('每日站会')} />,
     项目总览: <ProjectsPage data={loadedData} />,
     Issues: <IssuesPage data={loadedData} projectId={projectId} onProjectChange={setProjectId} />,
-    看板: <BoardPage data={loadedData} projectId={projectId} onMoveIssue={moveAndRefresh} />,
+    看板: <BoardPage data={loadedData} projectId={projectId} onMoveIssue={moveAndRefresh} onOpenIssues={() => setActive('Issues')} onOpenFeishu={() => setActive('飞书')} />,
     迭代统计: selectedProject ? <StatsPage data={loadedData} projectId={selectedProject.id} iterationCode={selectedProject.activeIterationCode} /> : projectRequiredPage('迭代统计'),
-    文档: <DocsPage data={loadedData} projectId={projectId} onAddComment={commentAndRefresh} onCreateDoc={createDocAndRefresh} />,
-    成员负载: <WorkloadPage data={loadedData} />,
+    文档: <DocsPage data={loadedData} projectId={projectId} onProjectChange={setProjectId} onAddComment={commentAndRefresh} onCreateDoc={createDocAndRefresh} />,
+    成员负载: <WorkloadPage data={loadedData} onOpenIssues={() => setActive('Issues')} />,
     每日站会: selectedProject ? <StandupPage data={loadedData} projectId={selectedProject.id} onSaveStandup={saveStandupAndRefresh} /> : projectRequiredPage('每日站会'),
-    排期甘特: selectedProject ? <GanttPage data={loadedData} projectId={selectedProject.id} onSaveMilestone={saveMilestoneAndRefresh} /> : projectRequiredPage('排期甘特'),
+    排期甘特: selectedProject ? <GanttPage data={loadedData} projectId={selectedProject.id} onSaveMilestone={saveMilestoneAndRefresh} onOpenFeishu={() => setActive('飞书')} /> : projectRequiredPage('排期甘特'),
     飞书: <FeishuPage data={loadedData} onNotify={recordFeishuNotification} onQuery={(command) => client.queryFeishu(command)} />,
   }
 

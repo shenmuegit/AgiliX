@@ -907,6 +907,24 @@ button {
   font-weight: 600;
 }
 
+.inline-search {
+  width: min(240px, 28vw);
+  height: 34px;
+  border: 1px solid var(--rule-2);
+  border-radius: var(--r-chip);
+  background: var(--paper-raised);
+  color: var(--ink);
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.inline-search:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .chip-flat {
   display: inline-flex;
   align-items: center;

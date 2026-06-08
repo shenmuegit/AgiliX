@@ -1,8 +1,30 @@
+import { useRef, useState } from 'react'
 import type { Issue, IssueStatus, ProjectId, SeedData } from '../domain/types'
 import { completionPercent, donePoints, getActiveIteration, getMember, getProject, issueTypeLabel, issuesForProjectFilter, memberInitial, priorityMeta, statusMeta, statusOrder, sumPoints } from '../domain/view-models'
 
-export function BoardPage({ data, projectId, onMoveIssue }: { data: SeedData; projectId: ProjectId | 'all'; onMoveIssue: (issueKey: string, status: IssueStatus) => void }) {
-  const issues = issuesForProjectFilter(data, projectId)
+export function BoardPage({
+  data,
+  projectId,
+  onMoveIssue,
+  onOpenIssues,
+  onOpenFeishu,
+}: {
+  data: SeedData
+  projectId: ProjectId | 'all'
+  onMoveIssue: (issueKey: string, status: IssueStatus) => void
+  onOpenIssues?: () => void
+  onOpenFeishu?: () => void
+}) {
+  const [view, setView] = useState<BoardView>('board')
+  const [query, setQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const baseIssues = issuesForProjectFilter(data, projectId)
+  const normalizedQuery = query.trim().toLowerCase()
+  const issues =
+    normalizedQuery === ''
+      ? baseIssues
+      : baseIssues.filter((issue) => [issue.key, issue.title, getMember(data, issue.assigneeId).name].some((value) => value.toLowerCase().includes(normalizedQuery)))
   const selectedProject = projectId === 'all' ? null : getProject(data, projectId)
   const selectedIteration = selectedProject ? getActiveIteration(data, selectedProject) : null
   const totalPoints = sumPoints(issues)
@@ -28,19 +50,31 @@ export function BoardPage({ data, projectId, onMoveIssue }: { data: SeedData; pr
         </div>
         <div className="top-sp" />
         <div className="feishu-dot">{data.feishu.groups[0]}</div>
-        <button className="icon-btn" aria-label="搜索">
+        <button
+          className="icon-btn"
+          aria-label="搜索"
+          onClick={() => {
+            setSearchOpen(true)
+            requestAnimationFrame(() => searchInputRef.current?.focus())
+          }}
+        >
           ⌕
         </button>
-        <button className="icon-btn" aria-label="通知">
+        {searchOpen ? <input ref={searchInputRef} className="inline-search" aria-label="搜索看板工单" type="search" value={query} onChange={(event) => setQuery(event.currentTarget.value)} placeholder="搜索工单" /> : null}
+        <button className="icon-btn" aria-label="通知" onClick={onOpenFeishu}>
           !
         </button>
-        <button className="btn btn-primary">新建</button>
+        <button className="btn btn-primary" onClick={onOpenIssues}>
+          新建
+        </button>
       </header>
       <div className="toolbar">
         <div className="seg">
-          <button className="on">看板</button>
-          <button>表格</button>
-          <button>时间线</button>
+          {boardViews.map((item) => (
+            <button className={view === item.value ? 'on' : undefined} key={item.value} onClick={() => setView(item.value)}>
+              {item.label}
+            </button>
+          ))}
         </div>
         <div className="chip-flat">筛选</div>
         <div className="chip-flat">经办人</div>
@@ -58,30 +92,100 @@ export function BoardPage({ data, projectId, onMoveIssue }: { data: SeedData; pr
         </div>
       </div>
       <main className="board-wrap">
-        <div className="board">
-          {statusOrder.map((status) => {
-            const list = issues.filter((issue) => issue.status === status)
-            const points = sumPoints(list)
-            return (
-              <section className="col" key={status}>
-                <div className="col-h">
-                  <span className="col-bar" style={{ background: statusMeta[status].color }} />
-                  <span className="col-t">{statusMeta[status].boardLabel}</span>
-                  <span className="col-n">{list.length}</span>
-                  <span className="top-sp" />
-                  <span className="label">{points}pt</span>
-                </div>
-                <div className="col-body">
-                  {list.map((issue) => (
-                    <IssueCard key={issue.key} data={data} issue={issue} onMoveIssue={onMoveIssue} />
-                  ))}
-                </div>
-              </section>
-            )
-          })}
-        </div>
+        {view === 'board' ? <BoardColumns data={data} issues={issues} onMoveIssue={onMoveIssue} /> : null}
+        {view === 'table' ? <BoardTable data={data} issues={issues} /> : null}
+        {view === 'timeline' ? <BoardTimeline data={data} issues={issues} /> : null}
       </main>
     </>
+  )
+}
+
+type BoardView = 'board' | 'table' | 'timeline'
+
+const boardViews: Array<{ label: string; value: BoardView }> = [
+  { label: '看板', value: 'board' },
+  { label: '表格', value: 'table' },
+  { label: '时间线', value: 'timeline' },
+]
+
+function BoardColumns({ data, issues, onMoveIssue }: { data: SeedData; issues: Issue[]; onMoveIssue: (issueKey: string, status: IssueStatus) => void }) {
+  return (
+    <div className="board">
+      {statusOrder.map((status) => {
+        const list = issues.filter((issue) => issue.status === status)
+        const points = sumPoints(list)
+        return (
+          <section className="col" key={status}>
+            <div className="col-h">
+              <span className="col-bar" style={{ background: statusMeta[status].color }} />
+              <span className="col-t">{statusMeta[status].boardLabel}</span>
+              <span className="col-n">{list.length}</span>
+              <span className="top-sp" />
+              <span className="label">{points}pt</span>
+            </div>
+            <div className="col-body">
+              {list.map((issue) => (
+                <IssueCard key={issue.key} data={data} issue={issue} onMoveIssue={onMoveIssue} />
+              ))}
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+function BoardTable({ data, issues }: { data: SeedData; issues: Issue[] }) {
+  return (
+    <table className="lg-table" aria-label="看板表格视图">
+      <thead>
+        <tr>
+          <th>工单号</th>
+          <th>标题</th>
+          <th>状态</th>
+          <th>经办人</th>
+          <th className="r">点数</th>
+        </tr>
+      </thead>
+      <tbody>
+        {issues.map((issue) => {
+          const member = getMember(data, issue.assigneeId)
+          return (
+            <tr key={issue.key}>
+              <td>
+                <span className="wid">{issue.key}</span>
+              </td>
+              <td>{issue.title}</td>
+              <td>
+                <span className={`badge ${statusMeta[issue.status].badgeClass}`}>{statusMeta[issue.status].label}</span>
+              </td>
+              <td>{member.name}</td>
+              <td className="r">{issue.storyPoints}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
+function BoardTimeline({ data, issues }: { data: SeedData; issues: Issue[] }) {
+  return (
+    <ol className="feed" aria-label="看板时间线视图">
+      {issues.map((issue) => {
+        const member = getMember(data, issue.assigneeId)
+        return (
+          <li className="feed-item" key={issue.key}>
+            <b>
+              {issue.key} · {issue.title}
+            </b>
+            <p>
+              {member.name} · {statusMeta[issue.status].label} · {issue.storyPoints}pt
+            </p>
+          </li>
+        )
+      })}
+    </ol>
   )
 }
 

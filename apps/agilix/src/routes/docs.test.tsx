@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { seedData } from '../domain/fixtures'
 import { DocsPage } from './DocsPage'
+
+afterEach(() => cleanup())
 
 describe('DocsPage', () => {
   it('shows global docs, project docs, directory, search, comments, linked issues, and document actions', async () => {
@@ -31,5 +33,17 @@ describe('DocsPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '新建文档' }))
     expect(onCreateDoc).toHaveBeenCalledWith(expect.objectContaining({ scope: 'global', title: '新建全局文档' }))
+  })
+
+  it('filters documents from the top segmented controls', async () => {
+    render(<DocsPage data={seedData} projectId="all" onAddComment={vi.fn()} onCreateDoc={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '全局文档' }))
+    expect(screen.getByText('灰度发布检查清单')).toBeInTheDocument()
+    expect(screen.queryByText('结果卡片重设计方案')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '待我评论' }))
+    expect(screen.getByText('结果卡片重设计方案')).toBeInTheDocument()
+    expect(screen.queryByText('接口字段说明')).not.toBeInTheDocument()
   })
 })

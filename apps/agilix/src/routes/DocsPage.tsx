@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { CreateDocInput } from '../api/client'
+import { ProjectFilter, type ProjectFilterValue } from '../components/ProjectFilter'
 import { filterDocs, searchDocs } from '../domain/docs'
 import type { Doc, DocComment, FeishuQueryCommand, ProjectId, SeedData } from '../domain/types'
 import { docProjectLabel, getMember, issueTypeLabel, linkedIssue, memberInitial, statusMeta } from '../domain/view-models'
@@ -7,17 +8,22 @@ import { docProjectLabel, getMember, issueTypeLabel, linkedIssue, memberInitial,
 export function DocsPage({
   data,
   projectId,
+  onProjectChange,
   onAddComment,
   onCreateDoc,
 }: {
   data: SeedData
-  projectId: ProjectId | 'all'
+  projectId: ProjectFilterValue
+  onProjectChange?: (projectId: ProjectFilterValue) => void
   onAddComment: (docId: string, comment: DocComment) => void | Promise<void>
   onCreateDoc: (doc: CreateDocInput) => void | Promise<void>
 }) {
   const [query, setQuery] = useState('')
+  const [tab, setTab] = useState<DocTab>('all')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const baseDocs = filterDocs(data.docs, projectId)
-  const docs = query === '' ? baseDocs : searchDocs(baseDocs, query)
+  const tabDocs = filterDocsByTab(baseDocs, tab)
+  const docs = query === '' ? tabDocs : searchDocs(tabDocs, query)
   const selected = docs[0]
   const unresolvedComments = docs.reduce((sum, doc) => sum + doc.comments.filter((comment) => !comment.resolved).length, 0)
   const directoryItems = useMemo(() => buildDirectoryItems(docs), [docs])
@@ -35,18 +41,29 @@ export function DocsPage({
           </div>
         </div>
         <div className="top-sp" />
-        <button className="icon-btn" title="搜索" aria-label="搜索">
+        <button
+          className="icon-btn"
+          title="搜索"
+          aria-label="搜索"
+          onClick={() => {
+            searchInputRef.current?.focus()
+          }}
+        >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <circle cx="11" cy="11" r="7" />
             <path d="M21 21l-4-4" />
           </svg>
         </button>
-        <button className="btn btn-ghost">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M4 6h16M7 12h10M10 18h4" />
-          </svg>
-          {projectId === 'all' ? '全部项目' : docProjectLabel(data, projectDocForProject(data, projectId))}
-        </button>
+        {onProjectChange ? (
+          <ProjectFilter projects={data.projects} value={projectId} onChange={onProjectChange} />
+        ) : (
+          <button className="btn btn-ghost" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M4 6h16M7 12h10M10 18h4" />
+            </svg>
+            {projectId === 'all' ? '全部项目' : docProjectLabel(data, projectDocForProject(data, projectId))}
+          </button>
+        )}
         <button
           className="btn btn-primary"
           onClick={() => {
@@ -71,9 +88,9 @@ export function DocsPage({
 
       <div className="toolbar">
         <div className="seg">
-          {['全部', '最近更新', '待我评论', '项目文档', '全局文档'].map((label, index) => (
-            <button className={index === 0 ? 'on' : undefined} key={label}>
-              {label}
+          {docTabs.map((item) => (
+            <button className={tab === item.value ? 'on' : undefined} key={item.value} onClick={() => setTab(item.value)}>
+              {item.label}
             </button>
           ))}
         </div>
@@ -95,7 +112,7 @@ export function DocsPage({
                 <circle cx="11" cy="11" r="7" />
                 <path d="M21 21l-4-4" />
               </svg>
-              <input aria-label="搜索文档" type="search" placeholder="搜索标题、正文、评论" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+              <input ref={searchInputRef} aria-label="搜索文档" type="search" placeholder="搜索标题、正文、评论" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
             </label>
           </div>
           <TreeSection title="全局文档" items={directoryItems.filter((item) => item.scope === 'global')} />
@@ -124,6 +141,23 @@ export function DocsPage({
       </div>
     </>
   )
+}
+
+type DocTab = 'all' | 'recent' | 'comments' | 'project' | 'global'
+
+const docTabs: Array<{ label: string; value: DocTab }> = [
+  { label: '全部', value: 'all' },
+  { label: '最近更新', value: 'recent' },
+  { label: '待我评论', value: 'comments' },
+  { label: '项目文档', value: 'project' },
+  { label: '全局文档', value: 'global' },
+]
+
+function filterDocsByTab(docs: Doc[], tab: DocTab): Doc[] {
+  if (tab === 'comments') return docs.filter((doc) => doc.comments.some((comment) => !comment.resolved))
+  if (tab === 'project') return docs.filter((doc) => doc.scope === 'project')
+  if (tab === 'global') return docs.filter((doc) => doc.scope === 'global')
+  return docs
 }
 
 function TreeSection({ title, items }: { title: string; items: Array<{ label: string; count: number; scope?: Doc['scope'] }> }) {

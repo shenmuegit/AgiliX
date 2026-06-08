@@ -2,7 +2,17 @@ import type { ReactNode } from 'react'
 import type { Issue, SeedData } from '../domain/types'
 import { blockedIssues, completionPercent, getActiveIteration, getMember, latestDocs, memberAvatarClass, memberInitial, priorityMeta, reviewIssues, statusMeta, sumPoints, unresolvedIssues } from '../domain/view-models'
 
-export function TeamPage({ data }: { data: SeedData }) {
+export function TeamPage({
+  data,
+  onOpenIssues,
+  onOpenDocs,
+  onOpenStandup,
+}: {
+  data: SeedData
+  onOpenIssues?: () => void
+  onOpenDocs?: () => void
+  onOpenStandup?: () => void
+}) {
   if (data.projects.length === 0) throw new Error('Team workbench requires at least one project')
   const project = data.projects[0]
   const iteration = getActiveIteration(data, project)
@@ -39,14 +49,14 @@ export function TeamPage({ data }: { data: SeedData }) {
           </svg>
           单群通知 · {group}
         </div>
-        <button className="btn btn-ghost">
+        <button className="btn btn-ghost" onClick={onOpenIssues}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <circle cx="11" cy="11" r="7" />
             <path d="M21 21l-4-4" />
           </svg>
           搜索
         </button>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" onClick={onOpenIssues}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M12 5v14M5 12h14" />
           </svg>
@@ -84,19 +94,19 @@ export function TeamPage({ data }: { data: SeedData }) {
         </section>
 
         <div className="quick">
-          <button>
+          <button onClick={onOpenStandup}>
             <b>更新我的状态</b>
             <span>同步今日计划</span>
           </button>
-          <button>
+          <button onClick={onOpenIssues}>
             <b>查看阻塞</b>
             <span>{blockers.length} 项需要协助</span>
           </button>
-          <button>
+          <button onClick={onOpenIssues}>
             <b>待我 Review</b>
             <span>{reviews.length} 个工单</span>
           </button>
-          <button>
+          <button onClick={onOpenDocs}>
             <b>打开文档</b>
             <span>最近 {docs.length} 次更新</span>
           </button>

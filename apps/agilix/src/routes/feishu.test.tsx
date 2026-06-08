@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { seedData } from '../domain/fixtures'
 import { FeishuPage } from './FeishuPage'
+
+afterEach(() => cleanup())
 
 describe('FeishuPage', () => {
   it('supports one-group notifications and query-only commands', async () => {
@@ -25,5 +27,16 @@ describe('FeishuPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '查询 /team' }))
     expect(onQuery).toHaveBeenCalledWith({ type: 'team' })
     expect(await screen.findByText('团队状态')).toBeInTheDocument()
+  })
+
+  it('gives explicit feedback for top-level Feishu controls', async () => {
+    render(<FeishuPage data={seedData} onNotify={vi.fn(async () => undefined)} onQuery={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '同步群配置' }))
+    expect(screen.getByRole('heading', { name: '群配置已同步' })).toBeInTheDocument()
+    expect(screen.getAllByText('AgiliX 团队群').length).toBeGreaterThan(0)
+
+    await userEvent.click(screen.getByRole('button', { name: '打开机器人控制台' }))
+    expect(screen.getByRole('heading', { name: '机器人控制台未配置' })).toBeInTheDocument()
   })
 })

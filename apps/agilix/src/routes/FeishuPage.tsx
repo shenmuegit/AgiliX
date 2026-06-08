@@ -33,8 +33,12 @@ export function FeishuPage({
           <p>一个团队群即可，AgiliX 负责工作台，飞书群里只做通知和查询。</p>
         </div>
         <div className="actions">
-          <button className="ghost">同步群配置</button>
-          <button className="primary">打开机器人控制台</button>
+          <button className="ghost" onClick={() => setReply({ title: '群配置已同步', lines: data.feishu.groups })}>
+            同步群配置
+          </button>
+          <button className="primary" onClick={() => setReply({ title: '机器人控制台未配置', lines: ['当前数据协议没有提供机器人控制台地址'] })}>
+            打开机器人控制台
+          </button>
         </div>
       </header>
 

@@ -18,6 +18,18 @@ describe('issues ledger and board routes', () => {
     expect(screen.queryByText('DATA-42')).not.toBeInTheDocument()
   })
 
+  it('filters issues by type from the segmented controls', async () => {
+    render(<IssuesPage data={seedData} projectId="search" onProjectChange={() => undefined} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '缺陷' }))
+    expect(screen.getByText('SRCH-209')).toBeInTheDocument()
+    expect(screen.queryByText('SRCH-198')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '技术债' }))
+    expect(screen.getByText('SRCH-201')).toBeInTheDocument()
+    expect(screen.queryByText('SRCH-209')).not.toBeInTheDocument()
+  })
+
   it('moves a board card through the mutation callback', async () => {
     const onMoveIssue = vi.fn()
 
@@ -29,5 +41,17 @@ describe('issues ledger and board routes', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'SRCH-186 完成' }))
     expect(onMoveIssue).toHaveBeenCalledWith('SRCH-186', 'done')
+  })
+
+  it('switches the board between board, table, and timeline views', async () => {
+    render(<BoardPage data={seedData} projectId="search" onMoveIssue={vi.fn()} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '表格' }))
+    expect(screen.getByRole('table', { name: '看板表格视图' })).toBeInTheDocument()
+    expect(screen.getByText('SRCH-198')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: '时间线' }))
+    expect(screen.getByRole('list', { name: '看板时间线视图' })).toBeInTheDocument()
+    expect(screen.getByText(/SRCH-198/)).toBeInTheDocument()
   })
 })

@@ -1,7 +1,7 @@
 import type { Issue, Member, SeedData } from '../domain/types'
 import { memberInitial, sumPoints } from '../domain/view-models'
 
-export function WorkloadPage({ data }: { data: SeedData }) {
+export function WorkloadPage({ data, onOpenIssues }: { data: SeedData; onOpenIssues?: () => void }) {
   const rows = data.members.map((member) => buildRow(data, member)).sort((left, right) => right.pct - left.pct)
   const totalCapacity = data.members.reduce((sum, member) => sum + member.capacity, 0)
   const allocated = rows.reduce((sum, row) => sum + row.points, 0)
@@ -22,7 +22,9 @@ export function WorkloadPage({ data }: { data: SeedData }) {
         </div>
         <div className="top-sp" />
         <div className="feishu-dot">{data.feishu.groups[0]}</div>
-        <button className="btn btn-ghost">分配工单</button>
+        <button className="btn btn-ghost" onClick={onOpenIssues}>
+          分配工单
+        </button>
       </header>
       <main className="wl-body">
         <div className="summary">

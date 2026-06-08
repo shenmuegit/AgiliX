@@ -40,7 +40,7 @@ export function ProjectsPage({ data }: { data: SeedData }) {
           </svg>
           每周一推送组合周报
         </div>
-        <button className="btn btn-primary">
+        <button className="btn btn-primary" disabled title="项目创建接口尚未接入">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M12 5v14M5 12h14" />
           </svg>

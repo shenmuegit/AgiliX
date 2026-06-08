@@ -16,7 +16,17 @@ const milestoneTone: Record<MilestoneStatus, string> = {
   planned: 'ghost',
 }
 
-export function GanttPage({ data, projectId, onSaveMilestone }: { data: SeedData; projectId: ProjectId; onSaveMilestone: (milestone: Milestone) => void }) {
+export function GanttPage({
+  data,
+  projectId,
+  onSaveMilestone,
+  onOpenFeishu,
+}: {
+  data: SeedData
+  projectId: ProjectId
+  onSaveMilestone: (milestone: Milestone) => void
+  onOpenFeishu?: () => void
+}) {
   const project = getProject(data, projectId)
   const iteration = getActiveIteration(data, project)
   const issues = issuesForIteration(data, projectId, iteration.code)
@@ -37,7 +47,9 @@ export function GanttPage({ data, projectId, onSaveMilestone }: { data: SeedData
           </p>
         </div>
         <div className="actions">
-          <button className="ghost">同步飞书日历</button>
+          <button className="ghost" onClick={onOpenFeishu}>
+            同步飞书日历
+          </button>
           <button className="primary" onClick={() => onSaveMilestone(focusMilestone)}>
             保存 {focusMilestone.title}
           </button>
