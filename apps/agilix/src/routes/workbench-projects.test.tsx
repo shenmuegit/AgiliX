@@ -10,10 +10,12 @@ describe('workbench and project overview routes', () => {
 
     expect(screen.getByRole('heading', { name: '团队工作台' })).toBeInTheDocument()
     expect(screen.getByText('今天要盯住 3 件事')).toBeInTheDocument()
-    expect(screen.getByText('迭代完成 21%')).toBeInTheDocument()
-    expect(screen.getByText('SRCH-198')).toBeInTheDocument()
+    expect(screen.getByText('69%')).toBeInTheDocument()
+    expect(screen.getByText('迭代完成')).toBeInTheDocument()
+    expect(screen.getByText('SRCH-198 向量召回 beta 开关接入')).toBeInTheDocument()
     expect(screen.getByText('结果卡片重设计方案')).toBeInTheDocument()
-    expect(screen.getByText('飞书只做通知和查询')).toBeInTheDocument()
+    expect(screen.getByText('飞书群会看到什么')).toBeInTheDocument()
+    expect(screen.getByText('单群通知 · 研发小队')).toBeInTheDocument()
   })
 
   it('shows projects as a portfolio view without creating project workspaces', () => {

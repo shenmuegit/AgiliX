@@ -23,38 +23,102 @@ export function FeishuPage({
   }
 
   return (
-    <main>
-      <h1>飞书</h1>
-      <section>
-        <h2>群</h2>
-        {data.feishu.groups.map((group) => (
-          <p key={group}>{group}</p>
-        ))}
-      </section>
-      <section>
-        <h2>通知</h2>
-        {data.feishu.notificationTriggers.map((trigger) => (
-          <article key={trigger}>
-            <span>{trigger}</span>
-            <button onClick={() => void onNotify(trigger)}>记录 {trigger}</button>
-          </article>
-        ))}
-      </section>
-      <section>
-        <h2>查询命令</h2>
-        {data.feishu.queryCommands.map((command) => {
-          const formattedCommand = formatFeishuCommand(command)
+    <main className="fs-body">
+      <header className="top">
+        <div>
+          <p className="kicker">Feishu Bot</p>
+          <h1>飞书通知与查询</h1>
+          <p>一个团队群即可，AgiliX 负责工作台，飞书群里只做通知和查询。</p>
+        </div>
+        <div className="actions">
+          <button className="ghost">同步群配置</button>
+          <button className="primary">打开机器人控制台</button>
+        </div>
+      </header>
 
-          return (
-            <article key={formattedCommand}>
-              <code>{formattedCommand}</code>
-              <button onClick={() => void runQuery(command)}>查询 {formattedCommand}</button>
-            </article>
-          )
-        })}
+      <section className="summary">
+        <article>
+          <span>绑定群</span>
+          <strong>{data.feishu.groups.length}</strong>
+          <em>研发小队</em>
+        </article>
+        <article>
+          <span>通知类型</span>
+          <strong>{data.feishu.notificationTriggers.length}</strong>
+          <em>低噪音触发</em>
+        </article>
+        <article>
+          <span>查询命令</span>
+          <strong>{data.feishu.queryCommands.length}</strong>
+          <em>按需拉取</em>
+        </article>
+        <article>
+          <span>产品边界</span>
+          <strong>通知</strong>
+          <em>不做群内审批</em>
+        </article>
+      </section>
+
+      <section className="fs-grid">
+        <article className="fs-card">
+          <div className="panel-h">
+            <div>
+              <span>群</span>
+              <h2>单群通知 · 研发小队</h2>
+            </div>
+            <span className="tag ok">已连接</span>
+          </div>
+          {data.feishu.groups.map((group) => (
+            <p key={group} className="fs-group">
+              {group}
+            </p>
+          ))}
+          <p className="muted">群里只做通知和查询</p>
+          <p className="muted">AgiliX 内查看全量状态，飞书只承接提醒、摘要和即时查询。</p>
+        </article>
+
+        <article className="fs-card">
+          <div className="panel-h">
+            <div>
+              <span>通知记录</span>
+              <h2>自动推送</h2>
+            </div>
+            <span className="tag">最近 24h</span>
+          </div>
+          <div className="fs-command-grid">
+            {data.feishu.notificationTriggers.map((trigger) => (
+              <div key={trigger} className="fs-command">
+                <span>{trigger}</span>
+                <button onClick={() => void onNotify(trigger)}>记录 {trigger}</button>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="fs-card wide">
+          <div className="panel-h">
+            <div>
+              <span>查询命令</span>
+              <h2>群内按需查询</h2>
+            </div>
+            <span className="tag">只读</span>
+          </div>
+          <div className="fs-command-grid">
+            {data.feishu.queryCommands.map((command) => {
+              const formattedCommand = formatFeishuCommand(command)
+
+              return (
+                <div key={formattedCommand} className="fs-command">
+                  <code>{formattedCommand}</code>
+                  <button onClick={() => void runQuery(command)}>查询 {formattedCommand}</button>
+                </div>
+              )
+            })}
+          </div>
+        </article>
       </section>
       {reply ? (
-        <section>
+        <section className="fs-reply">
           <h2>{reply.title}</h2>
           {reply.lines.map((line) => (
             <p key={line}>{line}</p>

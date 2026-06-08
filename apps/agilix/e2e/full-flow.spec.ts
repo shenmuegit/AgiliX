@@ -20,7 +20,8 @@ test('full AgiliX product navigation and core workflows', async ({ page }) => {
 
   await page.getByRole('link', { name: '文档' }).click()
   await expect(page.getByRole('heading', { name: '文档', exact: true })).toBeVisible()
-  await expect(page.getByText('全局文档', { exact: true })).toBeVisible()
+  await expect(page.getByText('统一目录、评论与关联 Issue')).toBeVisible()
+  await expect(page.getByRole('button', { name: '全局文档' })).toBeVisible()
 
   await page.getByRole('link', { name: '看板' }).click()
   await expect(page.getByText('SRCH-198')).toBeVisible()

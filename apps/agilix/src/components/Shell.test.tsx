@@ -14,7 +14,9 @@ describe('Shell', () => {
     )
 
     expect(screen.getByRole('link', { name: '文档' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.queryByText('搜索平台 · S24')).not.toBeInTheDocument()
+    expect(screen.getByText('研发台账')).toBeInTheDocument()
+    expect(screen.getByText('搜索平台 · S24')).toBeInTheDocument()
+    expect(screen.getByText('需求 & 缺陷')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('link', { name: '看板' }))
     expect(onNavigate).toHaveBeenCalledWith('看板')

@@ -11,11 +11,10 @@
     "lint": "eslint \"{packages,apps}/**/*.{ts,tsx}\"",
     "format": "prettier --write \"{packages,apps}/**/*.{ts,tsx,json,css}\"",
     "test": "pnpm --filter \"./apps/*\" --if-present test",
-    "ship": "pnpm --filter @agilix/frontend ship",
-    "db:migrate:remote": "pnpm --filter @agilix/frontend exec wrangler d1 migrations apply agilix-db --remote",
-    "db:generate": "pnpm --filter @agilix/backend db:generate",
-    "db:migrate": "pnpm --filter @agilix/backend db:migrate:local",
-    "db:seed": "pnpm --filter @agilix/backend db:seed"
+    "ship": "pnpm --filter @agilix/app build && pnpm --filter @agilix/frontend exec wrangler --cwd ../../apps/agilix pages deploy dist --project-name=agilix --commit-dirty=true",
+    "db:migrate:remote": "pnpm --filter @agilix/frontend exec wrangler d1 migrations apply agilix-v2-db --remote --config ../../apps/agilix-api/wrangler.toml",
+    "db:generate": "pnpm --filter @agilix/api db:generate",
+    "db:migrate": "pnpm --filter @agilix/frontend exec wrangler d1 migrations apply agilix-v2-db --local --config ../../apps/agilix-api/wrangler.toml"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.0.0",
