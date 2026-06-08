@@ -1,0 +1,40 @@
+{
+  "name": "@agilix/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./domain/docs": "./src/domain/docs.ts",
+    "./domain/feishu": "./src/domain/feishu.ts",
+    "./domain/fixtures": "./src/domain/fixtures.ts",
+    "./domain/gantt": "./src/domain/gantt.ts",
+    "./domain/issues": "./src/domain/issues.ts",
+    "./domain/iterations": "./src/domain/iterations.ts",
+    "./domain/standup": "./src/domain/standup.ts",
+    "./domain/types": "./src/domain/types.ts",
+    "./domain/workbench": "./src/domain/workbench.ts",
+    "./domain/workload": "./src/domain/workload.ts"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}
