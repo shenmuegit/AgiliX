@@ -60,6 +60,15 @@ describe('AgiliX app shell', () => {
     expect(screen.getByText('类型:方案 + 接口')).toBeInTheDocument()
   })
 
+  it('uses prototype screen URLs as direct entry routes', async () => {
+    window.history.pushState({}, '', '/screen-docs.html')
+
+    render(<App client={createInMemoryClient()} />)
+
+    expect(await screen.findByRole('heading', { name: '文档' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '团队工作台' })).not.toBeInTheDocument()
+  })
+
   it('keeps the default API client stable after the bootstrap render', async () => {
     const fetcher = vi
       .spyOn(globalThis, 'fetch')

@@ -1,10 +1,13 @@
 import { createDocQueryCommand } from '@agilix/app/domain/feishu'
-import type { FeishuQueryCommand } from '@agilix/app/domain/types'
+import type { CreateProjectInput, FeishuQueryCommand } from '@agilix/app/domain/types'
 import { z } from 'zod'
 import type { CreateDocInput, FeishuNotificationRecord } from './repository'
 
-export const projectIdSchema = z.enum(['search', 'data', 'api', 'mobile'])
-export const projectFilterSchema = z.enum(['all', 'search', 'data', 'api', 'mobile'])
+export const projectIdSchema = z
+  .string()
+  .min(1)
+  .regex(/^[a-z][a-z0-9-]*$/, 'project id must use lowercase letters, numbers, or hyphens')
+export const projectFilterSchema = z.union([z.literal('all'), projectIdSchema])
 export const memberIdSchema = z.enum(['lin', 'chen', 'gao', 'su', 'han', 'he', 'jiang', 'zhou'])
 export const issueStatusSchema = z.enum(['todo', 'doing', 'review', 'blocked', 'done'])
 export const issueTypeSchema = z.enum(['story', 'bug', 'task', 'tech'])
@@ -44,6 +47,55 @@ export const moveIssueSchema = z
     status: issueStatusSchema,
   })
   .strict()
+
+const projectSchema = z
+  .object({
+    id: projectIdSchema,
+    name: z.string().min(1),
+    glyph: z.string().min(1),
+    color: z.string().min(1),
+    activeIterationCode: z.string().min(1),
+  })
+  .strict()
+
+const iterationCalendarWeekSchema = z
+  .object({
+    label: z.string().min(1),
+    rangeLabel: z.string().min(1),
+    days: z.array(z.string().min(1)).min(1),
+  })
+  .strict()
+
+const iterationSchema = z
+  .object({
+    id: z.string().min(1),
+    projectId: projectIdSchema,
+    code: z.string().min(1),
+    name: z.string().min(1),
+    dateRangeLabel: z.string().min(1),
+    calendarTitle: z.string().min(1),
+    calendarWeeks: z.array(iterationCalendarWeekSchema).min(1),
+    day: z.number().int(),
+    totalDays: z.number().int(),
+    goal: z.string().min(1),
+    velocity: z.number().int(),
+  })
+  .strict()
+
+export const createProjectSchema: z.ZodType<CreateProjectInput, z.ZodTypeDef, unknown> = z
+  .object({
+    project: projectSchema,
+    iteration: iterationSchema,
+  })
+  .strict()
+  .refine((input) => input.project.id === input.iteration.projectId, {
+    message: 'iteration projectId must match project id',
+    path: ['iteration', 'projectId'],
+  })
+  .refine((input) => input.project.activeIterationCode === input.iteration.code, {
+    message: 'project activeIterationCode must match iteration code',
+    path: ['project', 'activeIterationCode'],
+  })
 
 const docBaseSchema = {
   id: z.string().min(1),

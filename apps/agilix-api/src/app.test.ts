@@ -9,8 +9,13 @@ describe('AgiliX API app', () => {
 
     expect((await app.request('/api/bootstrap')).status).toBe(200)
     expect((await app.request('/api/projects')).status).toBe(200)
-    expect((await app.request('/api/issues?projectId=search&status=all&assigneeId=all&keyword=')).status).toBe(200)
-    expect((await app.request('/api/docs?projectId=all&query=%E7%BB%93%E6%9E%9C%E5%8D%A1%E7%89%87')).status).toBe(200)
+    expect(
+      (await app.request('/api/issues?projectId=search&status=all&assigneeId=all&keyword=')).status,
+    ).toBe(200)
+    expect(
+      (await app.request('/api/docs?projectId=all&query=%E7%BB%93%E6%9E%9C%E5%8D%A1%E7%89%87'))
+        .status,
+    ).toBe(200)
     expect((await app.request('/api/standups?projectId=search')).status).toBe(200)
     expect((await app.request('/api/milestones?projectId=search')).status).toBe(200)
   })
@@ -28,7 +33,58 @@ describe('AgiliX API app', () => {
         })
       ).status,
     ).toBe(204)
-    expect((await repository.listIssues({ projectId: 'search', status: 'all', assigneeId: 'all', keyword: '' })).find((issue) => issue.key === 'SRCH-186')?.status).toBe('done')
+    expect(
+      (
+        await repository.listIssues({
+          projectId: 'search',
+          status: 'all',
+          assigneeId: 'all',
+          keyword: '',
+        })
+      ).find((issue) => issue.key === 'SRCH-186')?.status,
+    ).toBe('done')
+
+    const createdProject = {
+      project: {
+        id: 'growth',
+        name: '增长实验',
+        glyph: 'G',
+        color: '#2563eb',
+        activeIterationCode: 'S01',
+      },
+      iteration: {
+        id: 'growth-s01',
+        projectId: 'growth',
+        code: 'S01',
+        name: '启动迭代',
+        dateRangeLabel: '06.10 - 06.21',
+        calendarTitle: '增长实验 · S01',
+        calendarWeeks: [
+          { label: 'W1', rangeLabel: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+          { label: 'W2', rangeLabel: '06.17 - 06.21', days: ['17', '18', '19', '20', '21'] },
+        ],
+        day: 1,
+        totalDays: 10,
+        goal: '验证首批增长假设',
+        velocity: 0,
+      },
+    }
+    expect(
+      (
+        await app.request('/api/projects', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(createdProject),
+        })
+      ).status,
+    ).toBe(201)
+    expect((await repository.listProjects()).find((project) => project.id === 'growth')?.name).toBe(
+      '增长实验',
+    )
+    expect(
+      (await repository.loadData()).iterations.find((iteration) => iteration.id === 'growth-s01')
+        ?.goal,
+    ).toBe('验证首批增长假设')
 
     expect(
       (
@@ -46,7 +102,9 @@ describe('AgiliX API app', () => {
         })
       ).status,
     ).toBe(201)
-    expect((await repository.getDoc('doc-result-card'))?.comments.map((comment) => comment.body)).toContain('API 新增评论')
+    expect(
+      (await repository.getDoc('doc-result-card'))?.comments.map((comment) => comment.body),
+    ).toContain('API 新增评论')
 
     const createdDoc = {
       id: 'doc-api-created',
@@ -71,7 +129,9 @@ describe('AgiliX API app', () => {
 
     const editedStandup = {
       ...seedData.standups[0],
-      items: seedData.standups[0].items.map((item) => (item.memberId === 'gao' ? { ...item, today: ['更新后的站会计划'], blockers: [] } : item)),
+      items: seedData.standups[0].items.map((item) =>
+        item.memberId === 'gao' ? { ...item, today: ['更新后的站会计划'], blockers: [] } : item,
+      ),
     }
 
     expect(
@@ -83,7 +143,11 @@ describe('AgiliX API app', () => {
         })
       ).status,
     ).toBe(204)
-    expect((await repository.listStandups({ projectId: 'search' }))[0].items.find((item) => item.memberId === 'gao')?.today).toEqual(['更新后的站会计划'])
+    expect(
+      (await repository.listStandups({ projectId: 'search' }))[0].items.find(
+        (item) => item.memberId === 'gao',
+      )?.today,
+    ).toEqual(['更新后的站会计划'])
 
     expect(
       (
@@ -94,7 +158,11 @@ describe('AgiliX API app', () => {
         })
       ).status,
     ).toBe(204)
-    expect((await repository.listMilestones({ projectId: 'search' })).find((milestone) => milestone.id === 'ms-beta')?.status).toBe('doing')
+    expect(
+      (await repository.listMilestones({ projectId: 'search' })).find(
+        (milestone) => milestone.id === 'ms-beta',
+      )?.status,
+    ).toBe('doing')
 
     const queryResponse = await app.request('/api/feishu/query', {
       method: 'POST',
@@ -103,7 +171,9 @@ describe('AgiliX API app', () => {
     })
     expect(queryResponse.status).toBe(200)
     expect(((await queryResponse.json()) as { title: string }).title).toBe('团队状态')
-    expect((await repository.listFeishuQueries()).map((query) => query.command)).toEqual([{ type: 'team' }])
+    expect((await repository.listFeishuQueries()).map((query) => query.command)).toEqual([
+      { type: 'team' },
+    ])
 
     expect(
       (
@@ -121,7 +191,9 @@ describe('AgiliX API app', () => {
         })
       ).status,
     ).toBe(201)
-    expect((await repository.listFeishuNotifications()).map((notification) => notification.trigger)).toEqual(['站会摘要'])
+    expect(
+      (await repository.listFeishuNotifications()).map((notification) => notification.trigger),
+    ).toEqual(['站会摘要'])
   })
 
   it('rejects invalid mutation payloads, id mismatches, missing documents, and invalid document references', async () => {
@@ -167,10 +239,21 @@ describe('AgiliX API app', () => {
       ).status,
     ).toBe(404)
 
-    expect((await app.request('/api/issues?projectId=missing&status=all&assigneeId=all&keyword=')).status).toBe(400)
-    expect((await app.request('/api/issues?projectId=search&status=invalid&assigneeId=all&keyword=')).status).toBe(400)
-    expect((await app.request('/api/issues?projectId=search&status=all&assigneeId=all')).status).toBe(400)
-    expect((await app.request('/api/issues?projectId=search&status=all&assigneeId=all&keyword=&extra=1')).status).toBe(400)
+    expect(
+      (await app.request('/api/issues?projectId=missing&status=all&assigneeId=all&keyword='))
+        .status,
+    ).toBe(400)
+    expect(
+      (await app.request('/api/issues?projectId=search&status=invalid&assigneeId=all&keyword='))
+        .status,
+    ).toBe(400)
+    expect(
+      (await app.request('/api/issues?projectId=search&status=all&assigneeId=all')).status,
+    ).toBe(400)
+    expect(
+      (await app.request('/api/issues?projectId=search&status=all&assigneeId=all&keyword=&extra=1'))
+        .status,
+    ).toBe(400)
     expect((await app.request('/api/docs?projectId=missing&query=')).status).toBe(400)
     expect((await app.request('/api/docs?projectId=all')).status).toBe(400)
     expect((await app.request('/api/standups?projectId=missing')).status).toBe(400)

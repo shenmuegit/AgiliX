@@ -1,8 +1,11 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { seedData } from '../domain/fixtures'
 import { ProjectsPage } from './ProjectsPage'
 import { TeamPage } from './TeamPage'
+
+afterEach(() => cleanup())
 
 describe('workbench and project overview routes', () => {
   it('shows team attention, completion, pending issues, recent docs, and Feishu visibility', () => {
@@ -18,13 +21,70 @@ describe('workbench and project overview routes', () => {
     expect(screen.getByText('单群通知 · AgiliX 团队群')).toBeInTheDocument()
   })
 
-  it('shows projects as a portfolio view without creating project workspaces', () => {
+  it('shows projects as a portfolio view with project creation available', () => {
     render(<ProjectsPage data={seedData} />)
 
     expect(screen.getByRole('heading', { name: '项目总览' })).toBeInTheDocument()
     expect(screen.getByText('搜索平台')).toBeInTheDocument()
     expect(screen.getByText('移动端 App')).toBeInTheDocument()
     expect(screen.getByText('共 8 名成员协作')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '新建项目' })).toBeEnabled()
     expect(screen.queryByText('审批流')).not.toBeInTheDocument()
   })
+
+  it('submits explicit project and initial iteration fields', async () => {
+    const onCreateProject = vi.fn()
+
+    render(<ProjectsPage data={seedData} onCreateProject={onCreateProject} />)
+
+    await userEvent.click(screen.getByRole('button', { name: '新建项目' }))
+    await userEvent.clear(screen.getByLabelText('项目 ID'))
+    await userEvent.type(screen.getByLabelText('项目 ID'), 'growth')
+    await userEvent.clear(screen.getByLabelText('项目名称'))
+    await userEvent.type(screen.getByLabelText('项目名称'), '增长实验')
+    await userEvent.clear(screen.getByLabelText('项目图标'))
+    await userEvent.type(screen.getByLabelText('项目图标'), 'G')
+    await userEvent.clear(screen.getByLabelText('项目颜色'))
+    await userEvent.type(screen.getByLabelText('项目颜色'), '#2563eb')
+    await userEvent.clear(screen.getByLabelText('迭代 ID'))
+    await userEvent.type(screen.getByLabelText('迭代 ID'), 'growth-s01')
+    await userEvent.clear(screen.getByLabelText('迭代代号'))
+    await userEvent.type(screen.getByLabelText('迭代代号'), 'S01')
+    await userEvent.clear(screen.getByLabelText('迭代名称'))
+    await userEvent.type(screen.getByLabelText('迭代名称'), '启动迭代')
+    await userEvent.clear(screen.getByLabelText('日期范围'))
+    await userEvent.type(screen.getByLabelText('日期范围'), '06.10 - 06.21')
+    await userEvent.clear(screen.getByLabelText('甘特标题'))
+    await userEvent.type(screen.getByLabelText('甘特标题'), '增长实验 · S01')
+    await userEvent.clear(screen.getByLabelText('迭代目标'))
+    await userEvent.type(screen.getByLabelText('迭代目标'), '验证首批增长假设')
+
+    await userEvent.click(screen.getByRole('button', { name: '创建项目' }))
+
+    expect(onCreateProject).toHaveBeenCalledWith({
+      project: {
+        id: 'growth',
+        name: '增长实验',
+        glyph: 'G',
+        color: '#2563eb',
+        activeIterationCode: 'S01',
+      },
+      iteration: {
+        id: 'growth-s01',
+        projectId: 'growth',
+        code: 'S01',
+        name: '启动迭代',
+        dateRangeLabel: '06.10 - 06.21',
+        calendarTitle: '增长实验 · S01',
+        calendarWeeks: [
+          { label: 'W1', rangeLabel: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+          { label: 'W2', rangeLabel: '06.17 - 06.21', days: ['17', '18', '19', '20', '21'] },
+        ],
+        day: 1,
+        totalDays: 10,
+        goal: '验证首批增长假设',
+        velocity: 0,
+      },
+    })
+  }, 10000)
 })

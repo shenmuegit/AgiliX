@@ -2,7 +2,10 @@ import { seedData } from '@agilix/app/domain/fixtures'
 import { describe, expect, it } from 'vitest'
 import type { AgiliXRepository } from '../repository'
 
-export function describeRepositoryConformance(name: string, createRepository: () => AgiliXRepository) {
+export function describeRepositoryConformance(
+  name: string,
+  createRepository: () => AgiliXRepository,
+) {
   describe(name, () => {
     it('persists issue moves and document comments', async () => {
       const repository = createRepository()
@@ -32,12 +35,45 @@ export function describeRepositoryConformance(name: string, createRepository: ()
         }),
       ).toBe('created')
       expect(
+        await repository.createProject({
+          project: {
+            id: 'growth',
+            name: '增长实验',
+            glyph: 'G',
+            color: '#2563eb',
+            activeIterationCode: 'S01',
+          },
+          iteration: {
+            id: 'growth-s01',
+            projectId: 'growth',
+            code: 'S01',
+            name: '启动迭代',
+            dateRangeLabel: '06.10 - 06.21',
+            calendarTitle: '增长实验 · S01',
+            calendarWeeks: [
+              { label: 'W1', rangeLabel: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+              { label: 'W2', rangeLabel: '06.17 - 06.21', days: ['17', '18', '19', '20', '21'] },
+            ],
+            day: 1,
+            totalDays: 10,
+            goal: '验证首批增长假设',
+            velocity: 0,
+          },
+        }),
+      ).toBe('created')
+      expect(
         await repository.saveStandup({
           ...seedData.standups[0],
-          items: seedData.standups[0].items.map((item) => (item.memberId === 'gao' ? { ...item, today: ['Repository updated standup item'], blockers: [] } : item)),
+          items: seedData.standups[0].items.map((item) =>
+            item.memberId === 'gao'
+              ? { ...item, today: ['Repository updated standup item'], blockers: [] }
+              : item,
+          ),
         }),
       ).toBe(true)
-      expect(await repository.saveMilestone({ ...seedData.milestones[1], status: 'doing' })).toBe('saved')
+      expect(await repository.saveMilestone({ ...seedData.milestones[1], status: 'doing' })).toBe(
+        'saved',
+      )
       expect(
         await repository.saveFeishuNotification({
           id: 'notification-conformance',
@@ -55,13 +91,45 @@ export function describeRepositoryConformance(name: string, createRepository: ()
         createdAt: '2026-06-06T10:01:00.000Z',
       })
 
-      expect((await repository.listIssues({ projectId: 'search', status: 'all', assigneeId: 'all', keyword: '' })).find((issue) => issue.key === 'SRCH-186')?.status).toBe('done')
-      expect((await repository.getDoc('doc-result-card'))?.comments.map((comment) => comment.body)).toContain('Repository conformance comment')
-      expect((await repository.getDoc('doc-conformance-created'))?.title).toBe('Repository 创建文档')
-      expect((await repository.listStandups({ projectId: 'search' }))[0].items.find((item) => item.memberId === 'gao')?.today).toEqual(['Repository updated standup item'])
-      expect((await repository.listMilestones({ projectId: 'search' })).find((milestone) => milestone.id === 'ms-beta')?.status).toBe('doing')
-      expect((await repository.listFeishuNotifications()).map((notification) => notification.trigger)).toEqual(['站会摘要'])
-      expect((await repository.listFeishuQueries()).map((query) => query.command)).toEqual([{ type: 'team' }])
+      expect(
+        (
+          await repository.listIssues({
+            projectId: 'search',
+            status: 'all',
+            assigneeId: 'all',
+            keyword: '',
+          })
+        ).find((issue) => issue.key === 'SRCH-186')?.status,
+      ).toBe('done')
+      expect(
+        (await repository.listProjects()).find((project) => project.id === 'growth')?.name,
+      ).toBe('增长实验')
+      expect(
+        (await repository.loadData()).iterations.find((iteration) => iteration.id === 'growth-s01')
+          ?.goal,
+      ).toBe('验证首批增长假设')
+      expect(
+        (await repository.getDoc('doc-result-card'))?.comments.map((comment) => comment.body),
+      ).toContain('Repository conformance comment')
+      expect((await repository.getDoc('doc-conformance-created'))?.title).toBe(
+        'Repository 创建文档',
+      )
+      expect(
+        (await repository.listStandups({ projectId: 'search' }))[0].items.find(
+          (item) => item.memberId === 'gao',
+        )?.today,
+      ).toEqual(['Repository updated standup item'])
+      expect(
+        (await repository.listMilestones({ projectId: 'search' })).find(
+          (milestone) => milestone.id === 'ms-beta',
+        )?.status,
+      ).toBe('doing')
+      expect(
+        (await repository.listFeishuNotifications()).map((notification) => notification.trigger),
+      ).toEqual(['站会摘要'])
+      expect((await repository.listFeishuQueries()).map((query) => query.command)).toEqual([
+        { type: 'team' },
+      ])
     })
 
     it('rejects duplicate seed calls instead of skipping conflicts', async () => {
@@ -91,7 +159,10 @@ export function describeRepositoryConformance(name: string, createRepository: ()
       await expect(
         repository.seed({
           ...seedData,
-          iterations: [...seedData.iterations, { ...seedData.iterations[0], id: 'it-duplicate-code' }],
+          iterations: [
+            ...seedData.iterations,
+            { ...seedData.iterations[0], id: 'it-duplicate-code' },
+          ],
         }),
       ).rejects.toThrow('Duplicate seed iteration project code')
 
@@ -201,9 +272,18 @@ export function describeRepositoryConformance(name: string, createRepository: ()
           updatedAtLabel: '刚刚',
         }),
       ).toBe('document-comments-not-empty')
-      expect(await repository.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).toBe(false)
-      expect(await repository.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' })).toBe('milestone-not-found')
-      expect(await repository.saveMilestone({ ...seedData.milestones[1], iterationId: 'missing-iteration' })).toBe('iteration-not-found')
+      expect(await repository.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).toBe(
+        false,
+      )
+      expect(
+        await repository.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' }),
+      ).toBe('milestone-not-found')
+      expect(
+        await repository.saveMilestone({
+          ...seedData.milestones[1],
+          iterationId: 'missing-iteration',
+        }),
+      ).toBe('iteration-not-found')
       expect(
         await repository.saveMilestone({
           ...seedData.milestones[1],
@@ -242,14 +322,29 @@ export function describeRepositoryConformance(name: string, createRepository: ()
         }),
       ).toBe('comment-not-found')
 
-      expect(await repository.listIssues({ projectId: 'all', status: 'all', assigneeId: 'all', keyword: 'MISSING-1' })).toEqual([])
+      expect(
+        await repository.listIssues({
+          projectId: 'all',
+          status: 'all',
+          assigneeId: 'all',
+          keyword: 'MISSING-1',
+        }),
+      ).toEqual([])
       expect(await repository.getDoc('missing-doc')).toBeUndefined()
       expect(await repository.getDoc('doc-invalid-linked-issue')).toBeUndefined()
       expect(await repository.getDoc('doc-duplicate-linked-issue')).toBeUndefined()
       expect(await repository.getDoc('doc-create-with-comment')).toBeUndefined()
-      expect((await repository.listDocs({ projectId: 'all', query: '' })).filter((doc) => doc.id === seedData.docs[0].id)).toHaveLength(1)
-      expect((await repository.listStandups({ projectId: 'all' })).map((standup) => standup.id)).not.toContain('missing-standup')
-      expect((await repository.listMilestones({ projectId: 'all' })).map((milestone) => milestone.id)).not.toContain('missing-milestone')
+      expect(
+        (await repository.listDocs({ projectId: 'all', query: '' })).filter(
+          (doc) => doc.id === seedData.docs[0].id,
+        ),
+      ).toHaveLength(1)
+      expect(
+        (await repository.listStandups({ projectId: 'all' })).map((standup) => standup.id),
+      ).not.toContain('missing-standup')
+      expect(
+        (await repository.listMilestones({ projectId: 'all' })).map((milestone) => milestone.id),
+      ).not.toContain('missing-milestone')
       expect(await repository.listFeishuNotifications()).toEqual([])
     })
 
@@ -257,7 +352,9 @@ export function describeRepositoryConformance(name: string, createRepository: ()
       const repository = createRepository()
 
       await repository.seed(seedData)
-      const original = (await repository.listStandups({ projectId: 'search' })).find((standup) => standup.id === 'standup-search-today')
+      const original = (await repository.listStandups({ projectId: 'search' })).find(
+        (standup) => standup.id === 'standup-search-today',
+      )
 
       await expect(
         repository.saveStandup({
@@ -272,7 +369,11 @@ export function describeRepositoryConformance(name: string, createRepository: ()
         }),
       ).rejects.toThrow('Standup member not found: missing-member')
 
-      expect((await repository.listStandups({ projectId: 'search' })).find((standup) => standup.id === 'standup-search-today')?.items).toEqual(original?.items)
+      expect(
+        (await repository.listStandups({ projectId: 'search' })).find(
+          (standup) => standup.id === 'standup-search-today',
+        )?.items,
+      ).toEqual(original?.items)
     })
   })
 }

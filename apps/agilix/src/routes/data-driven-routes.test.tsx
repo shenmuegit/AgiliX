@@ -272,6 +272,7 @@ const dataDrivenSeed: SeedData = {
 function createClient(data: SeedData): AgiliXClient {
   return {
     loadData: vi.fn(async () => data),
+    createProject: vi.fn(async () => undefined),
     moveIssue: vi.fn(async () => undefined),
     addDocComment: vi.fn(async () => undefined),
     createDoc: vi.fn(async () => undefined),

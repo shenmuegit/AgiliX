@@ -1,14 +1,13 @@
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import type { Issue, IssueStatus, ProjectId, SeedData } from '../domain/types'
 import {
   completionPercent,
   donePoints,
   getActiveIteration,
-  getMember,
+  getIteration,
   getProject,
   issueTypeLabel,
   issuesForProjectFilter,
-  memberInitial,
   priorityMeta,
   statusMeta,
   statusOrder,
@@ -29,25 +28,25 @@ export function BoardPage({
   onOpenFeishu?: () => void
 }) {
   const [view, setView] = useState<BoardView>('board')
+  const [statusFilter, setStatusFilter] = useState<IssueStatus | 'all'>('all')
   const [query, setQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const baseIssues = issuesForProjectFilter(data, projectId)
   const normalizedQuery = query.trim().toLowerCase()
-  const issues =
+  const searchedIssues =
     normalizedQuery === ''
       ? baseIssues
       : baseIssues.filter((issue) =>
-          [issue.key, issue.title, getMember(data, issue.assigneeId).name].some((value) =>
-            value.toLowerCase().includes(normalizedQuery),
-          ),
+          searchableIssueValues(data, issue).some((value) => value.toLowerCase().includes(normalizedQuery)),
         )
+  const issues =
+    statusFilter === 'all'
+      ? searchedIssues
+      : searchedIssues.filter((issue) => issue.status === statusFilter)
   const selectedProject = projectId === 'all' ? null : getProject(data, projectId)
   const selectedIteration = selectedProject ? getActiveIteration(data, selectedProject) : null
   const totalPoints = sumPoints(issues)
-  const members = Array.from(new Set(issues.map((issue) => issue.assigneeId))).map((memberId) =>
-    getMember(data, memberId),
-  )
 
   return (
     <>
@@ -132,20 +131,21 @@ export function BoardPage({
             </button>
           ))}
         </div>
-        <div className="chip-flat">筛选</div>
-        <div className="chip-flat">经办人</div>
-        <div className="chip-flat">分组:状态</div>
+        <div className="seg" role="group" aria-label="状态筛选">
+          {statusFilters.map((filter) => (
+            <button
+              className={statusFilter === filter.value ? 'on' : undefined}
+              key={filter.value}
+              onClick={() => setStatusFilter(filter.value)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
         <div className="top-sp" />
         <span className="label">
           共 {issues.length} 个工单 · 故事点 {donePoints(issues)}/{totalPoints}
         </span>
-        <div className="facepile">
-          {members.map((member) => (
-            <div className="av sm" key={member.id}>
-              {memberInitial(member)}
-            </div>
-          ))}
-        </div>
       </div>
       <main className="board-wrap">
         {view === 'board' ? (
@@ -165,6 +165,27 @@ const boardViews: Array<{ label: string; value: BoardView }> = [
   { label: '表格', value: 'table' },
   { label: '时间线', value: 'timeline' },
 ]
+
+const statusFilters: Array<{ label: string; value: IssueStatus | 'all' }> = [
+  { label: '全部', value: 'all' },
+  ...statusOrder.map((status) => ({ label: statusMeta[status].label, value: status })),
+]
+
+function searchableIssueValues(data: SeedData, issue: Issue): string[] {
+  const project = getProject(data, issue.projectId)
+  const iteration = getIteration(data, issue.iterationId)
+  return [
+    issue.key,
+    issue.title,
+    issueTypeLabel[issue.type],
+    priorityMeta[issue.priority].label,
+    statusMeta[issue.status].label,
+    project.name,
+    iteration.name,
+    iteration.code,
+    issue.blockerReason ?? '',
+  ]
+}
 
 function BoardColumns({
   data,
@@ -208,30 +229,68 @@ function BoardTable({ data, issues }: { data: SeedData; issues: Issue[] }) {
         <tr>
           <th>工单号</th>
           <th>标题</th>
+          <th>类型</th>
+          <th>优先级</th>
           <th>状态</th>
-          <th>经办人</th>
+          <th>项目 / 迭代</th>
           <th className="r">点数</th>
+          <th>阻塞说明</th>
         </tr>
       </thead>
       <tbody>
-        {issues.map((issue) => {
-          const member = getMember(data, issue.assigneeId)
-          return (
-            <tr key={issue.key}>
-              <td>
-                <span className="wid">{issue.key}</span>
-              </td>
-              <td>{issue.title}</td>
-              <td>
-                <span className={`badge ${statusMeta[issue.status].badgeClass}`}>
-                  {statusMeta[issue.status].label}
+        {groupIssuesByStatus(issues).map((group) => (
+          <Fragment key={group.status}>
+            <tr className="grp-row">
+              <td colSpan={8}>
+                <span className="label">
+                  状态 · {statusMeta[group.status].label} · {group.issues.length} 项 ·{' '}
+                  {sumPoints(group.issues)}pt
                 </span>
               </td>
-              <td>{member.name}</td>
-              <td className="r">{issue.storyPoints}</td>
             </tr>
-          )
-        })}
+            {group.issues.map((issue) => {
+              const project = getProject(data, issue.projectId)
+              const iteration = getIteration(data, issue.iterationId)
+              return (
+                <tr key={issue.key}>
+                  <td>
+                    <span className="wid">{issue.key}</span>
+                  </td>
+                  <td>
+                    <div className="lg-title">
+                      <strong>{issue.title}</strong>
+                      {issue.linkedDocIds.length > 0 ? <span className="feishu-dot">文档</span> : null}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="type-tag">{issueTypeLabel[issue.type]}</span>
+                  </td>
+                  <td>
+                    <span className={`pri ${priorityMeta[issue.priority].className}`}>
+                      {priorityMeta[issue.priority].label}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${statusMeta[issue.status].badgeClass}`}>
+                      <span className="dot" />
+                      {statusMeta[issue.status].label}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="lg-title">
+                      <strong>{project.name}</strong>
+                      <p>{iteration.name}</p>
+                    </div>
+                  </td>
+                  <td className="r">
+                    <span className="num">{issue.storyPoints}</span>
+                  </td>
+                  <td>{issue.blockerReason ?? '-'}</td>
+                </tr>
+              )
+            })}
+          </Fragment>
+        ))}
       </tbody>
     </table>
   )
@@ -239,22 +298,46 @@ function BoardTable({ data, issues }: { data: SeedData; issues: Issue[] }) {
 
 function BoardTimeline({ data, issues }: { data: SeedData; issues: Issue[] }) {
   return (
-    <ol className="feed" aria-label="看板时间线视图">
-      {issues.map((issue) => {
-        const member = getMember(data, issue.assigneeId)
+    <ol className="status-timeline" aria-label="看板状态时间线">
+      {groupIssuesByStatus(issues).map((group) => {
         return (
-          <li className="feed-item" key={issue.key}>
-            <b>
-              {issue.key} · {issue.title}
-            </b>
-            <p>
-              {member.name} · {statusMeta[issue.status].label} · {issue.storyPoints}pt
-            </p>
+          <li className="timeline-status" key={group.status}>
+            <div className="timeline-dot" style={{ background: statusMeta[group.status].color }} />
+            <div className="timeline-status-body">
+              <b>
+                {statusMeta[group.status].label} · {group.issues.length} 项 ·{' '}
+                {sumPoints(group.issues)}pt
+              </b>
+              <div className="timeline-issues">
+                {group.issues.map((issue) => {
+                  const project = getProject(data, issue.projectId)
+                  const iteration = getIteration(data, issue.iterationId)
+                  return (
+                    <article className="timeline-issue" key={issue.key}>
+                      <b>
+                        {issue.key} · {issue.title}
+                      </b>
+                      <p>
+                        {project.name} · {iteration.name} · {issueTypeLabel[issue.type]} ·{' '}
+                        {priorityMeta[issue.priority].label}优先级 · {issue.storyPoints}pt
+                      </p>
+                      {issue.blockerReason ? <em>{issue.blockerReason}</em> : null}
+                    </article>
+                  )
+                })}
+              </div>
+            </div>
           </li>
         )
       })}
     </ol>
   )
+}
+
+function groupIssuesByStatus(issues: Issue[]) {
+  return statusOrder
+    .map((status) => ({ status, issues: issues.filter((issue) => issue.status === status) }))
+    .filter((group) => group.issues.length > 0)
 }
 
 function IssueCard({
@@ -266,7 +349,6 @@ function IssueCard({
   issue: Issue
   onMoveIssue: (issueKey: string, status: IssueStatus) => void
 }) {
-  const member = getMember(data, issue.assigneeId)
   const project = getProject(data, issue.projectId)
   const progress =
     issue.status === 'todo'
@@ -309,9 +391,6 @@ function IssueCard({
             {issue.storyPoints}
             <small>pt</small>
           </span>
-          <div className="facepile">
-            <div className="av sm">{memberInitial(member)}</div>
-          </div>
           {issue.status !== 'done' ? (
             <button
               className="sr-only-action"

@@ -8,6 +8,7 @@ import { filterIssues } from '@agilix/app/domain/issues'
 import type {
   Doc,
   DocComment,
+  CreateProjectInput,
   Issue,
   IssueStatus,
   Iteration,
@@ -24,6 +25,7 @@ import type { TransactionDatabase } from './db/transaction'
 import type {
   AgiliXRepository,
   CreateDocInput,
+  CreateProjectResult,
   DocFilters,
   FeishuNotificationRecord,
   FeishuQueryRecord,
@@ -181,6 +183,14 @@ function assertUnique(values: string[], label: string) {
 
 function assertReference(values: Set<string>, value: string, message: string) {
   if (!values.has(value)) throw new Error(message)
+}
+
+function assertPersistedProjectReference(
+  projectIds: Set<string>,
+  projectId: string,
+  owner: string,
+) {
+  assertReference(projectIds, projectId, `Persisted project not found for ${owner}: ${projectId}`)
 }
 
 function assertStandupMembers(memberIds: Set<string>, standup: Standup) {
@@ -380,6 +390,36 @@ async function validateMilestoneReferences(
   return 'saved'
 }
 
+async function validateCreateProject(
+  db: TransactionDatabase,
+  input: CreateProjectInput,
+): Promise<CreateProjectResult> {
+  if (input.project.id !== input.iteration.projectId) return 'project-iteration-mismatch'
+  if (input.project.activeIterationCode !== input.iteration.code)
+    return 'active-iteration-code-mismatch'
+  const [project] = await db
+    .select({ id: dbSchema.projects.id })
+    .from(dbSchema.projects)
+    .where(eq(dbSchema.projects.id, input.project.id))
+  if (project) return 'duplicate-project'
+  const iterations = await db
+    .select({
+      id: dbSchema.iterations.id,
+      projectId: dbSchema.iterations.projectId,
+      code: dbSchema.iterations.code,
+    })
+    .from(dbSchema.iterations)
+  if (
+    iterations.some(
+      (iteration) =>
+        iteration.id === input.iteration.id ||
+        (iteration.projectId === input.project.id && iteration.code === input.iteration.code),
+    )
+  )
+    return 'duplicate-iteration'
+  return 'created'
+}
+
 async function validateFeishuNotificationReferences(
   db: TransactionDatabase,
   input: FeishuNotificationRecord,
@@ -437,12 +477,18 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
   async function listIssues(filters: IssueFilters) {
     const rows = await db.select().from(dbSchema.issues)
     const links = await db.select().from(dbSchema.docIssueLinks)
-    const issues = rows.map((issue) =>
-      toIssue(
-        issue,
-        links.filter((link) => link.issueKey === issue.key).map((link) => link.docId),
+    const projectIds = new Set(
+      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
+        (project) => project.id,
       ),
     )
+    const issues = rows.map((issue) => {
+      assertPersistedProjectReference(projectIds, issue.projectId, issue.key)
+      return toIssue(
+        issue,
+        links.filter((link) => link.issueKey === issue.key).map((link) => link.docId),
+      )
+    })
     return filterIssues(issues, filters)
   }
 
@@ -450,13 +496,19 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
     const docs = await db.select().from(dbSchema.documents)
     const comments = (await db.select().from(dbSchema.docComments)).map(toDocComment)
     const links = await db.select().from(dbSchema.docIssueLinks)
-    const domainDocs = docs.map((doc) =>
-      toDoc(
+    const projectIds = new Set(
+      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
+        (project) => project.id,
+      ),
+    )
+    const domainDocs = docs.map((doc) => {
+      if (doc.projectId !== null) assertPersistedProjectReference(projectIds, doc.projectId, doc.id)
+      return toDoc(
         doc,
         links.filter((link) => link.docId === doc.id).map((link) => link.issueKey),
         comments.filter((comment) => comment.docId === doc.id),
-      ),
-    )
+      )
+    })
     const scopedDocs = filterDocs(domainDocs, filters.projectId)
     return filters.query === '' ? scopedDocs : searchDocs(scopedDocs, filters.query)
   }
@@ -464,8 +516,14 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
   async function listStandups(filters: { projectId: SeedData['projects'][number]['id'] | 'all' }) {
     const standups = await db.select().from(dbSchema.standups)
     const items = await db.select().from(dbSchema.standupItems)
-    const domainStandups = standups.map(
-      (standup): Standup => ({
+    const projectIds = new Set(
+      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
+        (project) => project.id,
+      ),
+    )
+    const domainStandups = standups.map((standup): Standup => {
+      assertPersistedProjectReference(projectIds, standup.projectId, standup.id)
+      return {
         ...standup,
         projectId: projectIdSchema.parse(standup.projectId),
         items: items
@@ -476,8 +534,8 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
             today: stringArraySchema.parse(JSON.parse(item.todayJson)),
             blockers: stringArraySchema.parse(JSON.parse(item.blockersJson)),
           })),
-      }),
-    )
+      }
+    })
     return domainStandups.filter(
       (standup) => filters.projectId === 'all' || standup.projectId === filters.projectId,
     )
@@ -486,7 +544,15 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
   async function listMilestones(filters: {
     projectId: SeedData['projects'][number]['id'] | 'all'
   }) {
-    const milestones = (await db.select().from(dbSchema.milestones)).map(toMilestone)
+    const projectIds = new Set(
+      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
+        (project) => project.id,
+      ),
+    )
+    const milestones = (await db.select().from(dbSchema.milestones)).map((milestone) => {
+      assertPersistedProjectReference(projectIds, milestone.projectId, milestone.id)
+      return toMilestone(milestone)
+    })
     return milestones.filter(
       (milestone) => filters.projectId === 'all' || milestone.projectId === filters.projectId,
     )
@@ -530,6 +596,15 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
       ])
     },
     listProjects,
+    async createProject(input) {
+      const result = await validateCreateProject(db, input)
+      if (result !== 'created') return result
+      await db.batch([
+        db.insert(dbSchema.projects).values(input.project),
+        db.insert(dbSchema.iterations).values(toIterationRecord(input.iteration)),
+      ])
+      return 'created'
+    },
     listIssues,
     async moveIssue(issueKey: string, status: IssueStatus) {
       const [existing] = await db

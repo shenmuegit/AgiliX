@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { App } from './App'
@@ -15,13 +15,49 @@ describe('App API wiring', () => {
 
     await userEvent.click(screen.getByRole('link', { name: '看板' }))
     await userEvent.click(await screen.findByRole('button', { name: 'SRCH-186 完成' }))
-    expect((await client.loadData()).issues.find((issue) => issue.key === 'SRCH-186')?.status).toBe('done')
+    expect((await client.loadData()).issues.find((issue) => issue.key === 'SRCH-186')?.status).toBe(
+      'done',
+    )
+
+    await userEvent.click(screen.getByRole('link', { name: '项目总览' }))
+    await userEvent.click(await screen.findByRole('button', { name: '新建项目' }))
+    await userEvent.clear(screen.getByLabelText('项目 ID'))
+    await userEvent.type(screen.getByLabelText('项目 ID'), 'growth')
+    await userEvent.clear(screen.getByLabelText('项目名称'))
+    await userEvent.type(screen.getByLabelText('项目名称'), '增长实验')
+    await userEvent.clear(screen.getByLabelText('迭代 ID'))
+    await userEvent.type(screen.getByLabelText('迭代 ID'), 'growth-s01')
+    await userEvent.click(screen.getByRole('button', { name: '创建项目' }))
+    await waitFor(async () =>
+      expect(
+        (await client.loadData()).projects.find((project) => project.id === 'growth')?.name,
+      ).toBe('增长实验'),
+    )
 
     await userEvent.click(screen.getByRole('link', { name: '文档' }))
-    await userEvent.click(await screen.findByRole('button', { name: '新增评论' }))
-    expect((await client.loadData()).docs.find((doc) => doc.id === 'doc-result-card')?.comments.length).toBeGreaterThan(2)
+    await userEvent.type(await screen.findByLabelText('新增评论内容'), '补充验收标准')
+    await userEvent.click(await screen.findByRole('button', { name: '提交评论' }))
+    expect(
+      (await client.loadData()).docs.find((doc) => doc.id === 'doc-result-card')?.comments.length,
+    ).toBeGreaterThan(2)
     await userEvent.click(await screen.findByRole('button', { name: '新建文档' }))
-    await waitFor(async () => expect((await client.loadData()).docs.find((doc) => doc.id === 'doc-global-created')?.title).toBe('新建全局文档'))
+    const createDocDialog = screen.getByRole('dialog', { name: '新建文档' })
+    await userEvent.click(within(createDocDialog).getByRole('button', { name: '配置目录与关联' }))
+    await userEvent.click(within(createDocDialog).getByRole('button', { name: '新建同级目录' }))
+    await userEvent.type(within(createDocDialog).getByLabelText('新目录名称'), '增长实验')
+    await userEvent.click(within(createDocDialog).getByRole('button', { name: '保存目录' }))
+    await userEvent.click(within(createDocDialog).getByRole('button', { name: '返回正文' }))
+    await userEvent.type(within(createDocDialog).getByLabelText('文档标题'), '增长实验说明')
+    await userEvent.type(
+      within(createDocDialog).getByLabelText('文档内容'),
+      '从表单创建的文档',
+    )
+    await userEvent.click(within(createDocDialog).getByRole('button', { name: '创建文档' }))
+    await waitFor(async () =>
+      expect(
+        (await client.loadData()).docs.find((doc) => doc.title === '增长实验说明')?.directory,
+      ).toBe('全局文档/增长实验'),
+    )
 
     await userEvent.click(screen.getByRole('link', { name: '每日站会' }))
     const standupLoadCount = client.loadCount()
@@ -41,7 +77,7 @@ describe('App API wiring', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: '查询 /team' }))
     expect(client.recordedFeishuQueries()).toContain('/team')
-  })
+  }, 10000)
 
   it('rejects missing mutation targets and invalid document references in the in-memory client', async () => {
     const client = createInMemoryClient()
@@ -67,7 +103,9 @@ describe('App API wiring', () => {
         createdAtLabel: '刚刚',
       }),
     ).rejects.toThrow('Comment docId must match document id')
-    await expect(client.createDoc({ ...seedData.docs[0], comments: [] })).rejects.toThrow('Document already exists')
+    await expect(client.createDoc({ ...seedData.docs[0], comments: [] })).rejects.toThrow(
+      'Document already exists',
+    )
     await expect(
       client.createDoc({
         id: 'doc-invalid-linked-issue',
@@ -117,8 +155,12 @@ describe('App API wiring', () => {
         updatedAtLabel: '刚刚',
       }),
     ).rejects.toThrow('Document comments must be empty on create')
-    await expect(client.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).rejects.toThrow('Standup not found')
-    await expect(client.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' })).rejects.toThrow('Milestone not found')
+    await expect(
+      client.saveStandup({ ...seedData.standups[0], id: 'missing-standup' }),
+    ).rejects.toThrow('Standup not found')
+    await expect(
+      client.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' }),
+    ).rejects.toThrow('Milestone not found')
     await expect(
       client.recordFeishuNotification({
         id: 'notification-missing-standup',

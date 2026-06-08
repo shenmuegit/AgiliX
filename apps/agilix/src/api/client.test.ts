@@ -5,12 +5,20 @@ import { createAgiliXClient } from './client'
 describe('AgiliX API client', () => {
   it('loads bootstrap data and sends core mutations with JSON headers', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input) === '/api/bootstrap') return new Response(JSON.stringify(seedData), { status: 200 })
-      if (String(input) === '/api/issues/SRCH-186/status') return new Response(null, { status: 204 })
-      if (String(input) === '/api/docs/doc-result-card/comments') return new Response(JSON.stringify(seedData.docs[0].comments[0]), { status: 201 })
-      if (String(input) === '/api/docs') return new Response(JSON.stringify(seedData.docs[0]), { status: 201 })
-      if (String(input) === `/api/standups/${seedData.standups[0].id}`) return new Response(null, { status: 204 })
-      if (String(input) === `/api/milestones/${seedData.milestones[1].id}`) return new Response(null, { status: 204 })
+      if (String(input) === '/api/bootstrap')
+        return new Response(JSON.stringify(seedData), { status: 200 })
+      if (String(input) === '/api/issues/SRCH-186/status')
+        return new Response(null, { status: 204 })
+      if (String(input) === '/api/projects')
+        return new Response(JSON.stringify(seedData.projects[0]), { status: 201 })
+      if (String(input) === '/api/docs/doc-result-card/comments')
+        return new Response(JSON.stringify(seedData.docs[0].comments[0]), { status: 201 })
+      if (String(input) === '/api/docs')
+        return new Response(JSON.stringify(seedData.docs[0]), { status: 201 })
+      if (String(input) === `/api/standups/${seedData.standups[0].id}`)
+        return new Response(null, { status: 204 })
+      if (String(input) === `/api/milestones/${seedData.milestones[1].id}`)
+        return new Response(null, { status: 204 })
       if (String(input) === '/api/feishu/notifications') {
         return new Response(
           JSON.stringify({
@@ -24,7 +32,10 @@ describe('AgiliX API client', () => {
           { status: 201 },
         )
       }
-      if (String(input) === '/api/feishu/query') return new Response(JSON.stringify({ title: '团队状态', lines: ['Issue 7'] }), { status: 200 })
+      if (String(input) === '/api/feishu/query')
+        return new Response(JSON.stringify({ title: '团队状态', lines: ['Issue 7'] }), {
+          status: 200,
+        })
       throw new Error(`Unexpected path: ${String(input)}`)
     })
     const client = createAgiliXClient(fetcher)
@@ -32,6 +43,32 @@ describe('AgiliX API client', () => {
     expect((await client.loadData()).projects.map((project) => project.name)).toContain('搜索平台')
 
     await client.moveIssue('SRCH-186', 'done')
+    const createdProject = {
+      project: {
+        id: 'growth',
+        name: '增长实验',
+        glyph: 'G',
+        color: '#2563eb',
+        activeIterationCode: 'S01',
+      },
+      iteration: {
+        id: 'growth-s01',
+        projectId: 'growth',
+        code: 'S01',
+        name: '启动迭代',
+        dateRangeLabel: '06.10 - 06.21',
+        calendarTitle: '增长实验 · S01',
+        calendarWeeks: [
+          { label: 'W1', rangeLabel: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+          { label: 'W2', rangeLabel: '06.17 - 06.21', days: ['17', '18', '19', '20', '21'] },
+        ],
+        day: 1,
+        totalDays: 10,
+        goal: '验证首批增长假设',
+        velocity: 0,
+      },
+    }
+    await client.createProject(createdProject)
     await client.addDocComment('doc-result-card', {
       id: 'comment-client',
       docId: 'doc-result-card',
@@ -69,6 +106,11 @@ describe('AgiliX API client', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'done' }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(createdProject),
     })
     expect(fetcher).toHaveBeenCalledWith('/api/docs/doc-result-card/comments', {
       method: 'POST',
@@ -182,12 +224,25 @@ describe('AgiliX API client', () => {
   })
 
   it('rejects malformed response payloads and unexpected mutation status codes', async () => {
-    await expect(createAgiliXClient(vi.fn(async () => new Response(JSON.stringify({ projects: [] }), { status: 200 }))).loadData()).rejects.toThrow('AgiliX API response validation failed')
+    await expect(
+      createAgiliXClient(
+        vi.fn(async () => new Response(JSON.stringify({ projects: [] }), { status: 200 })),
+      ).loadData(),
+    ).rejects.toThrow('AgiliX API response validation failed')
 
-    await expect(createAgiliXClient(vi.fn(async () => new Response(JSON.stringify({ title: '团队状态', lines: [7] }), { status: 200 }))).queryFeishu({ type: 'team' })).rejects.toThrow(
-      'AgiliX API response validation failed',
-    )
+    await expect(
+      createAgiliXClient(
+        vi.fn(
+          async () =>
+            new Response(JSON.stringify({ title: '团队状态', lines: [7] }), { status: 200 }),
+        ),
+      ).queryFeishu({ type: 'team' }),
+    ).rejects.toThrow('AgiliX API response validation failed')
 
-    await expect(createAgiliXClient(vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }))).moveIssue('SRCH-186', 'done')).rejects.toThrow('AgiliX API request failed')
+    await expect(
+      createAgiliXClient(
+        vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 })),
+      ).moveIssue('SRCH-186', 'done'),
+    ).rejects.toThrow('AgiliX API request failed')
   })
 })

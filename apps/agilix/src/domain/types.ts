@@ -1,4 +1,4 @@
-export type ProjectId = 'search' | 'data' | 'api' | 'mobile'
+export type ProjectId = string
 export type MemberId = 'lin' | 'chen' | 'gao' | 'su' | 'han' | 'he' | 'jiang' | 'zhou'
 export type IssueStatus = 'todo' | 'doing' | 'review' | 'blocked' | 'done'
 export type IssueType = 'story' | 'bug' | 'task' | 'tech'
@@ -23,6 +23,11 @@ export interface Project {
   glyph: string
   color: string
   activeIterationCode: string
+}
+
+export interface CreateProjectInput {
+  project: Project
+  iteration: Iteration
 }
 
 export interface Member {

@@ -5,6 +5,7 @@ import type {
   FeishuQueryCommand,
   Issue,
   IssueStatus,
+  CreateProjectInput,
   MemberId,
   Milestone,
   Project,
@@ -45,15 +46,41 @@ export interface FeishuQueryRecord {
 }
 
 type CreateDocInputFor<T extends Doc> = Omit<T, 'comments'> & { comments: never[] }
-export type CreateDocInput = Doc extends infer D ? (D extends Doc ? CreateDocInputFor<D> : never) : never
-export type CreateDocResult = 'created' | 'duplicate-document' | 'duplicate-linked-issue' | 'linked-issue-not-found' | 'document-comments-not-empty'
+export type CreateDocInput = Doc extends infer D
+  ? D extends Doc
+    ? CreateDocInputFor<D>
+    : never
+  : never
+export type CreateDocResult =
+  | 'created'
+  | 'duplicate-document'
+  | 'duplicate-linked-issue'
+  | 'linked-issue-not-found'
+  | 'document-comments-not-empty'
+export type CreateProjectResult =
+  | 'created'
+  | 'duplicate-project'
+  | 'duplicate-iteration'
+  | 'project-iteration-mismatch'
+  | 'active-iteration-code-mismatch'
 export type AddDocCommentResult = 'created' | 'document-not-found' | 'comment-doc-id-mismatch'
-export type SaveMilestoneResult = 'saved' | 'milestone-not-found' | 'project-not-found' | 'iteration-not-found' | 'owner-not-found'
-export type SaveFeishuNotificationResult = 'saved' | 'standup-not-found' | 'issue-not-found' | 'document-not-found' | 'comment-not-found'
+export type SaveMilestoneResult =
+  | 'saved'
+  | 'milestone-not-found'
+  | 'project-not-found'
+  | 'iteration-not-found'
+  | 'owner-not-found'
+export type SaveFeishuNotificationResult =
+  | 'saved'
+  | 'standup-not-found'
+  | 'issue-not-found'
+  | 'document-not-found'
+  | 'comment-not-found'
 
 export interface AgiliXRepository {
   seed(data: SeedData): Promise<void>
   listProjects(): Promise<Project[]>
+  createProject(input: CreateProjectInput): Promise<CreateProjectResult>
   listIssues(filters: IssueFilters): Promise<Issue[]>
   moveIssue(issueKey: string, status: IssueStatus): Promise<boolean>
   listDocs(filters: DocFilters): Promise<Doc[]>

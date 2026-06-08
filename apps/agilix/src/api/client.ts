@@ -5,6 +5,7 @@ import type {
   DocComment,
   FeishuNotificationPayload,
   FeishuQueryCommand,
+  CreateProjectInput,
   IssueStatus,
   Milestone,
   SeedData,
@@ -32,6 +33,7 @@ export type CreateDocInput = Doc extends infer D
 
 export interface AgiliXClient {
   loadData(): Promise<SeedData>
+  createProject(input: CreateProjectInput): Promise<void>
   moveIssue(issueKey: string, status: IssueStatus): Promise<void>
   addDocComment(docId: string, comment: DocComment): Promise<void>
   createDoc(doc: CreateDocInput): Promise<void>
@@ -43,7 +45,10 @@ export interface AgiliXClient {
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
-const projectIdSchema = z.enum(['search', 'data', 'api', 'mobile'])
+const projectIdSchema = z
+  .string()
+  .min(1)
+  .regex(/^[a-z][a-z0-9-]*$/, 'project id must use lowercase letters, numbers, or hyphens')
 const memberIdSchema = z.enum(['lin', 'chen', 'gao', 'su', 'han', 'he', 'jiang', 'zhou'])
 const issueStatusSchema = z.enum(['todo', 'doing', 'review', 'blocked', 'done'])
 const issueTypeSchema = z.enum(['story', 'bug', 'task', 'tech'])
@@ -177,6 +182,21 @@ const iterationSchema = z
     velocity: z.number().int(),
   })
   .strict()
+
+const createProjectInputSchema: z.ZodType<CreateProjectInput, z.ZodTypeDef, unknown> = z
+  .object({
+    project: projectSchema,
+    iteration: iterationSchema,
+  })
+  .strict()
+  .refine((input) => input.project.id === input.iteration.projectId, {
+    message: 'iteration projectId must match project id',
+    path: ['iteration', 'projectId'],
+  })
+  .refine((input) => input.project.activeIterationCode === input.iteration.code, {
+    message: 'project activeIterationCode must match iteration code',
+    path: ['project', 'activeIterationCode'],
+  })
 
 const issueSchema = z
   .object({
@@ -330,6 +350,13 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
   return {
     loadData() {
       return requestJson(fetcher, '/api/bootstrap', 200, seedDataSchema)
+    },
+    async createProject(input) {
+      const parsed = createProjectInputSchema.parse(input)
+      await requestJson(fetcher, '/api/projects', 201, projectSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      })
     },
     moveIssue(issueKey, status) {
       return requestNoContent(fetcher, `/api/issues/${issueKey}/status`, {

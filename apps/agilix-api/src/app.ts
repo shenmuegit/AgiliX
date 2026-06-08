@@ -1,8 +1,16 @@
 import { buildFeishuReply } from '@agilix/app/domain/feishu'
 import { Hono, type Context } from 'hono'
 import type { z } from 'zod'
-import type { AddDocCommentResult, AgiliXRepository, CreateDocResult, SaveFeishuNotificationResult, SaveMilestoneResult } from './repository'
+import type {
+  AddDocCommentResult,
+  AgiliXRepository,
+  CreateDocResult,
+  CreateProjectResult,
+  SaveFeishuNotificationResult,
+  SaveMilestoneResult,
+} from './repository'
 import {
+  createProjectSchema,
   docCommentSchema,
   docQuerySchema,
   docSchema,
@@ -22,8 +30,24 @@ const createDocFailures = {
   'duplicate-document': { message: 'Document already exists', status: 409 },
   'duplicate-linked-issue': { message: 'Duplicate linked issue', status: 400 },
   'linked-issue-not-found': { message: 'Linked issue not found', status: 400 },
-  'document-comments-not-empty': { message: 'Document comments must be empty on create', status: 400 },
+  'document-comments-not-empty': {
+    message: 'Document comments must be empty on create',
+    status: 400,
+  },
 } satisfies Record<Exclude<CreateDocResult, 'created'>, JsonFailure>
+
+const createProjectFailures = {
+  'duplicate-project': { message: 'Project already exists', status: 409 },
+  'duplicate-iteration': { message: 'Iteration already exists', status: 409 },
+  'project-iteration-mismatch': {
+    message: 'Iteration projectId must match project id',
+    status: 400,
+  },
+  'active-iteration-code-mismatch': {
+    message: 'Project activeIterationCode must match iteration code',
+    status: 400,
+  },
+} satisfies Record<Exclude<CreateProjectResult, 'created'>, JsonFailure>
 
 const addDocCommentFailures = {
   'document-not-found': { message: 'Document not found', status: 404 },
@@ -44,7 +68,10 @@ const saveFeishuNotificationFailures = {
   'comment-not-found': { message: 'Comment not found', status: 400 },
 } satisfies Record<Exclude<SaveFeishuNotificationResult, 'saved'>, JsonFailure>
 
-async function parseJson<T>(context: Context, schema: z.ZodType<T, z.ZodTypeDef, unknown>): Promise<ParseResult<T>> {
+async function parseJson<T>(
+  context: Context,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+): Promise<ParseResult<T>> {
   let json: unknown
   try {
     json = await context.req.json()
@@ -53,18 +80,37 @@ async function parseJson<T>(context: Context, schema: z.ZodType<T, z.ZodTypeDef,
   }
 
   const parsed = schema.safeParse(json)
-  if (!parsed.success) return { response: context.json({ message: 'Validation error', issues: parsed.error.issues }, 400) }
+  if (!parsed.success)
+    return {
+      response: context.json({ message: 'Validation error', issues: parsed.error.issues }, 400),
+    }
   return { value: parsed.data }
 }
 
-function parseQuery<T>(context: Context, schema: z.ZodType<T, z.ZodTypeDef, unknown>): ParseResult<T> {
+function parseQuery<T>(
+  context: Context,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+): ParseResult<T> {
   const parsed = schema.safeParse(context.req.query())
-  if (!parsed.success) return { response: context.json({ message: 'Validation error', issues: parsed.error.issues }, 400) }
+  if (!parsed.success)
+    return {
+      response: context.json({ message: 'Validation error', issues: parsed.error.issues }, 400),
+    }
   return { value: parsed.data }
 }
 
 function idMismatch(context: Context, message: string) {
   return context.json({ message }, 400)
+}
+
+async function validateProjectFilter(
+  context: Context,
+  repository: AgiliXRepository,
+  projectId: string,
+): Promise<Response | undefined> {
+  if (projectId === 'all') return undefined
+  const exists = (await repository.listProjects()).some((project) => project.id === projectId)
+  return exists ? undefined : context.json({ message: 'Project not found' }, 400)
 }
 
 export function createApp(repository: AgiliXRepository) {
@@ -74,9 +120,20 @@ export function createApp(repository: AgiliXRepository) {
 
   app.get('/api/projects', async (context) => context.json(await repository.listProjects()))
 
+  app.post('/api/projects', async (context) => {
+    const parsed = await parseJson(context, createProjectSchema)
+    if ('response' in parsed) return parsed.response
+    const result = await repository.createProject(parsed.value)
+    if (result === 'created') return context.json(parsed.value.project, 201)
+    const failure = createProjectFailures[result]
+    return context.json({ message: failure.message }, failure.status)
+  })
+
   app.get('/api/issues', async (context) => {
     const parsed = parseQuery(context, issueQuerySchema)
     if ('response' in parsed) return parsed.response
+    const invalidProject = await validateProjectFilter(context, repository, parsed.value.projectId)
+    if (invalidProject) return invalidProject
     return context.json(await repository.listIssues(parsed.value))
   })
 
@@ -90,6 +147,8 @@ export function createApp(repository: AgiliXRepository) {
   app.get('/api/docs', async (context) => {
     const parsed = parseQuery(context, docQuerySchema)
     if ('response' in parsed) return parsed.response
+    const invalidProject = await validateProjectFilter(context, repository, parsed.value.projectId)
+    if (invalidProject) return invalidProject
     return context.json(await repository.listDocs(parsed.value))
   })
 
@@ -110,7 +169,8 @@ export function createApp(repository: AgiliXRepository) {
   app.post('/api/docs/:id/comments', async (context) => {
     const parsed = await parseJson(context, docCommentSchema)
     if ('response' in parsed) return parsed.response
-    if (parsed.value.docId !== context.req.param('id')) return idMismatch(context, 'Comment docId must match route id')
+    if (parsed.value.docId !== context.req.param('id'))
+      return idMismatch(context, 'Comment docId must match route id')
     const result = await repository.addDocComment(context.req.param('id'), parsed.value)
     if (result === 'created') return context.json(parsed.value, 201)
     const failure = addDocCommentFailures[result]
@@ -120,13 +180,16 @@ export function createApp(repository: AgiliXRepository) {
   app.get('/api/standups', async (context) => {
     const parsed = parseQuery(context, projectScopedQuerySchema)
     if ('response' in parsed) return parsed.response
+    const invalidProject = await validateProjectFilter(context, repository, parsed.value.projectId)
+    if (invalidProject) return invalidProject
     return context.json(await repository.listStandups(parsed.value))
   })
 
   app.put('/api/standups/:id', async (context) => {
     const parsed = await parseJson(context, standupSchema)
     if ('response' in parsed) return parsed.response
-    if (parsed.value.id !== context.req.param('id')) return idMismatch(context, 'Standup id must match route id')
+    if (parsed.value.id !== context.req.param('id'))
+      return idMismatch(context, 'Standup id must match route id')
     const saved = await repository.saveStandup(parsed.value)
     return saved ? context.body(null, 204) : context.json({ message: 'Standup not found' }, 404)
   })
@@ -134,13 +197,16 @@ export function createApp(repository: AgiliXRepository) {
   app.get('/api/milestones', async (context) => {
     const parsed = parseQuery(context, projectScopedQuerySchema)
     if ('response' in parsed) return parsed.response
+    const invalidProject = await validateProjectFilter(context, repository, parsed.value.projectId)
+    if (invalidProject) return invalidProject
     return context.json(await repository.listMilestones(parsed.value))
   })
 
   app.put('/api/milestones/:id', async (context) => {
     const parsed = await parseJson(context, milestoneSchema)
     if ('response' in parsed) return parsed.response
-    if (parsed.value.id !== context.req.param('id')) return idMismatch(context, 'Milestone id must match route id')
+    if (parsed.value.id !== context.req.param('id'))
+      return idMismatch(context, 'Milestone id must match route id')
     const result = await repository.saveMilestone(parsed.value)
     if (result === 'saved') return context.body(null, 204)
     const failure = saveMilestoneFailures[result]
@@ -151,7 +217,12 @@ export function createApp(repository: AgiliXRepository) {
     const parsed = await parseJson(context, feishuQuerySchema)
     if ('response' in parsed) return parsed.response
     const reply = buildFeishuReply(parsed.value.command, await repository.loadData())
-    await repository.saveFeishuQuery({ id: crypto.randomUUID(), command: parsed.value.command, reply, createdAt: new Date().toISOString() })
+    await repository.saveFeishuQuery({
+      id: crypto.randomUUID(),
+      command: parsed.value.command,
+      reply,
+      createdAt: new Date().toISOString(),
+    })
     return context.json(reply)
   })
 

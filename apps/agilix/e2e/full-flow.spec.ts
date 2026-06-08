@@ -22,18 +22,10 @@ async function mockAgiliXApi(page: Page) {
     })
   })
   await page.route('**/api/docs', async (route) => {
+    const createdDoc = route.request().postDataJSON()
     await route.fulfill({
       status: 201,
-      json: {
-        id: 'doc-e2e',
-        scope: 'global',
-        title: '浏览器流程文档',
-        directory: '全局文档/待整理',
-        body: '浏览器流程创建',
-        linkedIssueKeys: [],
-        comments: [],
-        updatedAtLabel: '刚刚',
-      },
+      json: createdDoc,
     })
   })
   await page.route('**/api/standups/*', async (route) => {
@@ -116,7 +108,7 @@ test('core action buttons remain clickable across product flows', async ({ page 
   await page.getByRole('button', { name: '表格' }).click()
   await expect(page.getByRole('table', { name: '看板表格视图' })).toBeVisible()
   await page.getByRole('button', { name: '时间线' }).click()
-  await expect(page.getByRole('list', { name: '看板时间线视图' })).toBeVisible()
+  await expect(page.getByRole('list', { name: '看板状态时间线' })).toBeVisible()
   await page.getByRole('button', { name: '看板' }).click()
   await page.getByRole('button', { name: '搜索' }).click()
   await page.getByLabel('搜索看板工单').fill('SRCH-209')
@@ -131,7 +123,8 @@ test('core action buttons remain clickable across product flows', async ({ page 
     (request) =>
       request.url().includes('/api/docs/doc-result-card/comments') && request.method() === 'POST',
   )
-  await page.getByRole('button', { name: '新增评论' }).click()
+  await page.getByLabel('新增评论内容').fill('从 AgiliX 文档页补充的评论')
+  await page.getByRole('button', { name: '提交评论' }).click()
   expect((await commentRequest).postDataJSON()).toMatchObject({
     docId: 'doc-result-card',
     body: '从 AgiliX 文档页补充的评论',
@@ -140,6 +133,9 @@ test('core action buttons remain clickable across product flows', async ({ page 
     (request) => request.url().endsWith('/api/docs') && request.method() === 'POST',
   )
   await page.getByRole('button', { name: '新建文档' }).click()
+  await page.getByLabel('文档标题').fill('新建全局文档')
+  await page.getByRole('textbox', { name: '文档内容' }).fill('浏览器流程创建')
+  await page.getByRole('button', { name: '创建文档' }).click()
   expect((await docRequest).postDataJSON()).toMatchObject({
     scope: 'global',
     title: '新建全局文档',
@@ -181,4 +177,63 @@ test('core action buttons remain clickable across product flows', async ({ page 
   await expect(page.getByText('团队状态')).toBeVisible()
   await page.getByRole('button', { name: '查询 /docs 结果卡片' }).click()
   await expect(page.getByText('文档 3')).toBeVisible()
+})
+
+test('document create modal supports directories, issue search, and typed previews', async ({ page }) => {
+  await mockAgiliXApi(page)
+  await page.goto('/', { waitUntil: 'domcontentloaded' })
+  await page.getByRole('link', { name: '文档' }).click()
+  await expect(page.getByRole('heading', { name: '文档', exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: '新建文档' }).click()
+  const dialog = page.getByRole('dialog', { name: '新建文档' })
+  await expect(dialog.getByLabel('文档内容区')).toBeVisible()
+
+  await dialog.getByRole('button', { name: '配置目录与关联' }).click()
+  await expect(dialog.getByLabel('文档配置页')).toBeVisible()
+  await dialog.getByRole('button', { name: '创建为项目文档' }).click()
+  await dialog.getByRole('button', { name: '选择项目 搜索平台' }).click()
+  await dialog.getByRole('button', { name: '选择目录 方案' }).click()
+  await dialog.getByRole('button', { name: '新建子目录' }).click()
+  await dialog.getByLabel('新目录名称').fill('增长实验')
+  await dialog.getByRole('button', { name: '保存目录' }).click()
+  await expect(dialog.getByRole('button', { name: '选择目录 增长实验' })).toHaveClass(/on/)
+
+  await dialog.getByLabel('搜索关联 Issue').fill('收藏')
+  await expect(dialog.getByRole('checkbox', { name: '关联 Issue SRCH-186 搜索历史与收藏打通' })).toBeVisible()
+  await expect(dialog.getByRole('checkbox', { name: '关联 Issue SRCH-198 向量召回 beta 开关接入' })).toHaveCount(0)
+  await dialog.getByRole('checkbox', { name: '关联 Issue SRCH-186 搜索历史与收藏打通' }).check()
+  await dialog.getByRole('button', { name: '返回正文' }).click()
+
+  await dialog.getByRole('button', { name: '文档类型 Markdown' }).click()
+  await dialog.getByRole('textbox', { name: '文档内容' }).fill(
+    ['# 发布说明', '', '```mermaid', 'graph TD', 'A[开始] --> B[完成]', '```'].join('\n'),
+  )
+  await expect(dialog.getByRole('heading', { name: '发布说明' })).toBeVisible()
+  await expect(dialog.getByLabel('Mermaid 图表').getByText('开始')).toBeVisible()
+  await expect(dialog.getByLabel('Mermaid 图表').getByText('完成')).toBeVisible()
+
+  await dialog.getByRole('textbox', { name: '文档内容' }).fill('AgiliX\n  文档\n  看板')
+  await dialog.getByRole('button', { name: '文档类型 脑图' }).click()
+  await expect(dialog.getByLabel('脑图').getByText('AgiliX')).toBeVisible()
+  await expect(dialog.getByLabel('脑图').getByText('看板')).toBeVisible()
+
+  await dialog.getByRole('textbox', { name: '文档内容' }).fill('入口 -> 服务 -> 数据库')
+  await dialog.getByRole('button', { name: '文档类型 Diagram' }).click()
+  await expect(dialog.getByLabel('Diagram 图').getByText('入口')).toBeVisible()
+  await expect(dialog.getByLabel('Diagram 图').getByText('数据库')).toBeVisible()
+
+  const docRequest = page.waitForRequest(
+    (request) => request.url().endsWith('/api/docs') && request.method() === 'POST',
+  )
+  await dialog.getByLabel('文档标题').fill('搜索流程图')
+  await dialog.getByRole('button', { name: '创建文档' }).click()
+  expect((await docRequest).postDataJSON()).toMatchObject({
+    scope: 'project',
+    projectId: 'search',
+    title: '搜索流程图',
+    directory: '项目文档/搜索平台/方案/增长实验',
+    body: ['```diagram', '入口 -> 服务 -> 数据库', '```'].join('\n'),
+    linkedIssueKeys: ['SRCH-186'],
+  })
 })

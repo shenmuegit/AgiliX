@@ -10,6 +10,7 @@ import { Shell, type NavItem } from './components/Shell'
 import type {
   DocComment,
   FeishuNotificationTrigger,
+  CreateProjectInput,
   IssueStatus,
   Milestone,
   SeedData,
@@ -29,7 +30,7 @@ import { WorkloadPage } from './routes/WorkloadPage'
 const defaultAgiliXClient = createAgiliXClient((input, init) => fetch(input, init))
 
 export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient }) {
-  const [active, setActive] = useState<NavItem>('团队工作台')
+  const [active, setActive] = useState<NavItem>(() => initialNavItemFromPath(window.location.pathname))
   const [projectId, setProjectId] = useState<ProjectFilterValue>('search')
   const [docsProjectId, setDocsProjectId] = useState<ProjectFilterValue>('all')
   const [data, setData] = useState<SeedData | null>(null)
@@ -54,6 +55,11 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
 
   async function createDocAndRefresh(doc: CreateDocInput) {
     await client.createDoc(doc)
+    await refresh()
+  }
+
+  async function createProjectAndRefresh(input: CreateProjectInput) {
+    await client.createProject(input)
     await refresh()
   }
 
@@ -131,7 +137,7 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
         onOpenStandup={() => setActive('每日站会')}
       />
     ),
-    项目总览: <ProjectsPage data={loadedData} />,
+    项目总览: <ProjectsPage data={loadedData} onCreateProject={createProjectAndRefresh} />,
     Issues: <IssuesPage data={loadedData} projectId={projectId} onProjectChange={setProjectId} />,
     看板: (
       <BoardPage
@@ -194,4 +200,21 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
       {page[active]}
     </Shell>
   )
+}
+
+function initialNavItemFromPath(pathname: string): NavItem {
+  const pathRoute: Record<string, NavItem> = {
+    '/screen-team.html': '团队工作台',
+    '/screen-projects.html': '项目总览',
+    '/screen-issues.html': 'Issues',
+    '/screen-board.html': '看板',
+    '/screen-stats.html': '迭代统计',
+    '/screen-docs.html': '文档',
+    '/screen-workload.html': '成员负载',
+    '/screen-standup.html': '每日站会',
+    '/screen-gantt.html': '排期甘特',
+    '/screen-feishu.html': '飞书',
+  }
+
+  return pathRoute[pathname] ?? '团队工作台'
 }
