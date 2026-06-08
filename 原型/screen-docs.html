@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档 · AgiliX</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .docs-body{flex:1;min-height:0;display:grid;grid-template-columns:270px minmax(0,1fr) 390px;overflow:hidden}
+  .doc-tree,.doc-detail{min-height:0;overflow:auto;background:var(--paper);border-right:1px solid var(--rule)}
+  .doc-detail{border-right:0;border-left:1px solid var(--rule);background:var(--paper-raised)}
+  .tree-head{padding:16px 18px;border-bottom:1px solid var(--rule)}
+  .tree-title{font-family:var(--serif);font-size:16px;font-weight:600;margin-bottom:9px}
+  .tree-search{height:32px;border:1px solid var(--rule-2);border-radius:var(--r-chip);background:var(--paper-raised);display:flex;align-items:center;gap:7px;padding:0 10px;color:var(--ink-3);font-size:12px}
+  .tree-search svg{width:14px;height:14px;stroke-width:1.8}
+  .tree-sec{padding:15px 12px 4px}
+  .tree-sec-t{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:0 6px 8px}
+  .tree-i{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:8px;padding:7px 8px;border-radius:var(--r-chip);color:var(--ink-2);font-size:12.5px}
+  .tree-i.on{background:var(--ink);color:var(--paper)}
+  .tree-i svg{width:15px;height:15px;stroke-width:1.7}
+  .tree-i span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tree-i small{font-size:10px;color:var(--ink-3);font-family:var(--serif)}
+  .tree-i.on small{color:rgba(250,247,241,.64)}
+  .doc-list{min-height:0;overflow:auto;background:var(--paper)}
+  .doc-summary{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid var(--rule);background:var(--paper-raised)}
+  .doc-summary>div{padding:14px 18px;border-right:1px solid var(--rule)}
+  .doc-summary>div:last-child{border-right:0}
+  .doc-summary .stat-num{font-size:29px}
+  .list-head{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:1px solid var(--rule)}
+  .list-head h2{font-family:var(--serif);font-size:16px;font-weight:600}
+  .doc-row-lg{display:grid;grid-template-columns:34px minmax(0,1fr) 118px 82px;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--rule);background:var(--paper)}
+  .doc-row-lg:hover,.doc-row-lg.on{background:var(--paper-raised)}
+  .doc-row-lg.on{box-shadow:inset 3px 0 0 var(--accent)}
+  .doc-mark{width:30px;height:30px;border-radius:var(--r-chip);display:grid;place-items:center;background:var(--paper-2);color:var(--accent);font-family:var(--serif);font-weight:600}
+  .doc-main{min-width:0}
+  .doc-title{display:flex;align-items:center;gap:8px;min-width:0;font-size:13.5px;font-weight:600;letter-spacing:-.005em;margin-bottom:4px}
+  .doc-title span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .doc-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:var(--ink-3);font-size:11px}
+  .scope{font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-pill);border:1px solid var(--rule-2);background:var(--paper-raised);color:var(--ink-2)}
+  .scope.global{border-color:var(--accent-line);background:var(--accent-soft);color:var(--accent-2)}
+  .doc-owner{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+  .comment-chip{display:inline-flex;align-items:center;justify-content:flex-end;gap:5px;font-size:11px;color:var(--ink-2)}
+  .comment-chip svg{width:13px;height:13px;stroke-width:1.8}
+  .detail-top{padding:18px 20px;border-bottom:1px solid var(--rule)}
+  .detail-top h2{font-family:var(--serif);font-size:22px;font-weight:600;letter-spacing:-.015em;line-height:1.25;margin:8px 0 10px}
+  .detail-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--ink-3)}
+  .detail-section{padding:17px 20px;border-bottom:1px solid var(--rule)}
+  .detail-section h3{font-family:var(--serif);font-size:15px;font-weight:600;margin-bottom:11px}
+  .outline{display:grid;gap:7px}
+  .outline div{display:flex;align-items:center;justify-content:space-between;padding:7px 9px;border:1px solid var(--rule);border-radius:var(--r-chip);background:var(--paper)}
+  .outline span{font-size:12px;color:var(--ink-2)}
+  .outline small{font-size:10px;color:var(--ink-3);font-family:var(--mono)}
+  .rel{display:grid;gap:8px}
+  .rel-i{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:8px;align-items:center;padding:9px 10px;border:1px solid var(--rule);border-radius:var(--r-chip);background:var(--paper)}
+  .rel-i b{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rel-i .badge{justify-self:end}
+  .comment{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:11px 0;border-bottom:1px solid var(--rule)}
+  .comment:last-child{border-bottom:0}
+  .comment b{font-size:12px}
+  .comment p{font-size:12px;color:var(--ink-2);line-height:1.6;margin-top:3px}
+  .comment .time{font-size:10.5px;color:var(--ink-3);margin-left:6px}
+  .reply-box{margin-top:12px;border:1px solid var(--rule-2);border-radius:var(--r-chip);background:var(--paper);padding:10px;color:var(--ink-3);font-size:12px}
+  .feishu-doc{border:1px solid var(--accent-line);background:var(--accent-soft);border-radius:var(--r-card);padding:12px 13px;color:var(--ink-2);font-size:12px;line-height:1.65}
+  .feishu-doc b{display:block;color:var(--ink);margin-bottom:5px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="side" data-active="docs"></div>
+  <div class="main">
+    <header class="top">
+      <div class="top-title">
+        <h1>文档</h1>
+        <div class="sub"><span>全局文档 + 项目文档</span><span>·</span><span>统一目录、评论与关联 Issue</span></div>
+      </div>
+      <div class="top-sp"></div>
+      <button class="icon-btn" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></button>
+      <button class="btn btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M7 12h10M10 18h4"/></svg>全部项目</button>
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>新建文档</button>
+    </header>
+
+    <div class="toolbar">
+      <div class="seg"><button class="on">全部</button><button>最近更新</button><button>待我评论</button><button>项目文档</button><button>全局文档</button></div>
+      <div class="chip-flat">项目:全部</div>
+      <div class="chip-flat">类型:方案 + 接口</div>
+      <div class="chip-flat">评论:未解决 2</div>
+      <div style="flex:1"></div>
+      <span class="label">28 篇 · 本周更新 <b class="num" style="color:var(--ink)">9</b> · 待评论 <b class="num" style="color:var(--st-block)">3</b></span>
+    </div>
+
+    <div class="docs-body">
+      <aside class="doc-tree">
+        <div class="tree-head">
+          <div class="tree-title">目录</div>
+          <div class="tree-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+            搜索标题、正文、评论
+          </div>
+        </div>
+        <div class="tree-sec">
+          <div class="tree-sec-t">全局文档</div>
+          <div class="tree-i on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 7h6"/></svg><span>团队规范</span><small>6</small></div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 14h5"/></svg><span>发布清单</span><small>4</small></div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 4v16M5 9h14M5 15h14"/></svg><span>接口约定</span><small>5</small></div>
+        </div>
+        <div class="tree-sec">
+          <div class="tree-sec-t">项目文档</div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h7l2 2h9v10H3z"/></svg><span>搜索平台</span><small>9</small></div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h7l2 2h9v10H3z"/></svg><span>数据看板</span><small>3</small></div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h7l2 2h9v10H3z"/></svg><span>开放平台</span><small>1</small></div>
+        </div>
+        <div class="tree-sec">
+          <div class="tree-sec-t">快捷筛选</div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>有未解决评论</span><small>2</small></div>
+          <div class="tree-i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>关联待 Review</span><small>3</small></div>
+        </div>
+      </aside>
+
+      <main class="doc-list">
+        <div class="doc-summary">
+          <div><div class="label">全部文档</div><div class="stat-num">28</div></div>
+          <div><div class="label">项目文档</div><div class="stat-num">13</div></div>
+          <div><div class="label">全局文档</div><div class="stat-num">15</div></div>
+          <div><div class="label">待评论</div><div class="stat-num" style="color:var(--st-block)">3</div></div>
+        </div>
+        <div class="list-head">
+          <h2>最近更新</h2>
+          <span class="label">按更新时间排序</span>
+        </div>
+
+        <div class="doc-row-lg on">
+          <div class="doc-mark">方</div>
+          <div class="doc-main">
+            <div class="doc-title"><span>结果卡片重设计方案</span><span class="scope">搜索平台</span></div>
+            <div class="doc-meta"><span>方案</span><span>·</span><span>关联 SRCH-212 / SRCH-186</span><span>·</span><span>12 分钟前</span></div>
+          </div>
+          <div class="doc-owner"><div class="av sm av-jiang">江</div>江月</div>
+          <div class="comment-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>4</div>
+        </div>
+        <div class="doc-row-lg">
+          <div class="doc-mark">接</div>
+          <div class="doc-main">
+            <div class="doc-title"><span>搜索接口字段约定</span><span class="scope">搜索平台</span></div>
+            <div class="doc-meta"><span>接口</span><span>·</span><span>关联 SRCH-209</span><span>·</span><span>1 小时前</span></div>
+          </div>
+          <div class="doc-owner"><div class="av sm av-su">苏</div>苏晴</div>
+          <div class="comment-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>2</div>
+        </div>
+        <div class="doc-row-lg">
+          <div class="doc-mark">发</div>
+          <div class="doc-main">
+            <div class="doc-title"><span>灰度发布检查清单</span><span class="scope global">全局</span></div>
+            <div class="doc-meta"><span>清单</span><span>·</span><span>被 4 个项目引用</span><span>·</span><span>昨天</span></div>
+          </div>
+          <div class="doc-owner"><div class="av sm av-he">何</div>何川</div>
+          <div class="comment-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>1</div>
+        </div>
+        <div class="doc-row-lg">
+          <div class="doc-mark">会</div>
+          <div class="doc-main">
+            <div class="doc-title"><span>S24 搜索体验重构站会纪要</span><span class="scope">搜索平台</span></div>
+            <div class="doc-meta"><span>纪要</span><span>·</span><span>关联今日阻塞</span><span>·</span><span>昨天</span></div>
+          </div>
+          <div class="doc-owner"><div class="av sm av-lin">林</div>林夏</div>
+          <div class="comment-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>6</div>
+        </div>
+        <div class="doc-row-lg">
+          <div class="doc-mark">规</div>
+          <div class="doc-main">
+            <div class="doc-title"><span>Issue 标题与验收标准规范</span><span class="scope global">全局</span></div>
+            <div class="doc-meta"><span>规范</span><span>·</span><span>创建 Issue 时引用</span><span>·</span><span>2 天前</span></div>
+          </div>
+          <div class="doc-owner"><div class="av sm av-chen">陈</div>陈牧</div>
+          <div class="comment-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>0</div>
+        </div>
+      </main>
+
+      <aside class="doc-detail">
+        <div class="detail-top">
+          <div class="kicker">Selected Document</div>
+          <h2>结果卡片重设计方案</h2>
+          <div class="detail-meta">
+            <span class="scope">搜索平台</span>
+            <span>方案</span><span>·</span><span>江月更新于 12 分钟前</span>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>目录</h3>
+          <div class="outline">
+            <div><span>1. 背景与问题</span><small>01</small></div>
+            <div><span>2. 信息结构</span><small>03</small></div>
+            <div><span>3. 摘要高亮规则</span><small>05</small></div>
+            <div><span>4. 验收标准</span><small>08</small></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>关联 Issue</h3>
+          <div class="rel">
+            <div class="rel-i"><span class="wid">SRCH-212</span><b>结果卡片摘要高亮</b><span class="badge b-block"><span class="dot"></span>待确认</span></div>
+            <div class="rel-i"><span class="wid">SRCH-186</span><b>搜索历史与收藏打通</b><span class="badge b-review"><span class="dot"></span>Review</span></div>
+          </div>
+        </div>
+
+        <div class="detail-section">
+          <h3>评论</h3>
+          <div class="comment">
+            <div class="av sm av-chen">陈</div>
+            <div><b>陈牧</b><span class="time">12 分钟前</span><p>摘要高亮的截断规则需要和移动端保持一致，否则 SRCH-212 还会返工。</p></div>
+          </div>
+          <div class="comment">
+            <div class="av sm av-gao">高</div>
+            <div><b>高远</b><span class="time">28 分钟前</span><p>接口可以补一个 highlightRanges 字段，我在 SRCH-209 的修复里一起验证。</p></div>
+          </div>
+          <div class="reply-box">回复或 @成员,评论会同步到关联 Issue 动态。</div>
+        </div>
+
+        <div class="detail-section">
+          <div class="feishu-doc">
+            <b>飞书查询示例</b>
+            群里发送 <span class="wid">/docs 结果卡片</span>，返回这篇文档的摘要、链接、关联 Issue 和未解决评论数。
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script src="shell.js"></script>
+</body>
+</html>

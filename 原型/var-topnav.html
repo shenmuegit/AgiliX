@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>布局变体 · 顶部导航</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .tn-app{display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--paper)}
+  .tn-bar{display:flex;align-items:center;gap:22px;padding:0 26px;height:58px;border-bottom:1px solid var(--rule);flex:0 0 auto}
+  .tn-brand{display:flex;align-items:center;gap:10px}
+  .tn-brand .brandmark{width:28px;height:28px;font-size:16px;border-radius:6px}
+  .tn-brand b{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .tn-nav{display:flex;gap:2px;height:100%;align-items:stretch}
+  .tn-nav a{display:flex;align-items:center;gap:7px;padding:0 14px;font-size:13px;font-weight:500;color:var(--ink-2);border-bottom:2px solid transparent;cursor:pointer;text-decoration:none;white-space:nowrap}
+  .tn-nav a svg{width:16px;height:16px;stroke-width:1.7}
+  .tn-nav a:hover{color:var(--ink)}
+  .tn-nav a.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+  .tn-sub{display:flex;align-items:center;gap:16px;padding:0 26px;height:50px;border-bottom:1px solid var(--rule);flex:0 0 auto;background:var(--paper)}
+  .tn-board{flex:1;min-height:0;display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<div class="tn-app">
+  <div class="tn-bar">
+    <div class="tn-brand"><div class="brandmark">汇</div><b>研发台账</b></div>
+    <nav class="tn-nav">
+      <a class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="14" rx="1"/></svg>看板</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h10"/></svg>需求 &amp; 缺陷</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V5M4 19h16M8 16V9M13 16V6M18 16v-4"/></svg>迭代统计</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M3 12h18M3 18h18"/></svg>成员负载</a>
+      <a><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>排期</a>
+    </nav>
+    <div style="flex:1"></div>
+    <div class="feishu-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>机器人已同步</div>
+    <div class="facepile"><div class="av sm av-lin">林</div><div class="av sm av-chen">陈</div><div class="av sm av-gao">高</div><div class="more" style="width:22px;height:22px;font-size:9px">+5</div></div>
+    <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>新建</button>
+  </div>
+  <div class="tn-sub">
+    <div class="sprint-chip" style="padding:5px 12px"><span class="sp-no" style="font-size:17px">24</span><div class="sp-tt"><b>搜索体验重构</b><span>06/02–06/13 · 第 7 天</span></div></div>
+    <div style="flex:1"></div>
+    <div class="seg"><button class="on">看板</button><button>表格</button><button>时间线</button></div>
+    <div class="chip-flat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M7 12h10M10 18h4"/></svg>筛选</div>
+    <span class="label">32 工单 · <b class="num" style="color:var(--ink)">47</b>/68 pt</span>
+  </div>
+  <div class="tn-board"><div class="board" id="board"></div></div>
+</div>
+
+<script>
+const COLS=[{t:'待办',bar:'var(--st-todo)'},{t:'进行中',bar:'var(--st-doing)'},{t:'评审',bar:'var(--st-review)'},{t:'测试',bar:'#8a6b9a'},{t:'已完成',bar:'var(--st-done)'}];
+const D={
+ 0:[['S','t-story','结果页二级聚合',5,'chen'],['D','t-tech','网关降级策略',8,'he'],['T','t-task','空结果 query 清单',2,'lin']],
+ 1:[['S','t-story','语义向量检索召回',8,'gao'],['B','t-bug','空格 query 命中率',3,'su'],['S','t-story','卡片摘要高亮',5,'chen']],
+ 2:[['S','t-story','历史与收藏打通',5,'zhou'],['D','t-tech','日志接入多维表格',3,'lin']],
+ 3:[['S','t-story','联想词缓存防抖',3,'gao'],['B','t-bug','中英混排高亮错位',2,'chen']],
+ 4:[['S','t-story','搜索入口 IA',5,'chen'],['D','t-tech','检索指标看板',5,'he'],['T','t-task','竞品调研纪要',2,'jiang']],
+};
+const AV={lin:'av-lin',chen:'av-chen',zhou:'av-zhou',gao:'av-gao',su:'av-su',he:'av-he',han:'av-han',jiang:'av-jiang'};
+const NM={lin:'林',chen:'陈',zhou:'周',gao:'高',su:'苏',he:'何',han:'韩',jiang:'江'};
+document.getElementById('board').innerHTML = COLS.map((c,i)=>`
+  <div class="col"><div class="col-h"><span class="col-bar" style="background:${c.bar};max-width:18px"></span><span class="col-t">${c.t}</span><span class="col-n">${(D[i]||[]).length}</span></div>
+  <div class="col-body">${(D[i]||[]).map(([tg,cl,ti,pt,w])=>`
+    <div class="card"><div class="card-top"><div class="card-top-l"><span class="type-tag ${cl}">${tg}</span></div></div>
+    <div class="card-title" style="margin-bottom:10px">${ti}</div>
+    <div class="card-meta"><span></span><div class="card-meta-l" style="gap:8px"><span class="pts">${pt}<small>pt</small></span><div class="av sm ${AV[w]}">${NM[w]}</div></div></div></div>`).join('')}</div></div>`).join('');
+</script>
+</body>
+</html>

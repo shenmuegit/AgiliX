@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>需求 & 缺陷 · 台账</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .lg-body{flex:1;min-height:0;overflow:auto}
+  .lg-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .lg-table thead th{position:sticky;top:0;background:var(--paper);text-align:left;padding:13px 16px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600;border-bottom:1.5px solid var(--rule-2);white-space:nowrap;z-index:1}
+  .lg-table th.r{text-align:right}
+  .lg-table td{padding:13px 16px;border-bottom:1px solid var(--rule);vertical-align:middle}
+  .lg-table tbody tr:hover td{background:var(--paper-raised)}
+  .lg-title{font-size:13px;font-weight:500;letter-spacing:-.005em;display:flex;align-items:center;gap:8px}
+  .epic{font-size:10px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:6px}
+  .epic .swatch{width:7px;height:7px;border-radius:2px}
+  .grp-row td{background:var(--paper-2);padding:9px 16px;border-bottom:1px solid var(--rule-2);border-top:1px solid var(--rule-2)}
+  .grp-row .label{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="side" data-active="ledger"></div>
+  <div class="main">
+    <header class="top">
+      <div class="top-title">
+        <h1>需求 &amp; 缺陷</h1>
+        <div class="sub"><span>搜索体验重构 · 工作项台账</span></div>
+      </div>
+      <div class="top-sp"></div>
+      <button class="icon-btn" title="搜索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></button>
+      <button class="btn btn-ghost"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>导出</button>
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>新建工单</button>
+    </header>
+
+    <div class="toolbar">
+      <div class="seg"><button class="on">全部</button><button>需求</button><button>缺陷</button><button>技术债</button></div>
+      <div class="chip-flat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M7 12h10M10 18h4"/></svg>状态:进行中 +2</div>
+      <div class="chip-flat">迭代:S24</div>
+      <div class="chip-flat">经办:全部</div>
+      <div style="flex:1"></div>
+      <span class="label">58 项 · 故事点 <b class="num" style="color:var(--ink)">182</b> · 缺陷 <b class="num" style="color:var(--st-block)">9</b></span>
+    </div>
+
+    <div class="lg-body">
+      <table class="lg-table" id="lg"></table>
+    </div>
+  </div>
+</div>
+
+<script src="shell.js"></script>
+<script>
+const AVN = {lin:'av-lin',chen:'av-chen',zhou:'av-zhou',gao:'av-gao',su:'av-su',he:'av-he',han:'av-han',jiang:'av-jiang'};
+const NAME = {lin:'林夏',chen:'陈牧',zhou:'周屿',gao:'高远',su:'苏晴',he:'何川',han:'韩雪',jiang:'江月'};
+const TYPE = {story:['S','t-story','需求'],bug:['B','t-bug','缺陷'],task:['T','t-task','任务'],tech:['D','t-tech','技术']};
+const BADGE = {todo:['b-todo','待办'],doing:['b-doing','进行中'],review:['b-review','评审'],test:['b-block','测试'],done:['b-done','已完成'],block:['b-block','阻塞']};
+const flag = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:11px;height:11px"><path d="M5 21V4M5 4h11l-2 3 2 3H5"/></svg>';
+
+const EPIC = {
+  recall:['召回与语义','#7d6a8f'],
+  ui:['结果页体验','#3f6f6a'],
+  infra:['检索基建','#9a6a4a'],
+};
+const ROWS = [
+  {g:'recall'},
+  {wid:'SRCH-198',type:'story',title:'召回阶段引入语义向量检索',epic:'recall',pri:1,st:'doing',who:'gao',pts:8,upd:'2 小时前'},
+  {wid:'SRCH-209',type:'bug', title:'空格开头的 query 命中率骤降',epic:'recall',pri:1,st:'doing',who:'su',pts:3,upd:'40 分钟前',hot:1},
+  {wid:'SRCH-224',type:'tech', title:'统一检索网关的超时与降级策略',epic:'recall',pri:2,st:'todo',who:'he',pts:8,upd:'昨天'},
+  {wid:'SRCH-177',type:'story',title:'联想词接口缓存与防抖',epic:'recall',pri:2,st:'test',who:'gao',pts:3,upd:'今天 09:20'},
+  {g:'ui'},
+  {wid:'SRCH-212',type:'story',title:'结果卡片重设计 · 摘要高亮与来源标',epic:'ui',pri:2,st:'doing',who:'chen',pts:5,upd:'1 小时前',approve:'设计评审'},
+  {wid:'SRCH-218',type:'story',title:'结果页支持「按团队/项目」二级聚合',epic:'ui',pri:1,st:'todo',who:'chen',pts:5,upd:'昨天'},
+  {wid:'SRCH-190',type:'bug', title:'高亮在中英混排下偶发错位',epic:'ui',pri:2,st:'test',who:'chen',pts:2,upd:'今天 11:05'},
+  {wid:'SRCH-205',type:'story',title:'移动端搜索框联想词键盘上下选择',epic:'ui',pri:2,st:'todo',who:'zhou',pts:3,upd:'2 天前'},
+  {wid:'SRCH-186',type:'story',title:'搜索历史与「我的收藏」打通',epic:'ui',pri:2,st:'review',who:'zhou',pts:5,upd:'3 小时前'},
+  {g:'infra'},
+  {wid:'SRCH-201',type:'tech', title:'检索日志接入多维表格做留存分析',epic:'infra',pri:3,st:'review',who:'lin',pts:3,upd:'今天 10:40',feishu:1},
+  {wid:'SRCH-170',type:'tech', title:'检索指标看板上线(P95 / 空结果率)',epic:'infra',pri:1,st:'done',who:'he',pts:5,upd:'2 天前'},
+  {wid:'SRCH-231',type:'task', title:'整理近 30 天高频空结果 query 清单',epic:'infra',pri:3,st:'todo',who:'lin',pts:2,upd:'昨天'},
+];
+
+function priCell(p){return p===1?`<span class="pri p1">${flag}高</span>`:p===2?`<span class="pri p2">${flag}中</span>`:`<span class="pri p3">${flag}低</span>`;}
+
+document.getElementById('lg').innerHTML = `
+  <thead><tr>
+    <th style="width:108px">工单号</th>
+    <th>标题</th>
+    <th style="width:78px">优先级</th>
+    <th style="width:96px">状态</th>
+    <th style="width:130px">经办人</th>
+    <th class="r" style="width:56px">点数</th>
+    <th class="r" style="width:110px">更新</th>
+  </tr></thead>
+  <tbody>${ROWS.map(r=>{
+    if(r.g){const e=EPIC[r.g];return `<tr class="grp-row"><td colspan="7"><span class="label" style="display:inline-flex;align-items:center;gap:8px"><span style="width:8px;height:8px;border-radius:2px;background:${e[1]}"></span>史诗 · ${e[0]}</span></td></tr>`;}
+    const t=TYPE[r.type], b=BADGE[r.st];
+    const fs = r.feishu?`<span class="feishu-dot" style="padding:1px 6px;font-size:9px;margin-left:4px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>飞书</span>`:'';
+    const ap = r.approve?`<span class="badge b-review" style="margin-left:4px">审批 · ${r.approve}</span>`:'';
+    const hot = r.hot?`<span style="width:6px;height:6px;border-radius:50%;background:var(--st-block);display:inline-block;margin-left:2px" title="热点"></span>`:'';
+    return `<tr>
+      <td><span class="wid">${r.wid}</span>${hot}</td>
+      <td>
+        <div class="lg-title"><span class="type-tag ${t[1]}">${t[0]}</span><span>${r.title}</span>${fs}${ap}</div>
+      </td>
+      <td>${priCell(r.pri)}</td>
+      <td><span class="badge ${b[0]}"><span class="dot"></span>${b[1]}</span></td>
+      <td><div style="display:flex;align-items:center;gap:8px;white-space:nowrap"><div class="av sm ${AVN[r.who]}">${NAME[r.who][0]}</div><span style="font-size:12px">${NAME[r.who]}</span></div></td>
+      <td class="r"><span class="num" style="font-size:15px">${r.pts}</span></td>
+      <td class="r muted" style="font-size:11px">${r.upd}</td>
+    </tr>`;
+  }).join('')}</tbody>`;
+</script>
+</body>
+</html>

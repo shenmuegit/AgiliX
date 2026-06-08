@@ -6,7 +6,7 @@
 
 ```bash
 wrangler login
-wrangler d1 create agilix-db       # 将 database_id 填入 packages/frontend/wrangler.toml
+wrangler d1 create agilix-db       # 将 database_id 填入 packages/backend/wrangler.toml
 pnpm db:migrate:remote             # 远程建表
 pnpm ship                          # 构建 + 部署
 ```

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>排期甘特 · Sprint 24</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .gt-body{flex:1;min-height:0;overflow:auto}
+  .gt{--name-w:300px;--cells:15;position:relative}
+  .gt-head{display:grid;grid-template-columns:var(--name-w) 1fr;position:sticky;top:0;z-index:3;background:var(--paper)}
+  .gt-head .corner{border-right:1px solid var(--rule-2);border-bottom:1.5px solid var(--rule-2);padding:12px 16px;display:flex;align-items:flex-end}
+  .gt-weeks{border-bottom:1.5px solid var(--rule-2)}
+  .wk-row{display:grid;grid-template-columns:repeat(3,1fr)}
+  .wk{padding:9px 14px;border-right:1px solid var(--rule-2);font-size:11px}
+  .wk:last-child{border-right:0}
+  .wk b{font-family:var(--serif);font-size:14px;font-weight:600}
+  .wk span{color:var(--ink-3);margin-left:6px}
+  .wk.sp{color:var(--accent)}
+  .day-row{display:grid;grid-template-columns:repeat(15,1fr)}
+  .day{padding:5px 0;text-align:center;font-size:9.5px;color:var(--ink-3);border-right:1px solid var(--rule);font-family:var(--serif)}
+  .day:last-child{border-right:0}
+  .day.today{background:var(--accent-soft);color:var(--accent-2);font-weight:700}
+
+  .gt-row{display:grid;grid-template-columns:var(--name-w) 1fr;border-bottom:1px solid var(--rule)}
+  .gt-row:hover{background:var(--paper-raised)}
+  .gt-grp td,.gt-grp{background:var(--paper-2)}
+  .gt-grp .name{padding:9px 16px;display:flex;align-items:center;gap:8px}
+  .gt-name{padding:11px 16px;border-right:1px solid var(--rule);display:flex;align-items:center;gap:10px;min-width:0}
+  .gt-name .wid{flex:0 0 auto}
+  .gt-name .nt{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lane{position:relative;height:46px}
+  .lane-grid{position:absolute;inset:0;display:grid;grid-template-columns:repeat(15,1fr)}
+  .lane-grid i{border-right:1px solid var(--rule)}
+  .lane-grid i:nth-child(5),.lane-grid i:nth-child(10){border-right:1px solid var(--rule-2)}
+  .today-line{position:absolute;top:0;bottom:0;width:1.5px;background:var(--accent);z-index:2}
+  .bar{position:absolute;top:50%;transform:translateY(-50%);height:22px;border-radius:5px;display:flex;align-items:center;padding:0 9px;gap:7px;font-size:11px;font-weight:600;color:#fff;z-index:1;box-shadow:0 1px 2px rgba(33,29,24,.12);white-space:nowrap;overflow:hidden}
+  .bar .av{border:1.5px solid rgba(255,255,255,.65)}
+  .bar.ghost{background:repeating-linear-gradient(45deg,var(--paper-2),var(--paper-2) 5px,#ece6d9 5px,#ece6d9 10px);color:var(--ink-2);border:1px dashed var(--rule-2);box-shadow:none}
+  .ms{position:absolute;top:50%;width:13px;height:13px;background:var(--accent);transform:translate(-50%,-50%) rotate(45deg);z-index:2;border:2px solid var(--paper)}
+  .ms-row{height:38px}
+  .ms-lbl{position:absolute;top:50%;transform:translateY(-50%);font-size:11px;font-weight:600;color:var(--accent-2);white-space:nowrap}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="side" data-active="gantt"></div>
+  <div class="main">
+    <header class="top">
+      <div class="top-title">
+        <h1>排期甘特</h1>
+        <div class="sub"><span>6 月 · Sprint 24 → 25</span></div>
+      </div>
+      <div class="top-sp"></div>
+      <div class="seg"><button>周</button><button class="on">双周</button><button>月</button></div>
+      <div class="feishu-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/></svg>同步飞书日历</div>
+    </header>
+
+    <div class="gt-body">
+      <div class="gt">
+        <!-- 表头 -->
+        <div class="gt-head">
+          <div class="corner"><span class="label">工作项 / 里程碑</span></div>
+          <div class="gt-weeks">
+            <div class="wk-row">
+              <div class="wk sp"><b>W23</b><span>06/02–06/06 · S24</span></div>
+              <div class="wk sp"><b>W24</b><span>06/09–06/13 · S24</span></div>
+              <div class="wk"><b>W25</b><span>06/16–06/20 · S25</span></div>
+            </div>
+            <div class="day-row">
+              <div class="day">2</div><div class="day">3</div><div class="day">4</div><div class="day">5</div><div class="day today">6</div>
+              <div class="day">9</div><div class="day">10</div><div class="day">11</div><div class="day">12</div><div class="day">13</div>
+              <div class="day">16</div><div class="day">17</div><div class="day">18</div><div class="day">19</div><div class="day">20</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="gt"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shell.js"></script>
+<script>
+const AVN = {lin:'av-lin',chen:'av-chen',zhou:'av-zhou',gao:'av-gao',su:'av-su',he:'av-he',han:'av-han',jiang:'av-jiang'};
+const NAME = {lin:'林',chen:'陈',zhou:'周',gao:'高',su:'苏',he:'何',han:'韩',jiang:'江'};
+const SCOL = {done:'var(--st-done)',doing:'var(--accent)',review:'var(--st-review)',todo:'var(--st-todo)',test:'#8a6b9a'};
+const TODAY = 4; // cell index (06/06)
+
+const GROUPS = [
+  {epic:'召回与语义', color:'#7d6a8f', rows:[
+    {wid:'SRCH-177',nm:'联想词接口缓存与防抖',s:1,e:4,st:'test',who:'gao'},
+    {wid:'SRCH-198',nm:'语义向量检索召回',s:2,e:9,st:'doing',who:'gao'},
+    {wid:'SRCH-209',nm:'空格 query 命中率修复',s:4,e:6,st:'doing',who:'su'},
+    {wid:'SRCH-224',nm:'网关超时与降级策略',s:8,e:13,st:'todo',who:'he',ghost:1},
+  ]},
+  {epic:'结果页体验', color:'#3f6f6a', rows:[
+    {wid:'SRCH-164',nm:'搜索入口信息架构',s:0,e:2,st:'done',who:'chen'},
+    {wid:'SRCH-186',nm:'历史与收藏打通',s:3,e:6,st:'review',who:'zhou'},
+    {wid:'SRCH-212',nm:'结果卡片重设计',s:4,e:8,st:'doing',who:'chen'},
+    {wid:'SRCH-218',nm:'二级聚合(团队/项目)',s:9,e:13,st:'todo',who:'chen',ghost:1},
+  ]},
+  {epic:'检索基建', color:'#9a6a4a', rows:[
+    {wid:'SRCH-170',nm:'检索指标看板',s:0,e:3,st:'done',who:'he'},
+    {wid:'SRCH-201',nm:'日志接入多维表格',s:5,e:8,st:'review',who:'lin'},
+  ]},
+];
+const MS = [
+  {cell:9.5,lbl:'灰度上线'},
+  {cell:14.5,lbl:'全量发布'},
+];
+const cw = 100/15;
+function bar(r){
+  const left = r.s*cw, w=(r.e-r.s+1)*cw;
+  return `<div class="bar ${r.ghost?'ghost':''}" style="left:${left}%;width:calc(${w}% - 6px);margin-left:3px;${r.ghost?'':'background:'+SCOL[r.st]}">
+    <span style="overflow:hidden;text-overflow:ellipsis">${r.nm}</span>
+    <div class="av sm ${AVN[r.who]}" style="margin-left:auto">${NAME[r.who]}</div>
+  </div>`;
+}
+let html='';
+GROUPS.forEach(g=>{
+  html += `<div class="gt-row gt-grp">
+    <div class="gt-name name" style="border-right-color:var(--rule-2)"><span style="width:9px;height:9px;border-radius:2px;background:${g.color}"></span><span class="label" style="color:var(--ink-2)">史诗 · ${g.epic}</span></div>
+    <div class="lane" style="height:auto"><div class="lane-grid" style="height:34px">${'<i></i>'.repeat(15)}</div></div>
+  </div>`;
+  g.rows.forEach(r=>{
+    html += `<div class="gt-row">
+      <div class="gt-name"><span class="wid">${r.wid}</span><span class="nt">${r.nm}</span></div>
+      <div class="lane">
+        <div class="lane-grid">${'<i></i>'.repeat(15)}</div>
+        <div class="today-line" style="left:${(TODAY+1)*cw}%"></div>
+        ${bar(r)}
+      </div>
+    </div>`;
+  });
+});
+// 里程碑行
+html += `<div class="gt-row">
+  <div class="gt-name"><svg viewBox="0 0 24 24" fill="var(--accent)" style="width:13px;height:13px"><path d="M12 2l3 3-3 3-3-3z"/></svg><span class="nt" style="color:var(--accent-2);font-weight:600">里程碑</span></div>
+  <div class="lane ms-row">
+    <div class="lane-grid">${'<i></i>'.repeat(15)}</div>
+    <div class="today-line" style="left:${(TODAY+1)*cw}%"></div>
+    ${MS.map(m=>`<div class="ms" style="left:${m.cell*cw}%"></div><div class="ms-lbl" style="left:calc(${m.cell*cw}% + 12px)">${m.lbl}</div>`).join('')}
+  </div>
+</div>`;
+document.getElementById('gt').innerHTML = html;
+</script>
+</body>
+</html>

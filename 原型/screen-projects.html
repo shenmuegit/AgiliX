@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>项目总览 · 研发台账</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .pv-body{flex:1;min-height:0;overflow:auto;padding:24px 26px 32px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule);border-radius:var(--r-card);background:var(--paper-raised);overflow:hidden;margin-bottom:24px}
+  .summary > div{padding:18px 22px;border-right:1px solid var(--rule)}
+  .summary > div:last-child{border-right:0}
+  .pv-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+  .pcard{background:var(--paper-raised);border:1px solid var(--rule);border-radius:var(--r-card);box-shadow:var(--shadow-card);overflow:hidden}
+  .pcard:hover{border-color:var(--rule-2)}
+  .pc-top{display:flex;align-items:flex-start;gap:13px;padding:18px 20px 0}
+  .pc-glyph{width:42px;height:42px;flex:0 0 auto;border-radius:9px;display:grid;place-items:center;color:#fff;font-family:var(--serif);font-size:21px;font-weight:600}
+  .pc-name{flex:1;min-width:0}
+  .pc-name h3{font-family:var(--serif);font-size:17px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  .pc-name .sprint{font-size:11.5px;color:var(--ink-3);margin-top:3px;display:flex;align-items:center;gap:7px}
+  .pc-body{padding:16px 20px 18px}
+  .pc-prog-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:7px}
+  .pc-prog-h .pct{font-family:var(--serif);font-size:18px;font-weight:600}
+  .pbar{height:7px;border-radius:4px;background:var(--paper-2);overflow:hidden;margin-bottom:16px}
+  .pbar i{display:block;height:100%;border-radius:4px}
+  .pc-stats{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--rule);border-bottom:1px solid var(--rule)}
+  .pc-stats > div{padding:11px 0;border-right:1px solid var(--rule)}
+  .pc-stats > div:last-child{border-right:0}
+  .pc-stats .v{font-family:var(--serif);font-size:18px;font-weight:600;line-height:1}
+  .pc-stats .l{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-top:5px}
+  .pc-foot{display:flex;align-items:center;justify-content:space-between;padding-top:14px}
+  .spark{display:flex;align-items:flex-end;gap:3px;height:26px}
+  .spark i{width:5px;border-radius:1.5px;background:var(--rule-2)}
+  .spark i.cur{background:var(--accent)}
+  .health{font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:var(--r-pill);display:inline-flex;align-items:center;gap:5px}
+  .health .dot{width:6px;height:6px;border-radius:50%}
+  .h-ok{background:var(--st-done-bg);color:#42583e}.h-ok .dot{background:var(--st-done)}
+  .h-risk{background:var(--st-doing-bg);color:#8a6418}.h-risk .dot{background:var(--st-doing)}
+  .h-block{background:var(--st-block-bg);color:#883a2d}.h-block .dot{background:var(--st-block)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="side" data-active="overview"></div>
+  <div class="main">
+    <header class="top">
+      <div class="top-title">
+        <h1>项目总览</h1>
+        <div class="sub"><span>研发组合 · 4 个进行中项目</span></div>
+      </div>
+      <div class="top-sp"></div>
+      <div class="feishu-dot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>每周一推送组合周报</div>
+      <button class="btn btn-primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>新建项目</button>
+    </header>
+
+    <div class="pv-body">
+      <!-- 组合摘要 -->
+      <div class="summary">
+        <div>
+          <div class="label" style="margin-bottom:8px">进行中项目</div>
+          <div class="stat-num" style="font-size:34px">4</div>
+          <div class="muted" style="font-size:11px;margin-top:4px">共 8 名成员协作</div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:8px">活跃迭代</div>
+          <div class="stat-num" style="font-size:34px">4</div>
+          <div class="muted" style="font-size:11px;margin-top:4px">本周 <span class="num" style="color:var(--st-done)">2</span> 个待发布</div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:8px">本周完成点数</div>
+          <div class="stat-num" style="font-size:34px">63<span style="font-size:14px;color:var(--ink-3)"> pt</span></div>
+          <div style="font-size:11px;margin-top:4px"><span class="delta up">▲ 11%</span> <span class="muted">较上周</span></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:8px">需关注</div>
+          <div class="stat-num" style="font-size:34px;color:var(--st-block)">1<span style="font-size:14px;color:var(--ink-3)"> 项受阻</span></div>
+          <div class="muted" style="font-size:11px;margin-top:4px">开放平台 · 鉴权依赖</div>
+        </div>
+      </div>
+
+      <div class="pv-grid" id="pv"></div>
+    </div>
+  </div>
+</div>
+
+<script src="shell.js"></script>
+<script>
+const AVN={lin:'av-lin',chen:'av-chen',zhou:'av-zhou',gao:'av-gao',su:'av-su',he:'av-he',han:'av-han',jiang:'av-jiang'};
+const HEALTH={ok:['h-ok','正常'],risk:['h-risk','偏紧'],block:['h-block','受阻']};
+const P=[
+  {glyph:'搜',color:'var(--accent)',name:'搜索平台',sprint:'S24 · 搜索体验重构',day:'第 7 / 10 天',
+   pct:69,pbar:'var(--st-done)',done:47,total:68,bugs:9,team:['lin','chen','zhou','gao','su','he','han','jiang'],
+   health:'risk',spark:[42,51,38,49,47],owner:'林夏'},
+  {glyph:'数',color:'#3f6f6a',name:'数据看板',sprint:'S12 · 指标自助配置',day:'第 4 / 10 天',
+   pct:54,pbar:'#3f6f6a',done:18,total:33,bugs:3,team:['he','su','jiang'],
+   health:'ok',spark:[28,31,26,30,33],owner:'何川'},
+  {glyph:'开',color:'#7d6a8f',name:'开放平台',sprint:'S07 · 鉴权重构',day:'第 9 / 10 天',
+   pct:45,pbar:'var(--st-block)',done:14,total:31,bugs:5,team:['gao','he','lin'],
+   health:'block',spark:[22,24,19,25,16],owner:'高远'},
+  {glyph:'移',color:'#9a6a4a',name:'移动端 App',sprint:'S19 · 离线缓存',day:'第 8 / 10 天',
+   pct:90,pbar:'var(--st-done)',done:27,total:30,bugs:1,team:['zhou','chen','han'],
+   health:'ok',spark:[24,20,29,26,27],owner:'周屿'},
+];
+const NM={lin:'林',chen:'陈',zhou:'周',gao:'高',su:'苏',he:'何',han:'韩',jiang:'江'};
+function facepile(team){
+  const show=team.slice(0,4);
+  const more=team.length-show.length;
+  return `<div class="facepile">${show.map(w=>`<div class="av sm ${AVN[w]}">${NM[w]}</div>`).join('')}${more>0?`<div class="more" style="width:22px;height:22px;font-size:9px">+${more}</div>`:''}</div>`;
+}
+function spark(arr){
+  const mx=Math.max(...arr);
+  return `<div class="spark">${arr.map((v,i)=>`<i class="${i===arr.length-1?'cur':''}" style="height:${Math.round(v/mx*26)}px"></i>`).join('')}</div>`;
+}
+document.getElementById('pv').innerHTML = P.map(p=>{
+  const h=HEALTH[p.health];
+  return `<div class="pcard">
+    <div class="pc-top">
+      <div class="pc-glyph" style="background:${p.color}">${p.glyph}</div>
+      <div class="pc-name">
+        <h3>${p.name} <span class="health ${h[0]}"><span class="dot"></span>${h[1]}</span></h3>
+        <div class="sprint"><span class="wid" style="color:var(--ink-2)">${p.sprint}</span><span>·</span><span>${p.day}</span></div>
+      </div>
+    </div>
+    <div class="pc-body">
+      <div class="pc-prog-h"><span class="label">迭代进度</span><span class="pct">${p.pct}<span style="font-size:11px;color:var(--ink-3)">%</span></span></div>
+      <div class="pbar"><i style="width:${p.pct}%;background:${p.pbar}"></i></div>
+      <div class="pc-stats">
+        <div><div class="v">${p.done}<span style="font-size:11px;color:var(--ink-3)">/${p.total}</span></div><div class="l">故事点</div></div>
+        <div><div class="v" style="${p.bugs>=5?'color:var(--st-block)':''}">${p.bugs}</div><div class="l">未解缺陷</div></div>
+        <div><div class="v">${p.team.length}</div><div class="l">成员</div></div>
+      </div>
+      <div class="pc-foot">
+        <div>
+          <div class="label" style="margin-bottom:8px">负责人 · 团队</div>
+          ${facepile(p.team)}
+        </div>
+        <div style="text-align:right">
+          <div class="label" style="margin-bottom:6px">近五迭代速度</div>
+          ${spark(p.spark)}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}).join('');
+</script>
+</body>
+</html>

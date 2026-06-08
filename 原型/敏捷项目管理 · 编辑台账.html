@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>飞书敏捷项目管理 · 编辑台账</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>
+  html,body{margin:0;height:100%;background:#f0eee9}
+  .ab-frame{width:100%;height:100%;border:0;display:block;background:#faf7f1}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="frames/design-canvas.jsx"></script>
+<script type="text/babel">
+const { DesignCanvas, DCSection, DCArtboard, DCPostIt } = window;
+
+function Frame({src, title}){
+  return <iframe className="ab-frame" src={src} title={title}></iframe>;
+}
+
+const SCREENS = [
+  ['screen-projects.html', '0 · 项目总览',    '团队 4 个项目 · 健康度组合视图'],
+  ['screen-kanban.html',   'A · 看板',        '当前迭代 · 五列泳道'],
+  ['screen-workload.html', 'B · 成员负载',    '谁超载 · 容量与分配'],
+  ['screen-ledger.html',   'C · 需求 & 缺陷', '工作项台账 · 按史诗分组'],
+  ['screen-stats.html',    'D · 迭代统计',    '燃尽 · 速度 · 分布'],
+  ['screen-standup.html',  'E · 每日站会',    '昨日/今日/阻塞 · 推送群'],
+  ['screen-gantt.html',    'F · 排期甘特',    '双周 · 里程碑 · 今日线'],
+];
+
+function App(){
+  return (
+    <DesignCanvas>
+
+      <DCSection id="core" title="主方向 · 编辑台账" subtitle="Editorial Ledger — 牛皮纸底 / 衬线数字 / 发丝分割线 / 赤陶橙。六个核心界面,面向 5–10 人研发小队。">
+        {SCREENS.map(([src,label,sub])=>(
+          <DCArtboard key={src} id={src} label={label} width={1440} height={860}>
+            <Frame src={src} title={label}/>
+          </DCArtboard>
+        ))}
+        <DCPostIt top={-12} right={-156} rotate={2} width={190}>
+          飞书集成点 ·<br/>① 群机器人推送卡片/燃尽<br/>② @成员同步通讯录<br/>③ 需求/上线审批流<br/>④ 日志 ↔ 多维表格<br/>⑤ 站会 ↔ 飞书日历
+        </DCPostIt>
+      </DCSection>
+
+      <DCSection id="density" title="变体 · 卡片信息密度" subtitle="同一列「进行中」的三档密度,对应不同使用场景。">
+        <DCArtboard id="density" label="紧凑 / 标准 / 舒适" width={1000} height={600}>
+          <Frame src="var-density.html" title="卡片密度"/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="palette" title="变体 · 配色与视觉风格" subtitle="同一看板的三套配色:赤陶橙(主)、冷墨黑白(工程师审美)、牛皮纸暖棕。">
+        <DCArtboard id="p-accent" label="① 赤陶橙 · 默认" width={1440} height={860}>
+          <Frame src="screen-kanban.html" title="赤陶橙"/>
+        </DCArtboard>
+        <DCArtboard id="p-ink" label="② 冷墨黑白" width={1440} height={860}>
+          <Frame src="screen-kanban.html?theme=ink" title="冷墨黑白"/>
+        </DCArtboard>
+        <DCArtboard id="p-kraft" label="③ 牛皮纸暖棕" width={1440} height={860}>
+          <Frame src="screen-kanban.html?theme=kraft" title="牛皮纸暖棕"/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="nav" title="变体 · 布局与导航结构" subtitle="侧栏(默认)对比顶部水平导航与侧栏收起态。">
+        <DCArtboard id="n-top" label="① 顶部导航 · 看板更宽" width={1440} height={740}>
+          <Frame src="var-topnav.html" title="顶部导航"/>
+        </DCArtboard>
+        <DCArtboard id="n-collapse" label="② 侧栏收起 · 图标栏" width={1440} height={860}>
+          <Frame src="screen-kanban.html?side=collapsed" title="侧栏收起"/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="tweaks" title="变体 · 圆角与质感(Tweaks)" subtitle="你勾选的两个可调项:锐角·纯平(台账感最强)对比圆润·浮起(柔和)。">
+        <DCArtboard id="t-sharp" label="① 锐角 · 纯平" width={1440} height={860}>
+          <Frame src="screen-kanban.html?r=sharp&tex=flat" title="锐角纯平"/>
+        </DCArtboard>
+        <DCArtboard id="t-soft" label="② 圆润 · 浮起" width={1440} height={860}>
+          <Frame src="screen-kanban.html?r=soft&tex=raised" title="圆润浮起"/>
+        </DCArtboard>
+      </DCSection>
+
+      <DCSection id="viz" title="变体 · 新颖可视化" subtitle="实验性「迭代节律」视图:累积流图揭示在制品堆积,热力网格看团队节律。">
+        <DCArtboard id="flow" label="累积流 + 节律热力" width={1320} height={680}>
+          <Frame src="var-flow.html" title="迭代节律"/>
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

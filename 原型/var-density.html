@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>卡片密度 · 三档</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  body{padding:26px;background:var(--paper)}
+  .dwrap{display:grid;grid-template-columns:repeat(3,300px);gap:22px}
+  .dcol{display:flex;flex-direction:column}
+  .dcol-h{display:flex;align-items:baseline;gap:10px;padding-bottom:12px;margin-bottom:14px;border-bottom:1.5px solid var(--rule-2)}
+  .dcol-h b{font-size:14px;font-family:var(--serif);font-weight:600}
+  .dcol-h .label{font-size:9.5px}
+  .dlist{display:flex;flex-direction:column;gap:8px}
+
+  /* 紧凑：单行台账式 */
+  .c-compact{display:flex;flex-direction:column;gap:0;background:var(--paper-raised);border:1px solid var(--rule);border-radius:var(--r-card);overflow:hidden}
+  .c-compact .row{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid var(--rule)}
+  .c-compact .row:last-child{border-bottom:0}
+  .c-compact .row:hover{background:var(--paper-2)}
+  .c-compact .ti{flex:1;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c-compact .acc{width:3px;height:16px;border-radius:2px;flex:0 0 auto}
+
+  /* 舒适 */
+  .c-comfy{padding:16px 16px}
+  .c-comfy .card-title{font-size:14px;margin-bottom:12px}
+  .c-comfy .desc{font-size:11.5px;color:var(--ink-2);line-height:1.55;margin-bottom:13px}
+  .c-comfy .checks{display:flex;flex-direction:column;gap:6px;margin-bottom:13px}
+  .c-comfy .ck{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2)}
+  .c-comfy .ck .box{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--rule-2);flex:0 0 auto;display:grid;place-items:center}
+  .c-comfy .ck.on .box{background:var(--st-done);border-color:var(--st-done)}
+  .c-comfy .ck.on{color:var(--ink-3);text-decoration:line-through}
+  .c-comfy .foot{display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--rule)}
+</style>
+</head>
+<body>
+  <div class="dwrap">
+    <!-- 紧凑 -->
+    <div class="dcol">
+      <div class="dcol-h"><b>紧凑</b><span class="label">台账 · 单行</span></div>
+      <div class="c-compact">
+        <div class="row"><span class="acc" style="background:var(--st-doing)"></span><span class="type-tag t-story">S</span><span class="ti">语义向量检索召回</span><span class="pts">8</span><div class="av sm av-gao">高</div></div>
+        <div class="row"><span class="acc" style="background:var(--st-block)"></span><span class="type-tag t-bug">B</span><span class="ti">空格 query 命中率骤降</span><span class="pts">3</span><div class="av sm av-su">苏</div></div>
+        <div class="row"><span class="acc" style="background:var(--st-doing)"></span><span class="type-tag t-story">S</span><span class="ti">结果卡片摘要高亮</span><span class="pts">5</span><div class="av sm av-chen">陈</div></div>
+        <div class="row"><span class="acc" style="background:var(--st-doing)"></span><span class="type-tag t-tech">D</span><span class="ti">网关降级策略</span><span class="pts">8</span><div class="av sm av-he">何</div></div>
+        <div class="row"><span class="acc" style="background:var(--st-doing)"></span><span class="type-tag t-story">S</span><span class="ti">历史与收藏打通</span><span class="pts">5</span><div class="av sm av-zhou">周</div></div>
+      </div>
+      <div class="label" style="margin-top:12px;line-height:1.5">每屏可见 ~18 项 · 适合扫读与拖拽分配</div>
+    </div>
+
+    <!-- 标准（默认） -->
+    <div class="dcol">
+      <div class="dcol-h"><b>标准</b><span class="label">默认 · 推荐</span></div>
+      <div class="dlist" id="std"></div>
+      <div class="label" style="margin-top:12px;line-height:1.5">每屏 ~6 项 · 信息与留白平衡</div>
+    </div>
+
+    <!-- 舒适 -->
+    <div class="dcol">
+      <div class="dcol-h"><b>舒适</b><span class="label">含描述与子任务</span></div>
+      <div class="card c-comfy">
+        <div class="card-accent" style="background:var(--st-doing)"></div>
+        <div class="card-top"><div class="card-top-l"><span class="type-tag t-story">S</span><span class="wid">SRCH-198</span></div><span class="pri p1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:11px;height:11px"><path d="M5 21V4M5 4h11l-2 3 2 3H5"/></svg>高</span></div>
+        <div class="card-title">召回阶段引入语义向量检索</div>
+        <div class="desc">在现有 BM25 召回基础上接入向量检索,通过 beta 开关灰度,目标空结果率下降 30%。</div>
+        <div class="checks">
+          <div class="ck on"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" style="width:9px;height:9px"><path d="M5 12l4 4 10-10"/></svg></span>向量索引构建</div>
+          <div class="ck on"><span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" style="width:9px;height:9px"><path d="M5 12l4 4 10-10"/></svg></span>召回链路改造</div>
+          <div class="ck"><span class="box"></span>beta 开关与灰度</div>
+          <div class="ck"><span class="box"></span>压测与指标对比</div>
+        </div>
+        <div class="subbar" style="margin-bottom:0"><i style="width:50%"></i></div>
+        <div class="foot">
+          <span class="label" style="letter-spacing:.04em">2/4 子任务</span>
+          <div class="card-meta-l" style="gap:8px"><span class="pts">8<small>pt</small></span><div class="facepile"><div class="av sm av-gao">高</div><div class="av sm av-su">苏</div></div></div>
+        </div>
+      </div>
+      <div class="label" style="margin-top:12px;line-height:1.5">每屏 ~3 项 · 适合复杂工单深读</div>
+    </div>
+  </div>
+
+<script>
+const flag='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="width:11px;height:11px"><path d="M5 21V4M5 4h11l-2 3 2 3H5"/></svg>';
+const std=[
+  {wid:'SRCH-198',t:'story',title:'语义向量检索召回',pts:8,pri:1,who:['gao'],tags:['后端','算法'],acc:'var(--st-doing)',prog:50},
+  {wid:'SRCH-209',t:'bug',title:'空格 query 命中率骤降',pts:3,pri:1,who:['su'],tags:['后端'],acc:'var(--st-block)',prog:70},
+  {wid:'SRCH-212',t:'story',title:'结果卡片摘要高亮',pts:5,pri:2,who:['chen'],tags:['前端','设计'],acc:'var(--st-doing)',prog:40},
+];
+const TYPE={story:['S','t-story'],bug:['B','t-bug'],tech:['D','t-tech']};
+const AV={gao:'av-gao',su:'av-su',chen:'av-chen'};
+const NM={gao:'高',su:'苏',chen:'陈'};
+document.getElementById('std').innerHTML = std.map(c=>`
+  <div class="card">
+    <div class="card-accent" style="background:${c.acc}"></div>
+    <div class="card-top"><div class="card-top-l"><span class="type-tag ${TYPE[c.t][1]}">${TYPE[c.t][0]}</span><span class="wid">${c.wid}</span></div><span class="pri p${c.pri}">${flag}${c.pri===1?'高':'中'}</span></div>
+    <div class="card-title">${c.title}</div>
+    <div class="card-tags">${c.tags.map(t=>`<span class="tag">${t}</span>`).join('')}</div>
+    <div class="subbar"><i style="width:${c.prog}%"></i></div>
+    <div class="card-meta"><span></span><div class="card-meta-l" style="gap:8px"><span class="pts">${c.pts}<small>pt</small></span><div class="facepile">${c.who.map(w=>`<div class="av sm ${AV[w]}">${NM[w]}</div>`).join('')}</div></div></div>
+  </div>`).join('');
+</script>
+</body>
+</html>

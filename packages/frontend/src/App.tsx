@@ -4,6 +4,8 @@ import { AppShell } from './components/layout/AppShell'
 import { ProjectListPage } from './routes/ProjectListPage'
 import { BoardPage } from './routes/BoardPage'
 import { MilestonePage } from './routes/MilestonePage'
+import { SprintPage } from './routes/SprintPage'
+import { ReportsPage } from './routes/ReportsPage'
 import { SettingsPage } from './routes/SettingsPage'
 import { CommitsPage } from './routes/CommitsPage'
 
@@ -38,6 +40,8 @@ export function App() {
           <Route index element={<Navigate to="board" replace />} />
           <Route path="board" element={<BoardPage />} />
           <Route path="milestones" element={<MilestonePage />} />
+          <Route path="sprints" element={<SprintPage />} />
+          <Route path="reports" element={<ReportsPage />} />
           <Route path="commits" element={<CommitsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

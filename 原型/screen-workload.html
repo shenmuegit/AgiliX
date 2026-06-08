@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>成员负载 · Sprint 24</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .wl-body{flex:1;min-height:0;overflow:auto;padding:24px 26px 32px}
+  .summary{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid var(--rule);border-radius:var(--r-card);background:var(--paper-raised);overflow:hidden;margin-bottom:26px}
+  .summary > div{padding:18px 22px;border-right:1px solid var(--rule)}
+  .summary > div:last-child{border-right:0}
+  .wl-table{width:100%;border-collapse:collapse}
+  .wl-table th{text-align:left;padding:0 14px 12px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600;border-bottom:1.5px solid var(--rule-2)}
+  .wl-table th.r{text-align:right}
+  .wl-table td{padding:16px 14px;border-bottom:1px solid var(--rule);vertical-align:middle;white-space:nowrap}
+  .wl-table tr:hover td{background:var(--paper-raised)}
+  .who-cell{display:flex;align-items:center;gap:11px}
+  .who-cell .nm{font-size:13.5px;font-weight:600;letter-spacing:-.005em;white-space:nowrap}
+  .who-cell .rl{font-size:11px;color:var(--ink-3);white-space:nowrap}
+  .loadbar{position:relative;height:9px;border-radius:5px;background:var(--paper-2);overflow:hidden;width:200px}
+  .loadbar i{position:absolute;left:0;top:0;bottom:0;border-radius:5px}
+  .loadbar .cap{position:absolute;top:-3px;bottom:-3px;width:1.5px;background:var(--ink-3);opacity:.5}
+  .lstat{font-size:10.5px;font-weight:600;padding:2px 9px;border-radius:var(--r-pill)}
+  .ls-ok{background:var(--st-done-bg);color:#42583e}
+  .ls-tight{background:var(--st-doing-bg);color:#8a6418}
+  .ls-over{background:var(--st-block-bg);color:#883a2d}
+  .ls-light{background:var(--st-todo-bg);color:#6f675b}
+  .mini-tasks{display:flex;gap:4px}
+  .mini-tasks i{width:7px;height:18px;border-radius:2px;display:inline-block}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="side" data-active="load"></div>
+  <div class="main">
+    <header class="top">
+      <div class="top-title">
+        <h1>成员负载</h1>
+        <div class="sub"><span>Sprint 24 · 搜索体验重构</span><span>·</span><span>第 7 / 10 天</span></div>
+      </div>
+      <div class="top-sp"></div>
+      <div class="feishu-dot">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-2.8 2.7-4.5 6-4.5"/><circle cx="17" cy="9" r="3"/></svg>
+        成员同步自飞书通讯录
+      </div>
+      <button class="btn btn-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        分配工单
+      </button>
+    </header>
+
+    <div class="wl-body">
+      <!-- 团队摘要 -->
+      <div class="summary">
+        <div>
+          <div class="label" style="margin-bottom:8px">团队总容量</div>
+          <div class="stat-num" style="font-size:34px">320<span style="font-size:15px;color:var(--ink-3);font-family:var(--sans);font-weight:500"> 人时</span></div>
+          <div class="muted" style="font-size:11px;margin-top:4px">8 人 · 本迭代两周</div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:8px">已分配</div>
+          <div class="stat-num" style="font-size:34px">291<span style="font-size:15px;color:var(--ink-3);font-family:var(--sans);font-weight:500"> 人时</span></div>
+          <div style="font-size:11px;margin-top:4px"><span class="num" style="color:var(--st-doing)">91%</span> <span class="muted">整体负载</span></div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:8px">需关注</div>
+          <div class="stat-num" style="font-size:34px;color:var(--st-block)">2<span style="font-size:15px;color:var(--ink-3);font-family:var(--sans);font-weight:500"> 人超载</span></div>
+          <div class="muted" style="font-size:11px;margin-top:4px">高远 116% · 苏晴 104%</div>
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:8px">可承接</div>
+          <div class="stat-num" style="font-size:34px;color:var(--st-done)">3<span style="font-size:15px;color:var(--ink-3);font-family:var(--sans);font-weight:500"> 人有余量</span></div>
+          <div class="muted" style="font-size:11px;margin-top:4px">江月 · 周屿 · 何川</div>
+        </div>
+      </div>
+
+      <!-- 负载台账 -->
+      <table class="wl-table" id="wl"></table>
+    </div>
+  </div>
+</div>
+
+<script src="shell.js"></script>
+<script>
+const M = [
+  {k:'gao', nm:'高远', rl:'后端 · 检索召回', cap:40, load:46, doing:3, todo:1, done:4, pts:21, st:'over'},
+  {k:'su',  nm:'苏晴', rl:'后端 · 语义服务', cap:40, load:42, doing:2, todo:2, done:2, pts:18, st:'over'},
+  {k:'chen',nm:'陈牧', rl:'前端 · 结果页',   cap:40, load:38, doing:2, todo:2, done:5, pts:19, st:'tight'},
+  {k:'han', nm:'韩雪', rl:'测试 · QA',        cap:40, load:31, doing:2, todo:3, done:6, pts:13, st:'tight'},
+  {k:'lin', nm:'林夏', rl:'负责人 · PM',      cap:24, load:18, doing:1, todo:2, done:3, pts:7,  st:'ok'},
+  {k:'he',  nm:'何川', rl:'架构 · 网关',      cap:40, load:28, doing:1, todo:1, done:2, pts:13, st:'ok'},
+  {k:'zhou',nm:'周屿', rl:'前端 · 移动端',    cap:40, load:25, doing:1, todo:1, done:3, pts:11, st:'ok'},
+  {k:'jiang',nm:'江月',rl:'设计 · 体验',      cap:32, load:14, doing:0, todo:1, done:2, pts:4,  st:'light'},
+];
+const AVN = {lin:'av-lin',chen:'av-chen',zhou:'av-zhou',gao:'av-gao',su:'av-su',he:'av-he',han:'av-han',jiang:'av-jiang'};
+const ST = {ok:['ls-ok','均衡'],tight:['ls-tight','偏紧'],over:['ls-over','超载'],light:['ls-light','有余量']};
+const COL = {ok:'var(--st-done)',tight:'var(--st-doing)',over:'var(--st-block)',light:'var(--st-todo)'};
+
+function bar(m){
+  const pct = Math.round(m.load/m.cap*100);
+  const w = Math.min(pct,100);
+  const over = pct>100?`<i style="left:0;width:100%;background:var(--st-block);opacity:.25"></i>`:'';
+  return `<div style="display:flex;align-items:center;gap:12px">
+    <div class="loadbar">${over}<i style="width:${w}%;background:${COL[m.st]}"></i><span class="cap" style="left:100%"></span></div>
+    <span class="num" style="font-size:15px;color:${pct>100?'var(--st-block)':'var(--ink)'};min-width:40px">${pct}%</span>
+  </div>`;
+}
+function tasks(m){
+  let html='';
+  for(let i=0;i<m.doing;i++) html+='<i style="background:var(--st-doing)"></i>';
+  for(let i=0;i<m.todo;i++) html+='<i style="background:var(--st-todo);opacity:.5"></i>';
+  for(let i=0;i<m.done;i++) html+='<i style="background:var(--st-done);opacity:.45"></i>';
+  return `<div class="mini-tasks">${html}</div>`;
+}
+document.getElementById('wl').innerHTML = `
+  <thead><tr>
+    <th style="width:230px">成员</th>
+    <th>本迭代负载</th>
+    <th>在办</th>
+    <th class="r">分配点数</th>
+    <th class="r">容量 / 人时</th>
+    <th class="r">状态</th>
+  </tr></thead>
+  <tbody>${M.map(m=>`
+    <tr>
+      <td>
+        <div class="who-cell">
+          <div class="av lg ${AVN[m.k]}">${m.nm[0]}</div>
+          <div><div class="nm">${m.nm}</div><div class="rl">${m.rl}</div></div>
+        </div>
+      </td>
+      <td>${bar(m)}</td>
+      <td>${tasks(m)}<div class="muted" style="font-size:10.5px;margin-top:6px">${m.doing} 在办 · ${m.done} 完成</div></td>
+      <td class="r"><span class="num" style="font-size:17px">${m.pts}</span><span class="muted" style="font-size:10px"> pt</span></td>
+      <td class="r"><span class="num" style="font-size:15px">${m.load}</span><span class="muted">/${m.cap}</span></td>
+      <td class="r"><span class="lstat ${ST[m.st][0]}">${ST[m.st][1]}</span></td>
+    </tr>`).join('')}</tbody>`;
+</script>
+</body>
+</html>

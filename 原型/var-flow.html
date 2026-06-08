@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>新颖可视化 · 迭代节律</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .fl-body{padding:24px 26px}
+  .fl-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px}
+  .fl-head h1{font-family:var(--serif);font-size:24px;font-weight:600;letter-spacing:-.02em}
+  .grid2{display:grid;grid-template-columns:1.45fr 1fr;gap:22px}
+  .legend2{display:flex;flex-wrap:wrap;gap:14px;font-size:11px;color:var(--ink-2);margin-top:14px}
+  .legend2 span{display:inline-flex;align-items:center;gap:6px}
+  .legend2 i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .hm{display:grid;grid-template-columns:64px repeat(10,1fr);gap:4px;align-items:center}
+  .hm .hl{font-size:10.5px;color:var(--ink-3);text-align:center;font-family:var(--serif)}
+  .hm .hn{font-size:12px;display:flex;align-items:center;gap:7px}
+  .hm .cell{aspect-ratio:1;border-radius:3px;display:grid;place-items:center;font-size:9px;font-weight:600}
+  .insight{display:flex;gap:10px;align-items:flex-start;padding:13px 15px;background:var(--accent-soft);border:1px solid var(--accent-line);border-radius:var(--r-card);margin-top:18px}
+  .insight svg{width:16px;height:16px;flex:0 0 auto;color:var(--accent-2);margin-top:1px}
+  .insight b{color:var(--accent-2)}
+</style>
+</head>
+<body>
+<div class="fl-body">
+  <div class="fl-head">
+    <h1>迭代节律</h1>
+    <span class="kicker">实验性视图</span>
+    <span class="muted" style="font-size:12px">Sprint 24 · 累积流与团队节律</span>
+  </div>
+
+  <div class="grid2">
+    <!-- 累积流图 -->
+    <div class="panel">
+      <div class="panel-h"><h3>累积流图 · 在制品堆积</h3><span class="label">工单数 / 天</span></div>
+      <svg viewBox="0 0 640 290" style="width:100%;height:auto;display:block" id="cfd"></svg>
+      <div class="legend2" id="leg"></div>
+      <div class="insight">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <div style="font-size:12px;line-height:1.55"><b>评审带正在变宽</b> —— 近 3 天「评审」堆积从 3 增至 5,平均停留 2.1 天。建议站会聚焦评审清空,或增设结对评审。</div>
+      </div>
+    </div>
+
+    <!-- 节律热力 -->
+    <div class="panel">
+      <div class="panel-h"><h3>团队节律热力</h3><span class="label">完成工单 / 人·天</span></div>
+      <div class="hm" id="hm"></div>
+      <div class="hairline" style="margin:16px 0 12px"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <span class="label">活跃度</span>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span class="muted" style="font-size:10px">低</span>
+          <i style="width:13px;height:13px;border-radius:3px;background:var(--accent);opacity:.12"></i>
+          <i style="width:13px;height:13px;border-radius:3px;background:var(--accent);opacity:.32"></i>
+          <i style="width:13px;height:13px;border-radius:3px;background:var(--accent);opacity:.6"></i>
+          <i style="width:13px;height:13px;border-radius:3px;background:var(--accent);opacity:.92"></i>
+          <span class="muted" style="font-size:10px">高</span>
+        </div>
+      </div>
+      <div class="insight" style="background:var(--st-done-bg);border-color:#c4d4bd">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#42583e" stroke-width="2" style="color:#42583e"><path d="M5 12l4 4 10-10"/></svg>
+        <div style="font-size:12px;line-height:1.55;color:#3f5239">周中(周三/四)产出最稳。<b style="color:#3f5239">高远、陈牧</b>连续高产,注意结合负载视图避免过载。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- 累积流图 ---------- */
+const STATES=[
+  {k:'done',  t:'已完成',c:'var(--st-done)'},
+  {k:'test',  t:'测试',  c:'#8a6b9a'},
+  {k:'review',t:'评审',  c:'var(--st-review)'},
+  {k:'doing', t:'进行中',c:'var(--st-doing)'},
+  {k:'todo',  t:'待办',  c:'var(--st-todo)'},
+];
+const SER={
+  done:  [5,6,5,6,6,7,8,9],
+  test:  [1,1,2,2,3,3,4,4],
+  review:[2,2,3,3,4,4,5,5],
+  doing: [4,5,6,7,7,8,7,8],
+  todo:  [20,18,16,14,12,10,8,6],
+};
+const DAYS=SER.done.length, X0=50,X1=618,Y0=255,Y1=30,MAX=34;
+const xf=i=>X0+(X1-X0)*i/(DAYS-1);
+const yf=v=>Y0-(Y0-Y1)*v/MAX;
+// 自底向上堆叠
+let base=new Array(DAYS).fill(0);
+let bands='';
+STATES.forEach(s=>{
+  const top=base.map((b,i)=>b+SER[s.k][i]);
+  let up=top.map((v,i)=>`${xf(i)},${yf(v)}`).join(' ');
+  let dn=base.map((v,i)=>`${xf(DAYS-1-i)},${yf(base[DAYS-1-i])}`).join(' ');
+  bands+=`<polygon points="${up} ${dn}" fill="${s.c}" opacity=".82"/>`;
+  base=top;
+});
+// 网格 + 轴
+let grid='';
+for(let v=0;v<=MAX;v+=8.5){grid+=`<line x1="${X0}" y1="${yf(v)}" x2="${X1}" y2="${yf(v)}" stroke="var(--rule)" opacity=".6"/>`;}
+let xlab='';['D0','D1','D2','D3','D4','D5','D6','今天'].forEach((d,i)=>{
+  xlab+=`<text x="${xf(i)}" y="272" text-anchor="middle" font-size="10" font-family="Newsreader,serif" fill="${i===DAYS-1?'var(--accent)':'var(--ink-3)'}" font-weight="${i===DAYS-1?'600':'400'}">${d}</text>`;
+});
+document.getElementById('cfd').innerHTML=`
+  <g>${grid}</g>
+  <line x1="${X0}" y1="${Y1}" x2="${X0}" y2="${Y0}" stroke="var(--rule-2)"/>
+  <line x1="${X0}" y1="${Y0}" x2="${X1}" y2="${Y0}" stroke="var(--rule-2)"/>
+  ${bands}
+  <g>${xlab}</g>
+  <g fill="var(--ink-3)" font-size="10" font-family="Newsreader,serif" text-anchor="end">
+    <text x="${X0-8}" y="${yf(0)+3}">0</text><text x="${X0-8}" y="${yf(17)+3}">17</text><text x="${X0-8}" y="${yf(34)+3}">34</text>
+  </g>`;
+document.getElementById('leg').innerHTML=STATES.map(s=>`<span><i style="background:${s.c}"></i>${s.t}</span>`).join('');
+
+/* ---------- 节律热力 ---------- */
+const MEM=[['gao','高','av-gao'],['chen','陈','av-chen'],['su','苏','av-su'],['zhou','周','av-zhou'],['he','何','av-he'],['han','韩','av-han'],['lin','林','av-lin'],['jiang','江','av-jiang']];
+const NAME={gao:'高远',chen:'陈牧',su:'苏晴',zhou:'周屿',he:'何川',han:'韩雪',lin:'林夏',jiang:'江月'};
+// 8人 × 10天 活跃度 0-4（前7天有数据,后3天预排淡显）
+const HEAT={
+  gao: [1,2,3,4,3,2,3, 0,0,0],
+  chen:[2,1,3,3,4,2,2, 0,0,0],
+  su:  [0,2,2,3,2,3,2, 0,0,0],
+  zhou:[1,1,2,2,1,2,3, 0,0,0],
+  he:  [2,1,1,2,1,1,2, 0,0,0],
+  han: [0,0,1,2,2,3,3, 0,0,0],
+  lin: [1,1,1,1,2,1,1, 0,0,0],
+  jiang:[1,0,1,2,1,0,1, 0,0,0],
+};
+const OP=[0.06,0.18,0.4,0.65,0.92];
+const DLBL=['一','二','三','四','五','一','二','三','四','五'];
+let hmHtml=`<div class="hl"></div>`+DLBL.map((d,i)=>`<div class="hl" style="${i>6?'opacity:.4':''}">${d}</div>`).join('');
+MEM.forEach(([k,ini,av])=>{
+  hmHtml+=`<div class="hn"><div class="av sm ${av}">${ini}</div></div>`;
+  HEAT[k].forEach((v,i)=>{
+    const future=i>6;
+    hmHtml+=`<div class="cell" style="background:var(--accent);opacity:${future?0.04:OP[v]};${(!future&&v>=3)?'color:#fff':'color:transparent'}">${v||''}</div>`;
+  });
+});
+document.getElementById('hm').innerHTML=hmHtml;
+</script>
+</body>
+</html>

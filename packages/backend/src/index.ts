@@ -9,6 +9,7 @@ import { milestoneRoutes } from './routes/milestone.routes'
 import { boardRoutes } from './routes/board.routes'
 import { commentRoutes } from './routes/comment.routes'
 import { timelogRoutes } from './routes/timelog.routes'
+import { sprintRoutes } from './routes/sprint.routes'
 import { webhookRoutes } from './routes/webhook.routes'
 import { gitRoutes } from './routes/git.routes'
 import { gitWebhookRoutes } from './routes/git-webhook.routes'
@@ -47,6 +48,7 @@ app.route('/api', milestoneRoutes)
 app.route('/api', boardRoutes)
 app.route('/api', commentRoutes)
 app.route('/api', timelogRoutes)
+app.route('/api', sprintRoutes)
 app.route('/api', gitRoutes)
 
 export default app

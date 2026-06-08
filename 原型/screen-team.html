@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>团队工作台 · AgiliX</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  .desk{flex:1;min-height:0;overflow:auto;padding:22px 26px 30px}
+  .grid{display:grid;grid-template-columns:minmax(0,1.35fr) 380px;gap:18px;align-items:start}
+  .hero{
+    border:1px solid var(--rule);border-radius:var(--r-card);
+    background:var(--paper-raised);padding:20px 22px 18px;margin-bottom:18px;
+    display:grid;grid-template-columns:1fr 310px;gap:22px;
+  }
+  .hero h2{font-family:var(--serif);font-size:28px;font-weight:600;letter-spacing:-.02em;margin-bottom:8px}
+  .hero .brief{color:var(--ink-2);font-size:13px;line-height:1.7;max-width:680px}
+  .pulse{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule);border-radius:var(--r-card);overflow:hidden;background:var(--paper)}
+  .pulse .p{padding:14px 16px;border-right:1px solid var(--rule)}
+  .pulse .p:last-child{border-right:0}
+  .pulse .stat-num{font-size:32px}
+  .section{border:1px solid var(--rule);border-radius:var(--r-card);background:var(--paper-raised);margin-bottom:18px;overflow:hidden}
+  .section-h{display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--rule)}
+  .section-h h3{font-family:var(--serif);font-size:16px;font-weight:600}
+  .person-row{display:grid;grid-template-columns:160px minmax(0,1fr) 180px 92px;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--rule)}
+  .person-row:last-child{border-bottom:0}
+  .who{display:flex;align-items:center;gap:10px}
+  .who b{font-size:13.5px}
+  .who span{display:block;font-size:11px;color:var(--ink-3);margin-top:1px}
+  .work-title{font-size:13.5px;font-weight:600;letter-spacing:-.005em;margin-bottom:4px}
+  .work-sub{font-size:11.5px;color:var(--ink-3);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .mini{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--ink-2)}
+  .mini .subbar{margin:0;height:4px}
+  .todo-list{display:grid;gap:0}
+  .todo{display:grid;grid-template-columns:80px minmax(0,1fr) 92px;gap:12px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--rule)}
+  .todo:last-child{border-bottom:0}
+  .todo .title{font-size:13px;font-weight:600}
+  .todo .meta{font-size:11px;color:var(--ink-3);margin-top:3px}
+  .side-panel{display:flex;flex-direction:column;gap:18px}
+  .feed{padding:0}
+  .feed-i{padding:13px 16px;border-bottom:1px solid var(--rule)}
+  .feed-i:last-child{border-bottom:0}
+  .feed-i b{font-size:12.5px}
+  .feed-i p{font-size:11.5px;color:var(--ink-2);margin-top:4px;line-height:1.55}
+  .feishu-card{
+    border:1px solid var(--accent-line);background:var(--accent-soft);
+    border-radius:var(--r-card);padding:15px 16px;color:var(--ink);
+  }
+  .feishu-card .cmd{font-family:var(--mono);font-size:11px;background:rgba(255,255,255,.55);border:1px solid var(--accent-line);border-radius:var(--r-chip);padding:5px 8px;display:inline-block;margin:6px 5px 0 0}
+  .doc-row{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule)}
+  .doc-row:last-child{border-bottom:0}
+  .doc-ico{width:26px;height:26px;border-radius:var(--r-chip);background:var(--paper-2);display:grid;place-items:center;font-family:var(--serif);font-weight:600;color:var(--accent)}
+  .doc-row b{font-size:12.5px}
+  .doc-row p{font-size:11px;color:var(--ink-3);margin-top:3px}
+  .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+  .quick button{border:1px solid var(--rule);background:var(--paper-raised);border-radius:var(--r-card);padding:12px 10px;text-align:left;cursor:pointer;color:var(--ink)}
+  .quick button:hover{border-color:var(--ink-3)}
+  .quick b{display:block;font-size:12.5px;margin-bottom:3px}
+  .quick span{font-size:10.5px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="side" data-active="team"></div>
+  <div class="main">
+    <header class="top">
+      <div class="top-title">
+        <h1>团队工作台</h1>
+        <div class="sub"><span>AgiliX 主工作台</span><span>·</span><span>飞书只做通知和查询</span></div>
+      </div>
+      <div class="top-sp"></div>
+      <div class="feishu-dot">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        单群通知 · 研发小队
+      </div>
+      <button class="btn btn-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+        搜索
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新建 Issue
+      </button>
+    </header>
+
+    <div class="desk">
+      <div class="hero">
+        <div>
+          <div class="kicker" style="margin-bottom:8px">Today / 06.06</div>
+          <h2>今天要盯住 3 件事</h2>
+          <p class="brief">
+            搜索平台进入第 7 天,整体进度正常;两个阻塞都与外部确认有关,不需要重新分配人力。
+            今天的重点是让 SRCH-198 解除资源阻塞,把 SRCH-186 与 SRCH-201 完成评审,并补齐结果卡片方案文档评论。
+          </p>
+        </div>
+        <div class="pulse">
+          <div class="p"><div class="stat-num" style="color:var(--st-done)">69%</div><div class="label">迭代完成</div></div>
+          <div class="p"><div class="stat-num" style="color:var(--st-block)">2</div><div class="label">阻塞</div></div>
+          <div class="p"><div class="stat-num" style="color:var(--st-review)">3</div><div class="label">待 Review</div></div>
+          <div class="p"><div class="stat-num">6</div><div class="label">今日在办</div></div>
+        </div>
+      </div>
+
+      <div class="quick">
+        <button><b>更新我的状态</b><span>同步今日计划</span></button>
+        <button><b>查看阻塞</b><span>2 项需要协助</span></button>
+        <button><b>待我 Review</b><span>3 个工单</span></button>
+        <button><b>打开文档</b><span>最近 4 次更新</span></button>
+      </div>
+
+      <div class="grid">
+        <div>
+          <section class="section">
+            <div class="section-h">
+              <h3>团队当前在做什么</h3>
+              <span class="label">来自 Issue 状态 + 今日同步</span>
+            </div>
+            <div class="person-row">
+              <div class="who"><div class="av lg av-gao">高</div><div><b>高远</b><span>后端 · 召回</span></div></div>
+              <div><div class="work-title">SRCH-198 向量召回 beta 开关接入</div><div class="work-sub"><span class="badge b-block"><span class="dot"></span>阻塞</span><span>GPU 资源待批</span></div></div>
+              <div class="mini"><span>进度 55%</span><div class="subbar"><i style="width:55%;background:var(--st-doing)"></i></div></div>
+              <span class="pts">8<small>pt</small></span>
+            </div>
+            <div class="person-row">
+              <div class="who"><div class="av lg av-su">苏</div><div><b>苏晴</b><span>后端 · 语义</span></div></div>
+              <div><div class="work-title">SRCH-209 空格 query 修复并补单测</div><div class="work-sub"><span class="badge b-doing"><span class="dot"></span>进行中</span><span>今天提交 PR</span></div></div>
+              <div class="mini"><span>进度 70%</span><div class="subbar"><i style="width:70%;background:var(--st-done)"></i></div></div>
+              <span class="pts">3<small>pt</small></span>
+            </div>
+            <div class="person-row">
+              <div class="who"><div class="av lg av-chen">陈</div><div><b>陈牧</b><span>前端 · 结果页</span></div></div>
+              <div><div class="work-title">SRCH-212 结果卡片摘要高亮</div><div class="work-sub"><span class="badge b-block"><span class="dot"></span>待确认</span><span>等设计终版</span></div></div>
+              <div class="mini"><span>进度 40%</span><div class="subbar"><i style="width:40%;background:var(--st-doing)"></i></div></div>
+              <span class="pts">5<small>pt</small></span>
+            </div>
+            <div class="person-row">
+              <div class="who"><div class="av lg av-zhou">周</div><div><b>周屿</b><span>前端 · 移动端</span></div></div>
+              <div><div class="work-title">SRCH-186 搜索历史与收藏打通</div><div class="work-sub"><span class="badge b-review"><span class="dot"></span>待 Review</span><span>高远评审</span></div></div>
+              <div class="mini"><span>进度 90%</span><div class="subbar"><i style="width:90%;background:var(--st-done)"></i></div></div>
+              <span class="pts">5<small>pt</small></span>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-h">
+              <h3>待处理 Issue</h3>
+              <span class="label">优先看阻塞 / Review / 高优缺陷</span>
+            </div>
+            <div class="todo-list">
+              <div class="todo"><span class="wid">SRCH-198</span><div><div class="title">GPU 资源未批,影响压测</div><div class="meta">负责人 高远 · 协助 何川 · 今天 15:00 前确认</div></div><span class="badge b-block"><span class="dot"></span>阻塞</span></div>
+              <div class="todo"><span class="wid">SRCH-186</span><div><div class="title">搜索历史与收藏打通待评审</div><div class="meta">评审人 高远 · PR 已更新</div></div><span class="badge b-review"><span class="dot"></span>Review</span></div>
+              <div class="todo"><span class="wid">SRCH-209</span><div><div class="title">空格 query 命中率骤降</div><div class="meta">高优缺陷 · 修复后需要韩雪回归</div></div><span class="pri p1">高</span></div>
+            </div>
+          </section>
+        </div>
+
+        <aside class="side-panel">
+          <section class="section">
+            <div class="section-h"><h3>飞书群会看到什么</h3><span class="label">通知 / 查询</span></div>
+            <div class="feed-i">
+              <div class="feishu-card">
+                <b>搜索平台 · 今日状态</b>
+                <p style="font-size:12px;line-height:1.65;margin-top:7px;color:var(--ink-2)">完成 47/68 pt; 阻塞 2; 待 Review 3。高远卡在 GPU 资源,陈牧等待设计终版。</p>
+                <span class="cmd">/team</span><span class="cmd">/blockers</span><span class="cmd">/docs 搜索方案</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <div class="section-h"><h3>最近文档</h3><span class="label">统一文档入口</span></div>
+            <div class="doc-row"><div class="doc-ico">方</div><div><b>结果卡片重设计方案</b><p>江月评论了高亮样式 · 12 分钟前</p></div></div>
+            <div class="doc-row"><div class="doc-ico">接</div><div><b>搜索接口字段约定</b><p>苏晴更新了空 query 规则 · 1 小时前</p></div></div>
+            <div class="doc-row"><div class="doc-ico">发</div><div><b>灰度发布检查清单</b><p>何川补充回滚步骤 · 昨天</p></div></div>
+          </section>
+
+          <section class="section feed">
+            <div class="section-h"><h3>代码动态</h3><span class="label">Git 同步</span></div>
+            <div class="feed-i"><b>PR #42 · SRCH-186</b><p>周屿更新收藏逻辑,等待高远 Review。</p></div>
+            <div class="feed-i"><b>CI 失败 · SRCH-209</b><p>语义解析单测失败,苏晴正在修复。</p></div>
+            <div class="feed-i"><b>Commit · SRCH-177</b><p>高远合入缓存防抖配置。</p></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shell.js"></script>
+</body>
+</html>
