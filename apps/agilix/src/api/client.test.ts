@@ -1,0 +1,193 @@
+import { describe, expect, it, vi } from 'vitest'
+import { seedData } from '../domain/fixtures'
+import { createAgiliXClient } from './client'
+
+describe('AgiliX API client', () => {
+  it('loads bootstrap data and sends core mutations with JSON headers', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === '/api/bootstrap') return new Response(JSON.stringify(seedData), { status: 200 })
+      if (String(input) === '/api/issues/SRCH-186/status') return new Response(null, { status: 204 })
+      if (String(input) === '/api/docs/doc-result-card/comments') return new Response(JSON.stringify(seedData.docs[0].comments[0]), { status: 201 })
+      if (String(input) === '/api/docs') return new Response(JSON.stringify(seedData.docs[0]), { status: 201 })
+      if (String(input) === `/api/standups/${seedData.standups[0].id}`) return new Response(null, { status: 204 })
+      if (String(input) === `/api/milestones/${seedData.milestones[1].id}`) return new Response(null, { status: 204 })
+      if (String(input) === '/api/feishu/notifications') {
+        return new Response(
+          JSON.stringify({
+            id: 'notification-client',
+            trigger: '站会摘要',
+            targetGroup: 'AgiliX 团队群',
+            payload: { standupId: 'standup-search-today' },
+            status: 'queued',
+            createdAt: '2026-06-06T10:00:00.000Z',
+          }),
+          { status: 201 },
+        )
+      }
+      if (String(input) === '/api/feishu/query') return new Response(JSON.stringify({ title: '团队状态', lines: ['Issue 7'] }), { status: 200 })
+      throw new Error(`Unexpected path: ${String(input)}`)
+    })
+    const client = createAgiliXClient(fetcher)
+
+    expect((await client.loadData()).projects.map((project) => project.name)).toContain('搜索平台')
+
+    await client.moveIssue('SRCH-186', 'done')
+    await client.addDocComment('doc-result-card', {
+      id: 'comment-client',
+      docId: 'doc-result-card',
+      authorId: 'zhou',
+      body: 'Client comment',
+      resolved: false,
+      createdAtLabel: '刚刚',
+    })
+    const createdDoc = {
+      id: 'doc-client-created',
+      scope: 'global' as const,
+      title: 'Client 创建文档',
+      directory: '全局文档/待整理',
+      body: '通过客户端创建的文档',
+      linkedIssueKeys: [],
+      comments: [],
+      updatedAtLabel: '刚刚',
+    }
+    await client.createDoc(createdDoc)
+    const standup = seedData.standups[0]
+    const milestone = seedData.milestones[1]
+    await client.saveStandup(standup)
+    await client.saveMilestone(milestone)
+    await client.recordFeishuNotification({
+      id: 'notification-client',
+      trigger: '站会摘要',
+      targetGroup: 'AgiliX 团队群',
+      payload: { standupId: 'standup-search-today' },
+      status: 'queued',
+      createdAt: '2026-06-06T10:00:00.000Z',
+    })
+    await client.queryFeishu({ type: 'team' })
+
+    expect(fetcher).toHaveBeenCalledWith('/api/issues/SRCH-186/status', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/docs/doc-result-card/comments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'comment-client',
+        docId: 'doc-result-card',
+        authorId: 'zhou',
+        body: 'Client comment',
+        resolved: false,
+        createdAtLabel: '刚刚',
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/docs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(createdDoc),
+    })
+    expect(fetcher).toHaveBeenCalledWith(`/api/standups/${standup.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(standup),
+    })
+    expect(fetcher).toHaveBeenCalledWith(`/api/milestones/${milestone.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(milestone),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'notification-client',
+        trigger: '站会摘要',
+        targetGroup: 'AgiliX 团队群',
+        payload: { standupId: 'standup-search-today' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/feishu/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ command: { type: 'team' } }),
+    })
+  })
+
+  it('rejects invalid document create inputs before sending requests', async () => {
+    const fetcher = vi.fn()
+    const client = createAgiliXClient(fetcher)
+
+    await expect(
+      client.createDoc({
+        id: 'doc-duplicate-linked-issue',
+        scope: 'project',
+        projectId: 'search',
+        title: 'Duplicate linked issue doc',
+        directory: '项目文档/搜索平台/结果页',
+        body: 'Linked issue keys must be unique.',
+        linkedIssueKeys: ['SRCH-186', 'SRCH-186'],
+        comments: [],
+        updatedAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Duplicate linked issue')
+
+    await expect(
+      client.createDoc({
+        id: 'doc-create-with-comment',
+        scope: 'project',
+        projectId: 'search',
+        title: 'Create doc with comment',
+        directory: '项目文档/搜索平台/结果页',
+        body: 'Comments must use addDocComment.',
+        linkedIssueKeys: [],
+        comments: [
+          // @ts-expect-error createDoc only accepts an empty comments array
+          {
+            id: 'comment-create-doc',
+            docId: 'doc-create-with-comment',
+            authorId: 'zhou',
+            body: 'Comment must use the comment endpoint.',
+            resolved: false,
+            createdAtLabel: '刚刚',
+          },
+        ],
+        updatedAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Document comments must be empty on create')
+
+    await expect(
+      client.queryFeishu({
+        type: 'docs',
+        // @ts-expect-error invalid query text validates protocol rejection
+        query: ' 结果卡片',
+      }),
+    ).rejects.toThrow('docs query must not include leading or trailing whitespace')
+
+    await expect(
+      client.recordFeishuNotification({
+        id: 'notification-empty-blockers',
+        trigger: '阻塞提醒',
+        targetGroup: 'AgiliX 团队群',
+        // @ts-expect-error blocker notifications require at least one issue key
+        payload: { issueKeys: [] },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    ).rejects.toThrow()
+
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed response payloads and unexpected mutation status codes', async () => {
+    await expect(createAgiliXClient(vi.fn(async () => new Response(JSON.stringify({ projects: [] }), { status: 200 }))).loadData()).rejects.toThrow('AgiliX API response validation failed')
+
+    await expect(createAgiliXClient(vi.fn(async () => new Response(JSON.stringify({ title: '团队状态', lines: [7] }), { status: 200 }))).queryFeishu({ type: 'team' })).rejects.toThrow(
+      'AgiliX API response validation failed',
+    )
+
+    await expect(createAgiliXClient(vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }))).moveIssue('SRCH-186', 'done')).rejects.toThrow('AgiliX API request failed')
+  })
+})
