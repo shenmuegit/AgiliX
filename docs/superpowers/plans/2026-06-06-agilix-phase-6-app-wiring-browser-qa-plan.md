@@ -30,7 +30,7 @@
 - Create `apps/agilix/e2e/full-flow.spec.ts`: browser workflow tests.
 - Modify `apps/agilix/package.json`: add response validation, `e2e` script, and Playwright dependency.
 
-## Task 1: Add Typed API Client
+### Task 1: Add Typed API Client
 
 **Files:**
 - Create: `apps/agilix/src/api/client.ts`
@@ -197,6 +197,16 @@ describe('AgiliX API client', () => {
       query: ' 结果卡片',
     })).rejects.toThrow('docs query must not include leading or trailing whitespace')
 
+    await expect(client.recordFeishuNotification({
+      id: 'notification-empty-blockers',
+      trigger: '阻塞提醒',
+      targetGroup: 'AgiliX 团队群',
+      // @ts-expect-error blocker notifications require at least one issue key
+      payload: { issueKeys: [] },
+      status: 'queued',
+      createdAt: '2026-06-06T10:00:00.000Z',
+    })).rejects.toThrow()
+
     expect(fetcher).not.toHaveBeenCalled()
   })
 
@@ -257,7 +267,8 @@ export type FeishuNotificationInput = {
   createdAt: string
 } & FeishuNotificationPayload
 
-export type CreateDocInput = Omit<Doc, 'comments'> & { comments: never[] }
+type CreateDocInputFor<T extends Doc> = Omit<T, 'comments'> & { comments: never[] }
+export type CreateDocInput = Doc extends infer D ? D extends Doc ? CreateDocInputFor<D> : never : never
 
 export interface AgiliXClient {
   loadData(): Promise<SeedData>
@@ -279,6 +290,7 @@ const issueTypeSchema = z.enum(['story', 'bug', 'task', 'tech'])
 const prioritySchema = z.enum(['high', 'medium', 'low'])
 const milestoneStatusSchema = z.enum(['done', 'doing', 'risk', 'planned'])
 const feishuNotificationTriggerSchema = z.enum(['站会摘要', '阻塞提醒', '文档评论'])
+const nonEmptyStringArraySchema = z.array(z.string().min(1)).min(1).transform((items) => items as [string, ...string[]])
 
 const feishuDocsQuerySchema = z.string()
   .min(1)
@@ -398,7 +410,7 @@ const milestoneSchema = z.object({
 
 const feishuNotificationSchema: z.ZodType<FeishuNotificationInput> = z.discriminatedUnion('trigger', [
   z.object({ id: z.string().min(1), targetGroup: z.literal('AgiliX 团队群'), status: z.enum(['queued', 'sent', 'failed']), createdAt: z.string().min(1), trigger: z.literal('站会摘要'), payload: z.object({ standupId: z.string().min(1) }).strict() }).strict(),
-  z.object({ id: z.string().min(1), targetGroup: z.literal('AgiliX 团队群'), status: z.enum(['queued', 'sent', 'failed']), createdAt: z.string().min(1), trigger: z.literal('阻塞提醒'), payload: z.object({ issueKeys: z.array(z.string().min(1)).min(1) }).strict() }).strict(),
+  z.object({ id: z.string().min(1), targetGroup: z.literal('AgiliX 团队群'), status: z.enum(['queued', 'sent', 'failed']), createdAt: z.string().min(1), trigger: z.literal('阻塞提醒'), payload: z.object({ issueKeys: nonEmptyStringArraySchema }).strict() }).strict(),
   z.object({ id: z.string().min(1), targetGroup: z.literal('AgiliX 团队群'), status: z.enum(['queued', 'sent', 'failed']), createdAt: z.string().min(1), trigger: z.literal('文档评论'), payload: z.object({ docId: z.string().min(1), commentId: z.string().min(1) }).strict() }).strict(),
 ])
 
@@ -483,9 +495,10 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
       })
     },
     recordFeishuNotification(input) {
+      const parsed = feishuNotificationSchema.parse(input)
       return requestJson(fetcher, '/api/feishu/notifications', 201, feishuNotificationSchema, {
         method: 'POST',
-        body: JSON.stringify(input),
+        body: JSON.stringify(parsed),
       }).then(() => undefined)
     },
     queryFeishu(command) {
@@ -516,7 +529,7 @@ git add apps/agilix/package.json apps/agilix/src/api/client.ts apps/agilix/src/a
 git commit -m "feat: add AgiliX API client"
 ```
 
-## Task 2: Wire App State to Route Callbacks
+### Task 2: Wire App State to Route Callbacks
 
 **Files:**
 - Create: `apps/agilix/src/test/createInMemoryClient.ts`
@@ -637,6 +650,30 @@ describe('App API wiring', () => {
     })).rejects.toThrow('Document comments must be empty on create')
     await expect(client.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).rejects.toThrow('Standup not found')
     await expect(client.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' })).rejects.toThrow('Milestone not found')
+    await expect(client.recordFeishuNotification({
+      id: 'notification-missing-standup',
+      trigger: '站会摘要',
+      targetGroup: 'AgiliX 团队群',
+      payload: { standupId: 'missing-standup' },
+      status: 'queued',
+      createdAt: '2026-06-06T10:00:00.000Z',
+    })).rejects.toThrow('Standup not found')
+    await expect(client.recordFeishuNotification({
+      id: 'notification-missing-issue',
+      trigger: '阻塞提醒',
+      targetGroup: 'AgiliX 团队群',
+      payload: { issueKeys: ['MISSING-1'] },
+      status: 'queued',
+      createdAt: '2026-06-06T10:00:00.000Z',
+    })).rejects.toThrow('Issue not found')
+    await expect(client.recordFeishuNotification({
+      id: 'notification-missing-comment',
+      trigger: '文档评论',
+      targetGroup: 'AgiliX 团队群',
+      payload: { docId: 'doc-result-card', commentId: 'missing-comment' },
+      status: 'queued',
+      createdAt: '2026-06-06T10:00:00.000Z',
+    })).rejects.toThrow('Comment not found')
   })
 })
 ```
@@ -673,6 +710,26 @@ export function createInMemoryClient() {
   const milestoneSaves: string[] = []
   const feishuNotifications: FeishuNotificationInput[] = []
   const feishuQueries: string[] = []
+
+  function validateFeishuNotification(input: FeishuNotificationInput) {
+    switch (input.trigger) {
+      case '站会摘要':
+        if (!data.standups.some((standup) => standup.id === input.payload.standupId)) throw new Error(`Standup not found: ${input.payload.standupId}`)
+        return
+      case '阻塞提醒': {
+        if (input.payload.issueKeys.length === 0) throw new Error('Blocker notification must include issue keys')
+        const missingIssueKey = input.payload.issueKeys.find((issueKey) => !data.issues.some((issue) => issue.key === issueKey))
+        if (missingIssueKey) throw new Error(`Issue not found: ${missingIssueKey}`)
+        return
+      }
+      case '文档评论': {
+        const doc = data.docs.find((item) => item.id === input.payload.docId)
+        if (!doc) throw new Error(`Document not found: ${input.payload.docId}`)
+        if (!doc.comments.some((comment) => comment.id === input.payload.commentId)) throw new Error(`Comment not found: ${input.payload.commentId}`)
+        return
+      }
+    }
+  }
 
   const client: AgiliXClient & {
     loadCount(): number
@@ -716,6 +773,7 @@ export function createInMemoryClient() {
       data = { ...data, milestones: [...data.milestones.filter((item) => item.id !== milestone.id), milestone] }
     },
     async recordFeishuNotification(input: FeishuNotificationInput) {
+      validateFeishuNotification(input)
       feishuNotifications.push(clone(input))
     },
     async queryFeishu(command: FeishuQueryCommand): Promise<FeishuReply> {
@@ -840,9 +898,12 @@ export function App({ client = createAgiliXClient() }: { client?: AgiliXClient }
       case '站会摘要':
         input = { ...base, trigger, payload: { standupId: 'standup-search-today' } }
         break
-      case '阻塞提醒':
-        input = { ...base, trigger, payload: { issueKeys: data.issues.filter((issue) => issue.status === 'blocked').map((issue) => issue.key) } }
+      case '阻塞提醒': {
+        const issueKeys = data.issues.filter((issue) => issue.status === 'blocked').map((issue) => issue.key)
+        if (issueKeys.length === 0) throw new Error('Cannot record blocker notification without blocked issues')
+        input = { ...base, trigger, payload: { issueKeys: issueKeys as [string, ...string[]] } }
         break
+      }
       case '文档评论':
         input = { ...base, trigger, payload: { docId: 'doc-result-card', commentId: 'comment-a' } }
         break
@@ -911,7 +972,7 @@ git add apps/agilix/src/App.tsx apps/agilix/src/test/createInMemoryClient.ts app
 git commit -m "feat: wire AgiliX app to API client"
 ```
 
-## Task 3: Add Browser Workflow Coverage
+### Task 3: Add Browser Workflow Coverage
 
 **Files:**
 - Modify: `apps/agilix/package.json`

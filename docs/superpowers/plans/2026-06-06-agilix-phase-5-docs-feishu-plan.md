@@ -23,7 +23,7 @@
 - Create `apps/agilix/src/routes/FeishuPage.tsx`: Feishu notification/query surface.
 - Create `apps/agilix/src/routes/feishu.test.tsx`: Feishu route tests.
 
-## Task 1: Build Document Management
+### Task 1: Build Document Management
 
 **Files:**
 - Create: `apps/agilix/src/routes/DocsPage.tsx`
@@ -202,7 +202,7 @@ git add apps/agilix/src/routes/DocsPage.tsx apps/agilix/src/routes/docs.test.tsx
 git commit -m "feat: add document management route"
 ```
 
-## Task 2: Build Feishu Notification and Query Surface
+### Task 2: Build Feishu Notification and Query Surface
 
 **Files:**
 - Create: `apps/agilix/src/routes/FeishuPage.tsx`

@@ -28,7 +28,7 @@
 - Create `apps/agilix/src/routes/BoardPage.tsx`: Kanban board.
 - Create `apps/agilix/src/routes/issues-board.test.tsx`: issue/board tests.
 
-## Task 1: Add Project Filter Component
+### Task 1: Add Project Filter Component
 
 **Files:**
 - Create: `apps/agilix/src/components/ProjectFilter.tsx`
@@ -122,7 +122,7 @@ git add apps/agilix/src/components/ProjectFilter.tsx apps/agilix/src/components/
 git commit -m "feat: add project filter component"
 ```
 
-## Task 2: Build Team Workbench and Project Overview
+### Task 2: Build Team Workbench and Project Overview
 
 **Files:**
 - Create: `apps/agilix/src/routes/TeamPage.tsx`
@@ -263,7 +263,7 @@ git add apps/agilix/src/routes/TeamPage.tsx apps/agilix/src/routes/ProjectsPage.
 git commit -m "feat: add workbench and project overview routes"
 ```
 
-## Task 3: Build Issues Ledger and Kanban Board
+### Task 3: Build Issues Ledger and Kanban Board
 
 **Files:**
 - Create: `apps/agilix/src/routes/IssuesPage.tsx`

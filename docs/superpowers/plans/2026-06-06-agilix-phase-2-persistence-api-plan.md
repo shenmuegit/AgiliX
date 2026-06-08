@@ -27,6 +27,7 @@ Repository implementations must use an explicit atomic write capability for mult
 - Create `apps/agilix-api/vitest.config.ts`: Vitest config.
 - Create `apps/agilix-api/drizzle.config.ts`: Drizzle migration config.
 - Create `apps/agilix-api/src/db/schema.ts`: Drizzle schema.
+- Create `apps/agilix-api/src/db/transaction.ts`: explicit transaction-capable database port.
 - Create `apps/agilix-api/src/db/client.ts`: D1 Drizzle client factory.
 - Create `apps/agilix-api/src/repository.ts`: repository contract.
 - Create `apps/agilix-api/src/test/memoryRepository.ts`: route test repository.
@@ -37,7 +38,7 @@ Repository implementations must use an explicit atomic write capability for mult
 - Create `apps/agilix-api/src/app.ts`: Hono app factory.
 - Create `apps/agilix-api/src/app.test.ts`: route tests.
 
-## Task 1: Scaffold the API Package
+### Task 1: Scaffold the API Package
 
 **Files:**
 - Modify: `package.json`
@@ -169,11 +170,12 @@ git add package.json apps/agilix-api/package.json apps/agilix-api/tsconfig.json 
 git commit -m "test: start AgiliX API package"
 ```
 
-## Task 2: Add Drizzle Schema and Repository Contract
+### Task 2: Add Drizzle Schema and Repository Contract
 
 **Files:**
 - Create: `apps/agilix-api/drizzle.config.ts`
 - Create: `apps/agilix-api/src/db/schema.ts`
+- Create: `apps/agilix-api/src/db/transaction.ts`
 - Create: `apps/agilix-api/src/db/client.ts`
 - Create: `apps/agilix-api/src/repository.ts`
 - Test: `apps/agilix-api/src/db/schema.test.ts`
@@ -183,8 +185,10 @@ git commit -m "test: start AgiliX API package"
 Create `apps/agilix-api/src/db/schema.test.ts`:
 
 ```ts
-import { describe, expect, it } from 'vitest'
+import { describe, expect, expectTypeOf, it } from 'vitest'
 import * as schema from './schema'
+import { createDbClient } from './client'
+import type { TransactionDatabase } from './transaction'
 
 describe('AgiliX relational schema', () => {
   it('defines every table needed by the full product', () => {
@@ -204,6 +208,12 @@ describe('AgiliX relational schema', () => {
       'standups',
     ])
   })
+
+  it('exposes an explicit transaction-capable database port', () => {
+    type Client = ReturnType<typeof createDbClient>
+
+    expectTypeOf<Client>().toEqualTypeOf<TransactionDatabase>()
+  })
 })
 ```
 
@@ -215,7 +225,7 @@ Run:
 pnpm --filter @agilix/api test -- src/db/schema.test.ts
 ```
 
-Expected: FAIL because `src/db/schema.ts` does not exist.
+Expected: FAIL because `src/db/schema.ts`, `src/db/client.ts`, and `src/db/transaction.ts` do not exist.
 
 - [ ] **Step 3: Add Drizzle config and schema**
 
@@ -353,14 +363,32 @@ export const feishuQueries = sqliteTable('feishu_queries', {
 })
 ```
 
+Create `apps/agilix-api/src/db/transaction.ts`:
+
+```ts
+import type { DrizzleD1Database } from 'drizzle-orm/d1'
+import * as schema from './schema'
+
+export type RepositoryTx = Pick<DrizzleD1Database<typeof schema>, 'select' | 'insert' | 'update' | 'delete'>
+
+export type TransactionDatabase = RepositoryTx & {
+  batch<T extends readonly unknown[]>(queries: T): Promise<unknown[]> | unknown[]
+}
+
+export function createTransactionDatabase(db: TransactionDatabase): TransactionDatabase {
+  return db
+}
+```
+
 Create `apps/agilix-api/src/db/client.ts`:
 
 ```ts
 import { drizzle } from 'drizzle-orm/d1'
 import * as schema from './schema'
+import { createTransactionDatabase } from './transaction'
 
 export function createDbClient(db: D1Database) {
-  return drizzle(db, { schema })
+  return createTransactionDatabase(drizzle(db, { schema }))
 }
 ```
 
@@ -402,9 +430,12 @@ export interface FeishuQueryRecord {
   createdAt: string
 }
 
-export type CreateDocInput = Omit<Doc, 'comments'> & { comments: never[] }
+type CreateDocInputFor<T extends Doc> = Omit<T, 'comments'> & { comments: never[] }
+export type CreateDocInput = Doc extends infer D ? D extends Doc ? CreateDocInputFor<D> : never : never
 export type CreateDocResult = 'created' | 'duplicate-document' | 'duplicate-linked-issue' | 'linked-issue-not-found' | 'document-comments-not-empty'
 export type AddDocCommentResult = 'created' | 'document-not-found' | 'comment-doc-id-mismatch'
+export type SaveMilestoneResult = 'saved' | 'milestone-not-found' | 'project-not-found' | 'iteration-not-found' | 'owner-not-found'
+export type SaveFeishuNotificationResult = 'saved' | 'standup-not-found' | 'issue-not-found' | 'document-not-found' | 'comment-not-found'
 
 export interface AgiliXRepository {
   seed(data: SeedData): Promise<void>
@@ -418,8 +449,8 @@ export interface AgiliXRepository {
   listStandups(filters: { projectId: ProjectId | 'all' }): Promise<Standup[]>
   saveStandup(standup: Standup): Promise<boolean>
   listMilestones(filters: { projectId: ProjectId | 'all' }): Promise<Milestone[]>
-  saveMilestone(milestone: Milestone): Promise<boolean>
-  saveFeishuNotification(input: FeishuNotificationRecord): Promise<void>
+  saveMilestone(milestone: Milestone): Promise<SaveMilestoneResult>
+  saveFeishuNotification(input: FeishuNotificationRecord): Promise<SaveFeishuNotificationResult>
   listFeishuNotifications(): Promise<FeishuNotificationRecord[]>
   saveFeishuQuery(input: FeishuQueryRecord): Promise<void>
   listFeishuQueries(): Promise<FeishuQueryRecord[]>
@@ -444,7 +475,7 @@ git add apps/agilix-api/drizzle.config.ts apps/agilix-api/src/db apps/agilix-api
 git commit -m "feat: add AgiliX relational schema"
 ```
 
-## Task 3: Add Memory Repository and Validated API Routes
+### Task 3: Add Memory Repository and Validated API Routes
 
 **Files:**
 - Create: `apps/agilix-api/src/test/memoryRepository.ts`
@@ -719,6 +750,12 @@ describe('AgiliX API app', () => {
       body: JSON.stringify({ ...seedData.milestones[1], id: 'missing-milestone' }),
     })).status).toBe(404)
 
+    expect((await app.request('/api/milestones/ms-beta', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ...seedData.milestones[1], iterationId: 'missing-iteration' }),
+    })).status).toBe(400)
+
     expect((await app.request('/api/feishu/query', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -769,6 +806,58 @@ describe('AgiliX API app', () => {
         extra: true,
       }),
     })).status).toBe(400)
+
+    expect((await app.request('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'notification-missing-standup',
+        trigger: '站会摘要',
+        targetGroup: 'AgiliX 团队群',
+        payload: { standupId: 'missing-standup' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    })).status).toBe(400)
+
+    expect((await app.request('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'notification-empty-blockers',
+        trigger: '阻塞提醒',
+        targetGroup: 'AgiliX 团队群',
+        payload: { issueKeys: [] },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    })).status).toBe(400)
+
+    expect((await app.request('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'notification-missing-issue',
+        trigger: '阻塞提醒',
+        targetGroup: 'AgiliX 团队群',
+        payload: { issueKeys: ['MISSING-1'] },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    })).status).toBe(400)
+
+    expect((await app.request('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'notification-missing-comment',
+        trigger: '文档评论',
+        targetGroup: 'AgiliX 团队群',
+        payload: { docId: 'doc-result-card', commentId: 'missing-comment' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    })).status).toBe(400)
   })
 })
 ```
@@ -791,7 +880,7 @@ Create `apps/agilix-api/src/test/memoryRepository.ts`:
 import { filterDocs, searchDocs } from '@agilix/app/domain/docs'
 import { filterIssues, moveIssue } from '@agilix/app/domain/issues'
 import type { Doc, DocComment, IssueStatus, Milestone, SeedData, Standup } from '@agilix/app/domain/types'
-import type { AgiliXRepository, CreateDocInput, DocFilters, FeishuNotificationRecord, FeishuQueryRecord, IssueFilters } from '../repository'
+import type { AgiliXRepository, CreateDocInput, DocFilters, FeishuNotificationRecord, FeishuQueryRecord, IssueFilters, SaveFeishuNotificationResult, SaveMilestoneResult } from '../repository'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -873,6 +962,30 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
   const feishuNotifications: FeishuNotificationRecord[] = []
   const feishuQueries: FeishuQueryRecord[] = []
 
+  function validateMilestoneReferences(milestone: Milestone): SaveMilestoneResult {
+    if (!data.milestones.some((item) => item.id === milestone.id)) return 'milestone-not-found'
+    if (!data.projects.some((project) => project.id === milestone.projectId)) return 'project-not-found'
+    if (!data.iterations.some((iteration) => iteration.id === milestone.iterationId && iteration.projectId === milestone.projectId)) return 'iteration-not-found'
+    if (!data.members.some((member) => member.id === milestone.ownerId)) return 'owner-not-found'
+    return 'saved'
+  }
+
+  function validateFeishuNotificationReferences(input: FeishuNotificationRecord): SaveFeishuNotificationResult {
+    switch (input.trigger) {
+      case '站会摘要':
+        return data.standups.some((standup) => standup.id === input.payload.standupId) ? 'saved' : 'standup-not-found'
+      case '阻塞提醒': {
+        const issueKeys = new Set(data.issues.map((issue) => issue.key))
+        return input.payload.issueKeys.every((issueKey) => issueKeys.has(issueKey)) ? 'saved' : 'issue-not-found'
+      }
+      case '文档评论': {
+        const doc = data.docs.find((item) => item.id === input.payload.docId)
+        if (!doc) return 'document-not-found'
+        return doc.comments.some((comment) => comment.id === input.payload.commentId) ? 'saved' : 'comment-not-found'
+      }
+    }
+  }
+
   return {
     async seed(nextData) {
       if (seeded) throw new Error('Repository already seeded')
@@ -925,12 +1038,16 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
       return clone(filters.projectId === 'all' ? data.milestones : data.milestones.filter((milestone) => milestone.projectId === filters.projectId))
     },
     async saveMilestone(milestone: Milestone) {
-      if (!data.milestones.some((item) => item.id === milestone.id)) return false
+      const result = validateMilestoneReferences(milestone)
+      if (result !== 'saved') return result
       data.milestones = [...data.milestones.filter((item) => item.id !== milestone.id), milestone]
-      return true
+      return 'saved'
     },
     async saveFeishuNotification(input) {
+      const result = validateFeishuNotificationReferences(input)
+      if (result !== 'saved') return result
       feishuNotifications.push(clone(input))
+      return 'saved'
     },
     async saveFeishuQuery(input) {
       feishuQueries.push(clone(input))
@@ -955,7 +1072,7 @@ Create `apps/agilix-api/src/schema.ts`:
 ```ts
 import { createDocQueryCommand } from '@agilix/app/domain/feishu'
 import type { FeishuQueryCommand } from '@agilix/app/domain/types'
-import type { CreateDocInput } from './repository'
+import type { CreateDocInput, FeishuNotificationRecord } from './repository'
 import { z } from 'zod'
 
 export const projectIdSchema = z.enum(['search', 'data', 'api', 'mobile'])
@@ -967,6 +1084,7 @@ export const prioritySchema = z.enum(['high', 'medium', 'low'])
 export const docScopeSchema = z.enum(['global', 'project'])
 export const milestoneStatusSchema = z.enum(['done', 'doing', 'risk', 'planned'])
 export const stringArraySchema = z.array(z.string())
+const nonEmptyStringArraySchema = z.array(z.string().min(1)).min(1).transform((items) => items as [string, ...string[]])
 
 export const issueQuerySchema = z.object({
   projectId: projectFilterSchema,
@@ -1033,9 +1151,9 @@ const feishuNotificationBaseSchema = {
   createdAt: z.string().min(1),
 }
 
-export const feishuNotificationSchema = z.discriminatedUnion('trigger', [
+export const feishuNotificationSchema: z.ZodType<FeishuNotificationRecord> = z.discriminatedUnion('trigger', [
   z.object({ ...feishuNotificationBaseSchema, trigger: z.literal('站会摘要'), payload: z.object({ standupId: z.string().min(1) }).strict() }).strict(),
-  z.object({ ...feishuNotificationBaseSchema, trigger: z.literal('阻塞提醒'), payload: z.object({ issueKeys: z.array(z.string().min(1)).min(1) }).strict() }).strict(),
+  z.object({ ...feishuNotificationBaseSchema, trigger: z.literal('阻塞提醒'), payload: z.object({ issueKeys: nonEmptyStringArraySchema }).strict() }).strict(),
   z.object({ ...feishuNotificationBaseSchema, trigger: z.literal('文档评论'), payload: z.object({ docId: z.string().min(1), commentId: z.string().min(1) }).strict() }).strict(),
 ])
 
@@ -1074,7 +1192,7 @@ Create `apps/agilix-api/src/app.ts`:
 import { buildFeishuReply } from '@agilix/app/domain/feishu'
 import { Hono, type Context } from 'hono'
 import type { z } from 'zod'
-import type { AddDocCommentResult, AgiliXRepository, CreateDocResult } from './repository'
+import type { AddDocCommentResult, AgiliXRepository, CreateDocResult, SaveFeishuNotificationResult, SaveMilestoneResult } from './repository'
 import { docCommentSchema, docQuerySchema, docSchema, feishuNotificationSchema, feishuQuerySchema, issueQuerySchema, milestoneSchema, moveIssueSchema, projectScopedQuerySchema, standupSchema } from './schema'
 
 type ParseResult<T> = { value: T; response?: never } | { value?: never; response: Response }
@@ -1091,6 +1209,20 @@ const addDocCommentFailures = {
   'document-not-found': { message: 'Document not found', status: 404 },
   'comment-doc-id-mismatch': { message: 'Comment docId must match route id', status: 400 },
 } satisfies Record<Exclude<AddDocCommentResult, 'created'>, JsonFailure>
+
+const saveMilestoneFailures = {
+  'milestone-not-found': { message: 'Milestone not found', status: 404 },
+  'project-not-found': { message: 'Project not found', status: 400 },
+  'iteration-not-found': { message: 'Iteration not found', status: 400 },
+  'owner-not-found': { message: 'Owner not found', status: 400 },
+} satisfies Record<Exclude<SaveMilestoneResult, 'saved'>, JsonFailure>
+
+const saveFeishuNotificationFailures = {
+  'standup-not-found': { message: 'Standup not found', status: 400 },
+  'issue-not-found': { message: 'Issue not found', status: 400 },
+  'document-not-found': { message: 'Document not found', status: 400 },
+  'comment-not-found': { message: 'Comment not found', status: 400 },
+} satisfies Record<Exclude<SaveFeishuNotificationResult, 'saved'>, JsonFailure>
 
 async function parseJson<T>(context: Context, schema: z.ZodType<T>): Promise<ParseResult<T>> {
   let json: unknown
@@ -1189,8 +1321,10 @@ export function createApp(repository: AgiliXRepository) {
     const parsed = await parseJson(context, milestoneSchema)
     if ('response' in parsed) return parsed.response
     if (parsed.value.id !== context.req.param('id')) return idMismatch(context, 'Milestone id must match route id')
-    const saved = await repository.saveMilestone(parsed.value)
-    return saved ? context.body(null, 204) : context.json({ message: 'Milestone not found' }, 404)
+    const result = await repository.saveMilestone(parsed.value)
+    if (result === 'saved') return context.body(null, 204)
+    const failure = saveMilestoneFailures[result]
+    return context.json({ message: failure.message }, failure.status)
   })
 
   app.post('/api/feishu/query', async (context) => {
@@ -1204,7 +1338,11 @@ export function createApp(repository: AgiliXRepository) {
   app.post('/api/feishu/notifications', async (context) => {
     const parsed = await parseJson(context, feishuNotificationSchema)
     if ('response' in parsed) return parsed.response
-    await repository.saveFeishuNotification(parsed.value)
+    const result = await repository.saveFeishuNotification(parsed.value)
+    if (result !== 'saved') {
+      const failure = saveFeishuNotificationFailures[result]
+      return context.json({ message: failure.message }, failure.status)
+    }
     return context.json(parsed.value, 201)
   })
 
@@ -1229,7 +1367,7 @@ git add apps/agilix-api/src/app.ts apps/agilix-api/src/schema.ts apps/agilix-api
 git commit -m "feat: add validated AgiliX API routes"
 ```
 
-## Task 4: Add Drizzle Repository Conformance Coverage
+### Task 4: Add Drizzle Repository Conformance Coverage
 
 **Files:**
 - Create: `apps/agilix-api/src/test/repositoryConformance.ts`
@@ -1278,15 +1416,15 @@ export function describeRepositoryConformance(name: string, createRepository: ()
           item.memberId === 'gao' ? { ...item, today: ['Repository updated standup item'], blockers: [] } : item,
         ),
       })).toBe(true)
-      expect(await repository.saveMilestone({ ...seedData.milestones[1], status: 'doing' })).toBe(true)
-      await repository.saveFeishuNotification({
+      expect(await repository.saveMilestone({ ...seedData.milestones[1], status: 'doing' })).toBe('saved')
+      expect(await repository.saveFeishuNotification({
         id: 'notification-conformance',
         trigger: '站会摘要',
         targetGroup: 'AgiliX 团队群',
         payload: { standupId: 'standup-search-today' },
         status: 'queued',
         createdAt: '2026-06-06T10:00:00.000Z',
-      })
+      })).toBe('saved')
       await repository.saveFeishuQuery({
         id: 'query-conformance',
         command: { type: 'team' },
@@ -1418,7 +1556,37 @@ export function describeRepositoryConformance(name: string, createRepository: ()
         updatedAtLabel: '刚刚',
       })).toBe('document-comments-not-empty')
       expect(await repository.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).toBe(false)
-      expect(await repository.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' })).toBe(false)
+      expect(await repository.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' })).toBe('milestone-not-found')
+      expect(await repository.saveMilestone({ ...seedData.milestones[1], iterationId: 'missing-iteration' })).toBe('iteration-not-found')
+      expect(await repository.saveMilestone({
+        ...seedData.milestones[1],
+        // @ts-expect-error invalid owner validates explicit repository result
+        ownerId: 'missing-owner',
+      })).toBe('owner-not-found')
+      expect(await repository.saveFeishuNotification({
+        id: 'notification-missing-standup',
+        trigger: '站会摘要',
+        targetGroup: 'AgiliX 团队群',
+        payload: { standupId: 'missing-standup' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      })).toBe('standup-not-found')
+      expect(await repository.saveFeishuNotification({
+        id: 'notification-missing-issue',
+        trigger: '阻塞提醒',
+        targetGroup: 'AgiliX 团队群',
+        payload: { issueKeys: ['MISSING-1'] },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      })).toBe('issue-not-found')
+      expect(await repository.saveFeishuNotification({
+        id: 'notification-missing-comment',
+        trigger: '文档评论',
+        targetGroup: 'AgiliX 团队群',
+        payload: { docId: 'doc-result-card', commentId: 'missing-comment' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      })).toBe('comment-not-found')
 
       expect(await repository.listIssues({ projectId: 'all', status: 'all', assigneeId: 'all', keyword: 'MISSING-1' })).toEqual([])
       expect((await repository.getDoc('missing-doc'))).toBeUndefined()
@@ -1428,6 +1596,7 @@ export function describeRepositoryConformance(name: string, createRepository: ()
       expect((await repository.listDocs({ projectId: 'all', query: '' })).filter((doc) => doc.id === seedData.docs[0].id)).toHaveLength(1)
       expect((await repository.listStandups({ projectId: 'all' })).map((standup) => standup.id)).not.toContain('missing-standup')
       expect((await repository.listMilestones({ projectId: 'all' })).map((milestone) => milestone.id)).not.toContain('missing-milestone')
+      expect(await repository.listFeishuNotifications()).toEqual([])
     })
 
     it('keeps existing standup items when a standup save fails', async () => {
@@ -1469,7 +1638,7 @@ it('rejects invalid persisted issue status values', async () => {
   const db = createTestDrizzleDb()
   const repository = createDrizzleRepository(db)
   await repository.seed(seedData)
-  db.run(sql`insert into issues (key, project_id, iteration_id, type, title, status, priority, assignee_id, story_points, blocker_reason) values ('BAD-1', 'search', 'it-search-24', 'task', 'Bad issue status', 'unknown', 'medium', 'gao', 1, null)`)
+  db.run(sql`insert into issues (key, project_id, iteration_id, type, title, status, priority, assignee_id, story_points, blocker_reason) values ('BAD-1', 'search', 'search-s24', 'task', 'Bad issue status', 'unknown', 'medium', 'gao', 1, null)`)
 
   await expect(repository.listIssues({ projectId: 'search', status: 'all', assigneeId: 'all', keyword: '' })).rejects.toThrow()
 })
@@ -1478,7 +1647,7 @@ it('rejects invalid persisted issue project ids before applying filters', async 
   const db = createTestDrizzleDb()
   const repository = createDrizzleRepository(db)
   await repository.seed(seedData)
-  db.run(sql`insert into issues (key, project_id, iteration_id, type, title, status, priority, assignee_id, story_points, blocker_reason) values ('BAD-2', 'missing', 'it-search-24', 'task', 'Bad issue project', 'todo', 'medium', 'gao', 1, null)`)
+  db.corrupt(sql`insert into issues (key, project_id, iteration_id, type, title, status, priority, assignee_id, story_points, blocker_reason) values ('BAD-2', 'missing', 'search-s24', 'task', 'Bad issue project', 'todo', 'medium', 'gao', 1, null)`)
 
   await expect(repository.listIssues({ projectId: 'search', status: 'all', assigneeId: 'all', keyword: '' })).rejects.toThrow()
 })
@@ -1496,8 +1665,8 @@ it('rejects invalid persisted planning project ids before applying filters', asy
   const db = createTestDrizzleDb()
   const repository = createDrizzleRepository(db)
   await repository.seed(seedData)
-  db.run(sql`insert into standups (id, project_id, date_label, time_label) values ('standup-bad-project', 'missing', '星期五', '10:00-10:15')`)
-  db.run(sql`insert into milestones (id, project_id, iteration_id, title, start_day, end_day, status, owner_id) values ('milestone-bad-project', 'missing', 'it-search-24', 'Bad milestone project', 1, 2, 'planned', 'gao')`)
+  db.corrupt(sql`insert into standups (id, project_id, date_label, time_label) values ('standup-bad-project', 'missing', '星期五', '10:00-10:15')`)
+  db.corrupt(sql`insert into milestones (id, project_id, iteration_id, title, start_day, end_day, status, owner_id) values ('milestone-bad-project', 'missing', 'search-s24', 'Bad milestone project', 1, 2, 'planned', 'gao')`)
 
   await expect(repository.listStandups({ projectId: 'search' })).rejects.toThrow()
   await expect(repository.listMilestones({ projectId: 'search' })).rejects.toThrow()
@@ -1527,14 +1696,21 @@ Create `apps/agilix-api/src/test/createTestDrizzleDb.ts`:
 
 ```ts
 import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
+import { sql, type SQL } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import * as schema from '../db/schema'
+import { createTransactionDatabase } from '../db/transaction'
 
 export function createTestDrizzleDb() {
   const sqlite = new Database(':memory:')
   sqlite.pragma('foreign_keys = ON')
   const db = drizzle(sqlite, { schema })
+  const runBatch = sqlite.transaction((statements: readonly { run(): unknown }[]) => statements.map((statement) => statement.run()))
+  const transactionDb = Object.assign(db, {
+    batch(queries: readonly unknown[]) {
+      return runBatch(queries as readonly { run(): unknown }[])
+    },
+  })
 
   db.run(sql`create table projects (id text primary key, name text not null, glyph text not null, color text not null, active_iteration_code text not null)`)
   db.run(sql`create table members (id text primary key, name text not null, role text not null, capacity integer not null)`)
@@ -1550,7 +1726,19 @@ export function createTestDrizzleDb() {
   db.run(sql`create table feishu_notifications (id text primary key, trigger text not null, target_group text not null, payload_json text not null, status text not null, created_at text not null)`)
   db.run(sql`create table feishu_queries (id text primary key, command text not null, response_title text not null, response_body_json text not null, created_at text not null)`)
 
-  return db
+  return Object.assign(createTransactionDatabase(transactionDb), {
+    run(statement: SQL) {
+      db.run(statement)
+    },
+    corrupt(statement: SQL) {
+      sqlite.pragma('foreign_keys = OFF')
+      try {
+        db.run(statement)
+      } finally {
+        sqlite.pragma('foreign_keys = ON')
+      }
+    },
+  })
 }
 ```
 
@@ -1572,18 +1760,13 @@ export async function seedAgiliX(repository: AgiliXRepository) {
 Create `apps/agilix-api/src/drizzleRepository.ts`:
 
 ```ts
-import type { DrizzleD1Database } from 'drizzle-orm/d1'
 import { eq } from 'drizzle-orm'
 import { createDocQueryCommand, formatFeishuCommand, parseFeishuCommand } from '@agilix/app/domain/feishu'
 import type { Doc, DocComment, Issue, IssueStatus, Iteration, Member, Milestone, Project, SeedData, Standup } from '@agilix/app/domain/types'
-import type { AgiliXRepository, CreateDocInput, DocFilters, FeishuNotificationRecord, FeishuQueryRecord, IssueFilters } from './repository'
+import type { AgiliXRepository, CreateDocInput, DocFilters, FeishuNotificationRecord, FeishuQueryRecord, IssueFilters, SaveFeishuNotificationResult, SaveMilestoneResult } from './repository'
 import * as schema from './db/schema'
+import type { TransactionDatabase } from './db/transaction'
 import { docScopeSchema, feishuNotificationSchema, issueStatusSchema, issueTypeSchema, memberIdSchema, milestoneStatusSchema, prioritySchema, projectIdSchema, stringArraySchema } from './schema'
-
-type RepositoryTx = Pick<DrizzleD1Database<typeof schema>, 'select' | 'insert' | 'update' | 'delete'>
-type Database = RepositoryTx & {
-  transaction<T>(callback: (tx: RepositoryTx) => Promise<T>): Promise<T>
-}
 
 function toProject(row: typeof schema.projects.$inferSelect): Project {
   return { ...row, id: projectIdSchema.parse(row.id) }
@@ -1707,7 +1890,7 @@ function assertSeedData(data: SeedData) {
   }
 }
 
-async function assertRepositoryEmpty(db: Database) {
+async function assertRepositoryEmpty(db: TransactionDatabase) {
   const [project] = await db.select({ id: schema.projects.id }).from(schema.projects).limit(1)
   const [member] = await db.select({ id: schema.members.id }).from(schema.members).limit(1)
   const [iteration] = await db.select({ id: schema.iterations.id }).from(schema.iterations).limit(1)
@@ -1724,30 +1907,62 @@ async function assertRepositoryEmpty(db: Database) {
   if (project || member || iteration || issue || issueEvent || doc || docIssueLink || docComment || standup || standupItem || milestone || feishuNotification || feishuQuery) throw new Error('Repository already seeded')
 }
 
-export function createDrizzleRepository(db: Database): AgiliXRepository {
+async function validateMilestoneReferences(db: TransactionDatabase, milestone: Milestone): Promise<SaveMilestoneResult> {
+  const [existing] = await db.select({ id: schema.milestones.id }).from(schema.milestones).where(eq(schema.milestones.id, milestone.id))
+  if (!existing) return 'milestone-not-found'
+  const [project] = await db.select({ id: schema.projects.id }).from(schema.projects).where(eq(schema.projects.id, milestone.projectId))
+  if (!project) return 'project-not-found'
+  const [iteration] = await db.select({ projectId: schema.iterations.projectId }).from(schema.iterations).where(eq(schema.iterations.id, milestone.iterationId))
+  if (!iteration || iteration.projectId !== milestone.projectId) return 'iteration-not-found'
+  const [owner] = await db.select({ id: schema.members.id }).from(schema.members).where(eq(schema.members.id, milestone.ownerId))
+  if (!owner) return 'owner-not-found'
+  return 'saved'
+}
+
+async function validateFeishuNotificationReferences(db: TransactionDatabase, input: FeishuNotificationRecord): Promise<SaveFeishuNotificationResult> {
+  switch (input.trigger) {
+    case '站会摘要': {
+      const [standup] = await db.select({ id: schema.standups.id }).from(schema.standups).where(eq(schema.standups.id, input.payload.standupId))
+      return standup ? 'saved' : 'standup-not-found'
+    }
+    case '阻塞提醒': {
+      const issueRows = await db.select({ key: schema.issues.key }).from(schema.issues)
+      const issueKeys = new Set(issueRows.map((issue) => issue.key))
+      return input.payload.issueKeys.every((issueKey) => issueKeys.has(issueKey)) ? 'saved' : 'issue-not-found'
+    }
+    case '文档评论': {
+      const [doc] = await db.select({ id: schema.documents.id }).from(schema.documents).where(eq(schema.documents.id, input.payload.docId))
+      if (!doc) return 'document-not-found'
+      const [comment] = await db.select({ docId: schema.docComments.docId }).from(schema.docComments).where(eq(schema.docComments.id, input.payload.commentId))
+      return comment?.docId === input.payload.docId ? 'saved' : 'comment-not-found'
+    }
+  }
+}
+
+export function createDrizzleRepository(db: TransactionDatabase): AgiliXRepository {
   return {
     async seed(data: SeedData) {
       assertSeedData(data)
       await assertRepositoryEmpty(db)
-      await db.transaction(async (tx) => {
-        await tx.insert(schema.projects).values(data.projects)
-        await tx.insert(schema.members).values(data.members)
-        await tx.insert(schema.iterations).values(data.iterations)
-        await tx.insert(schema.issues).values(data.issues.map(({ linkedDocIds, ...issue }) => issue))
-        await tx.insert(schema.documents).values(data.docs.map(({ linkedIssueKeys, comments, ...doc }) => doc))
-        await tx.insert(schema.docIssueLinks).values(data.docs.flatMap((doc) => doc.linkedIssueKeys.map((issueKey) => ({ docId: doc.id, issueKey }))))
-        await tx.insert(schema.docComments).values(data.docs.flatMap((doc) => doc.comments))
-        await tx.insert(schema.standups).values(data.standups.map(({ items, ...standup }) => standup))
-        await tx.insert(schema.standupItems).values(data.standups.flatMap((standup) => standup.items.map((item, index) => ({
+      await db.batch([
+        db.insert(schema.projects).values(data.projects),
+        db.insert(schema.members).values(data.members),
+        db.insert(schema.iterations).values(data.iterations),
+        db.insert(schema.issues).values(data.issues.map(({ linkedDocIds, ...issue }) => issue)),
+        db.insert(schema.documents).values(data.docs.map(({ linkedIssueKeys, comments, ...doc }) => doc)),
+        db.insert(schema.docIssueLinks).values(data.docs.flatMap((doc) => doc.linkedIssueKeys.map((issueKey) => ({ docId: doc.id, issueKey })))),
+        db.insert(schema.docComments).values(data.docs.flatMap((doc) => doc.comments)),
+        db.insert(schema.standups).values(data.standups.map(({ items, ...standup }) => standup)),
+        db.insert(schema.standupItems).values(data.standups.flatMap((standup) => standup.items.map((item, index) => ({
           id: `${standup.id}-${item.memberId}-${index}`,
           standupId: standup.id,
           memberId: item.memberId,
           yesterdayJson: JSON.stringify(item.yesterday),
           todayJson: JSON.stringify(item.today),
           blockersJson: JSON.stringify(item.blockers),
-        }))))
-        await tx.insert(schema.milestones).values(data.milestones)
-      })
+        })))),
+        db.insert(schema.milestones).values(data.milestones),
+      ])
     },
     async listProjects() {
       return (await db.select().from(schema.projects)).map(toProject)
@@ -1832,20 +2047,20 @@ export function createDrizzleRepository(db: Database): AgiliXRepository {
       if (!existing) return false
       const memberRows = await db.select({ id: schema.members.id }).from(schema.members)
       assertStandupMembers(new Set(memberRows.map((member) => member.id)), standup)
-      await db.transaction(async (tx) => {
-        await tx.update(schema.standups).set({ projectId: standup.projectId, dateLabel: standup.dateLabel, timeLabel: standup.timeLabel }).where(eq(schema.standups.id, standup.id))
-        await tx.delete(schema.standupItems).where(eq(schema.standupItems.standupId, standup.id))
-        if (standup.items.length > 0) {
-          await tx.insert(schema.standupItems).values(standup.items.map((item, index) => ({
+      await db.batch([
+        db.update(schema.standups).set({ projectId: standup.projectId, dateLabel: standup.dateLabel, timeLabel: standup.timeLabel }).where(eq(schema.standups.id, standup.id)),
+        db.delete(schema.standupItems).where(eq(schema.standupItems.standupId, standup.id)),
+        ...(standup.items.length > 0 ? [
+          db.insert(schema.standupItems).values(standup.items.map((item, index) => ({
             id: `${standup.id}-${item.memberId}-${index}`,
             standupId: standup.id,
             memberId: item.memberId,
             yesterdayJson: JSON.stringify(item.yesterday),
             todayJson: JSON.stringify(item.today),
             blockersJson: JSON.stringify(item.blockers),
-          })))
-        }
-      })
+          }))),
+        ] : []),
+      ])
       return true
     },
     async listMilestones(filters) {
@@ -1854,14 +2069,17 @@ export function createDrizzleRepository(db: Database): AgiliXRepository {
       return milestones.filter((milestone) => filters.projectId === 'all' || milestone.projectId === filters.projectId)
     },
     async saveMilestone(milestone: Milestone) {
-      const [existing] = await db.select().from(schema.milestones).where(eq(schema.milestones.id, milestone.id))
-      if (!existing) return false
+      const result = await validateMilestoneReferences(db, milestone)
+      if (result !== 'saved') return result
       await db.update(schema.milestones).set(milestone).where(eq(schema.milestones.id, milestone.id))
-      return true
+      return 'saved'
     },
     async saveFeishuNotification(input) {
+      const result = await validateFeishuNotificationReferences(db, input)
+      if (result !== 'saved') return result
       const { payload, ...record } = input
       await db.insert(schema.feishuNotifications).values({ ...record, payloadJson: JSON.stringify(payload) })
+      return 'saved'
     },
     async listFeishuNotifications() {
       return (await db.select().from(schema.feishuNotifications)).map(toFeishuNotification)

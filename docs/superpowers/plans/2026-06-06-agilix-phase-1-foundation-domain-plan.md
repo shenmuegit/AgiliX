@@ -45,7 +45,7 @@
 - Create `apps/agilix/src/components/Shell.tsx`: flat navigation layout.
 - Create `apps/agilix/src/components/Shell.test.tsx`: shell tests.
 
-## Task 1: Scaffold the Full App Package
+### Task 1: Scaffold the Full App Package
 
 **Files:**
 - Modify: `pnpm-workspace.yaml`
@@ -356,7 +356,7 @@ git add package.json pnpm-workspace.yaml apps/agilix
 git commit -m "feat: scaffold full AgiliX app"
 ```
 
-## Task 2: Add Full Prototype Types and Fixtures
+### Task 2: Add Full Prototype Types and Fixtures
 
 **Files:**
 - Create: `apps/agilix/src/domain/types.ts`
@@ -413,11 +413,12 @@ export type Priority = 'high' | 'medium' | 'low'
 export type DocScope = 'global' | 'project'
 export type MilestoneStatus = 'done' | 'doing' | 'risk' | 'planned'
 export type DocQueryText = string & { readonly __brand: 'DocQueryText' }
+export type NonEmptyArray<T> = [T, ...T[]]
 export type FeishuQueryCommand = { type: 'team' } | { type: 'blockers' } | { type: 'docs'; query: DocQueryText }
 export type FeishuNotificationTrigger = '站会摘要' | '阻塞提醒' | '文档评论'
 export type FeishuNotificationPayload =
   | { trigger: '站会摘要'; payload: { standupId: string } }
-  | { trigger: '阻塞提醒'; payload: { issueKeys: string[] } }
+  | { trigger: '阻塞提醒'; payload: { issueKeys: NonEmptyArray<string> } }
   | { trigger: '文档评论'; payload: { docId: string; commentId: string } }
 
 export interface Project {
@@ -469,10 +470,8 @@ export interface DocComment {
   createdAtLabel: string
 }
 
-export interface Doc {
+interface DocBase {
   id: string
-  scope: DocScope
-  projectId?: ProjectId
   title: string
   directory: string
   body: string
@@ -480,6 +479,18 @@ export interface Doc {
   comments: DocComment[]
   updatedAtLabel: string
 }
+
+export type GlobalDoc = DocBase & {
+  scope: 'global'
+  projectId?: never
+}
+
+export type ProjectDoc = DocBase & {
+  scope: 'project'
+  projectId: ProjectId
+}
+
+export type Doc = GlobalDoc | ProjectDoc
 
 export interface StandupItem {
   memberId: MemberId
@@ -646,7 +657,7 @@ git add apps/agilix/src/domain/types.ts apps/agilix/src/domain/fixtures.ts apps/
 git commit -m "feat: add full AgiliX domain fixtures"
 ```
 
-## Task 3: Add Pure Domain Behavior
+### Task 3: Add Pure Domain Behavior
 
 **Files:**
 - Create: `apps/agilix/src/domain/full-domain.test.ts`
@@ -954,7 +965,7 @@ git add apps/agilix/src/domain
 git commit -m "feat: add full AgiliX domain behavior"
 ```
 
-## Task 4: Extract the Flat Shell Component
+### Task 4: Extract the Flat Shell Component
 
 **Files:**
 - Create: `apps/agilix/src/components/Shell.tsx`

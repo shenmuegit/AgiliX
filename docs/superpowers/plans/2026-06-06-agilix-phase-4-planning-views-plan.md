@@ -25,7 +25,7 @@
 - Create `apps/agilix/src/routes/GanttPage.tsx`: schedule gantt.
 - Create `apps/agilix/src/routes/planning-views.test.tsx`: route tests.
 
-## Task 1: Build Statistics and Workload Views
+### Task 1: Build Statistics and Workload Views
 
 **Files:**
 - Create: `apps/agilix/src/routes/StatsPage.tsx`
@@ -153,7 +153,7 @@ git add apps/agilix/src/routes/StatsPage.tsx apps/agilix/src/routes/WorkloadPage
 git commit -m "feat: add statistics and workload routes"
 ```
 
-## Task 2: Build Standup and Gantt Views
+### Task 2: Build Standup and Gantt Views
 
 **Files:**
 - Modify: `apps/agilix/src/routes/planning-views.test.tsx`
