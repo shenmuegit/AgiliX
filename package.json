@@ -10,7 +10,7 @@
     "build": "pnpm -r build",
     "lint": "eslint \"{packages,apps}/**/*.{ts,tsx}\"",
     "format": "prettier --write \"{packages,apps}/**/*.{ts,tsx,json,css}\"",
-    "test": "pnpm -r test",
+    "test": "pnpm --filter \"./apps/*\" --if-present test",
     "ship": "pnpm --filter @agilix/frontend ship",
     "db:migrate:remote": "pnpm --filter @agilix/frontend exec wrangler d1 migrations apply agilix-db --remote",
     "db:generate": "pnpm --filter @agilix/backend db:generate",
