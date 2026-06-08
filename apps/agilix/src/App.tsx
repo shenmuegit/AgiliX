@@ -1,28 +1,124 @@
-import { useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { createAgiliXClient, type AgiliXClient, type CreateDocInput, type FeishuNotificationInput } from './api/client'
+import type { ProjectFilterValue } from './components/ProjectFilter'
 import { Shell, type NavItem } from './components/Shell'
+import type { DocComment, FeishuNotificationTrigger, IssueStatus, Milestone, SeedData, Standup } from './domain/types'
+import { BoardPage } from './routes/BoardPage'
+import { DocsPage } from './routes/DocsPage'
+import { FeishuPage } from './routes/FeishuPage'
+import { GanttPage } from './routes/GanttPage'
+import { IssuesPage } from './routes/IssuesPage'
+import { ProjectsPage } from './routes/ProjectsPage'
+import { StandupPage } from './routes/StandupPage'
+import { StatsPage } from './routes/StatsPage'
+import { TeamPage } from './routes/TeamPage'
+import { WorkloadPage } from './routes/WorkloadPage'
 
-const pageTitles: Record<NavItem, string> = {
-  团队工作台: '团队工作台',
-  项目总览: '项目总览',
-  Issues: 'Issues',
-  看板: '看板',
-  迭代统计: '迭代统计',
-  文档: '文档',
-  成员负载: '成员负载',
-  每日站会: '每日站会',
-  排期甘特: '排期甘特',
-  飞书: '飞书',
-}
-
-export function App() {
+export function App({ client = createAgiliXClient() }: { client?: AgiliXClient }) {
   const [active, setActive] = useState<NavItem>('团队工作台')
+  const [projectId, setProjectId] = useState<ProjectFilterValue>('search')
+  const [data, setData] = useState<SeedData | null>(null)
+
+  async function refresh() {
+    setData(await client.loadData())
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [client])
+
+  async function moveAndRefresh(issueKey: string, status: IssueStatus) {
+    await client.moveIssue(issueKey, status)
+    await refresh()
+  }
+
+  async function commentAndRefresh(docId: string, comment: DocComment) {
+    await client.addDocComment(docId, comment)
+    await refresh()
+  }
+
+  async function createDocAndRefresh(doc: CreateDocInput) {
+    await client.createDoc(doc)
+    await refresh()
+  }
+
+  async function saveStandupAndRefresh(standup: Standup) {
+    await client.saveStandup(standup)
+    await refresh()
+  }
+
+  async function saveMilestoneAndRefresh(milestone: Milestone) {
+    await client.saveMilestone(milestone)
+    await refresh()
+  }
+
+  if (!data) {
+    return (
+      <Shell active={active} onNavigate={setActive}>
+        <main>
+          <h1>团队工作台</h1>
+          <p>加载中</p>
+        </main>
+      </Shell>
+    )
+  }
+  const loadedData = data
+
+  async function recordFeishuNotification(trigger: FeishuNotificationTrigger) {
+    const base = {
+      id: crypto.randomUUID(),
+      targetGroup: 'AgiliX 团队群' as const,
+      status: 'queued' as const,
+      createdAt: new Date().toISOString(),
+    }
+
+    let input: FeishuNotificationInput
+    switch (trigger) {
+      case '站会摘要':
+        input = { ...base, trigger, payload: { standupId: 'standup-search-today' } }
+        break
+      case '阻塞提醒': {
+        const issueKeys = loadedData.issues.filter((issue) => issue.status === 'blocked').map((issue) => issue.key)
+        if (issueKeys.length === 0) throw new Error('Cannot record blocker notification without blocked issues')
+        input = { ...base, trigger, payload: { issueKeys: issueKeys as [string, ...string[]] } }
+        break
+      }
+      case '文档评论':
+        input = { ...base, trigger, payload: { docId: 'doc-result-card', commentId: 'comment-a' } }
+        break
+    }
+
+    await client.recordFeishuNotification(input)
+  }
+
+  const selectedProject = projectId === 'all' ? null : loadedData.projects.find((project) => project.id === projectId)
+  if (projectId !== 'all' && !selectedProject) throw new Error(`Project not found: ${projectId}`)
+
+  function projectRequiredPage(title: string) {
+    return (
+      <main>
+        <h1>{title}</h1>
+        <p>请选择具体项目</p>
+      </main>
+    )
+  }
+
+  const page: Record<NavItem, ReactNode> = {
+    团队工作台: <TeamPage data={loadedData} />,
+    项目总览: <ProjectsPage data={loadedData} />,
+    Issues: <IssuesPage data={loadedData} projectId={projectId} onProjectChange={setProjectId} />,
+    看板: <BoardPage data={loadedData} projectId={projectId} onMoveIssue={moveAndRefresh} />,
+    迭代统计: selectedProject ? <StatsPage data={loadedData} projectId={selectedProject.id} iterationCode={selectedProject.activeIterationCode} /> : projectRequiredPage('迭代统计'),
+    文档: <DocsPage data={loadedData} projectId={projectId} onAddComment={commentAndRefresh} onCreateDoc={createDocAndRefresh} />,
+    成员负载: <WorkloadPage data={loadedData} />,
+    每日站会: selectedProject ? <StandupPage data={loadedData} projectId={selectedProject.id} onSaveStandup={saveStandupAndRefresh} /> : projectRequiredPage('每日站会'),
+    排期甘特: selectedProject ? <GanttPage data={loadedData} projectId={selectedProject.id} onSaveMilestone={saveMilestoneAndRefresh} /> : projectRequiredPage('排期甘特'),
+    飞书: <FeishuPage data={loadedData} onNotify={recordFeishuNotification} onQuery={(command) => client.queryFeishu(command)} />,
+  }
 
   return (
     <Shell active={active} onNavigate={setActive}>
-      <main>
-        <h1>{pageTitles[active]}</h1>
-        {active === '团队工作台' ? <p>AgiliX 主工作台</p> : null}
-      </main>
+      {page[active]}
     </Shell>
   )
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
+import type { CreateDocInput } from '../api/client'
 import { buildDocDirectoryTree, filterDocs, searchDocs } from '../domain/docs'
-import type { Doc, DocComment, ProjectId, SeedData } from '../domain/types'
+import type { DocComment, ProjectId, SeedData } from '../domain/types'
 
 export function DocsPage({
   data,
@@ -11,7 +12,7 @@ export function DocsPage({
   data: SeedData
   projectId: ProjectId | 'all'
   onAddComment: (docId: string, comment: DocComment) => void | Promise<void>
-  onCreateDoc: (doc: Doc) => void | Promise<void>
+  onCreateDoc: (doc: CreateDocInput) => void | Promise<void>
 }) {
   const [query, setQuery] = useState('')
   const baseDocs = filterDocs(data.docs, projectId)

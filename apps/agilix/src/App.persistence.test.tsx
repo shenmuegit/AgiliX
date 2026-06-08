@@ -1,0 +1,153 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it } from 'vitest'
+import { App } from './App'
+import { seedData } from './domain/fixtures'
+import { createInMemoryClient } from './test/createInMemoryClient'
+
+describe('App API wiring', () => {
+  it('loads data and persists core route mutations through the client', async () => {
+    const client = createInMemoryClient()
+
+    render(<App client={client} />)
+
+    expect(await screen.findByText('SRCH-198')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('link', { name: '看板' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'SRCH-186 完成' }))
+    expect((await client.loadData()).issues.find((issue) => issue.key === 'SRCH-186')?.status).toBe('done')
+
+    await userEvent.click(screen.getByRole('link', { name: '文档' }))
+    await userEvent.click(await screen.findByRole('button', { name: '新增评论' }))
+    expect((await client.loadData()).docs.find((doc) => doc.id === 'doc-result-card')?.comments.length).toBeGreaterThan(2)
+    await userEvent.click(await screen.findByRole('button', { name: '新建文档' }))
+    await waitFor(async () => expect((await client.loadData()).docs.find((doc) => doc.id === 'doc-global-created')?.title).toBe('新建全局文档'))
+
+    await userEvent.click(screen.getByRole('link', { name: '每日站会' }))
+    const standupLoadCount = client.loadCount()
+    await userEvent.click(await screen.findByRole('button', { name: '保存站会' }))
+    expect(client.recordedStandupSaves()).toContain('standup-search-today')
+    await waitFor(() => expect(client.loadCount()).toBeGreaterThan(standupLoadCount))
+
+    await userEvent.click(screen.getByRole('link', { name: '排期甘特' }))
+    const milestoneLoadCount = client.loadCount()
+    await userEvent.click(await screen.findByRole('button', { name: '保存 Beta 开关接入' }))
+    expect(client.recordedMilestoneSaves()).toContain('ms-beta')
+    await waitFor(() => expect(client.loadCount()).toBeGreaterThan(milestoneLoadCount))
+
+    await userEvent.click(screen.getByRole('link', { name: '飞书' }))
+    await userEvent.click(await screen.findByRole('button', { name: '记录 站会摘要' }))
+    expect(client.recordedFeishuNotifications()).toContain('站会摘要')
+
+    await userEvent.click(await screen.findByRole('button', { name: '查询 /team' }))
+    expect(client.recordedFeishuQueries()).toContain('/team')
+  })
+
+  it('rejects missing mutation targets and invalid document references in the in-memory client', async () => {
+    const client = createInMemoryClient()
+
+    await expect(client.moveIssue('MISSING-1', 'done')).rejects.toThrow('Issue not found')
+    await expect(
+      client.addDocComment('missing-doc', {
+        id: 'comment-missing',
+        docId: 'missing-doc',
+        authorId: 'zhou',
+        body: 'Missing doc comment',
+        resolved: false,
+        createdAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Document not found')
+    await expect(
+      client.addDocComment('doc-result-card', {
+        id: 'comment-mismatch',
+        docId: 'other-doc',
+        authorId: 'zhou',
+        body: 'Mismatched doc id comment',
+        resolved: false,
+        createdAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Comment docId must match document id')
+    await expect(client.createDoc({ ...seedData.docs[0], comments: [] })).rejects.toThrow('Document already exists')
+    await expect(
+      client.createDoc({
+        id: 'doc-invalid-linked-issue',
+        scope: 'project',
+        projectId: 'search',
+        title: 'Invalid linked issue doc',
+        directory: '项目文档/搜索平台/结果页',
+        body: 'Linked issue must exist.',
+        linkedIssueKeys: ['MISSING-1'],
+        comments: [],
+        updatedAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Linked issue not found')
+    await expect(
+      client.createDoc({
+        id: 'doc-duplicate-linked-issue',
+        scope: 'project',
+        projectId: 'search',
+        title: 'Duplicate linked issue doc',
+        directory: '项目文档/搜索平台/结果页',
+        body: 'Linked issue keys must be unique.',
+        linkedIssueKeys: ['SRCH-186', 'SRCH-186'],
+        comments: [],
+        updatedAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Duplicate linked issue')
+    await expect(
+      client.createDoc({
+        id: 'doc-create-with-comment',
+        scope: 'project',
+        projectId: 'search',
+        title: 'Create doc with comment',
+        directory: '项目文档/搜索平台/结果页',
+        body: 'Comments must use addDocComment.',
+        linkedIssueKeys: [],
+        comments: [
+          // @ts-expect-error createDoc only accepts an empty comments array
+          {
+            id: 'comment-create-doc',
+            docId: 'doc-create-with-comment',
+            authorId: 'zhou',
+            body: 'Comment must use the comment endpoint.',
+            resolved: false,
+            createdAtLabel: '刚刚',
+          },
+        ],
+        updatedAtLabel: '刚刚',
+      }),
+    ).rejects.toThrow('Document comments must be empty on create')
+    await expect(client.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).rejects.toThrow('Standup not found')
+    await expect(client.saveMilestone({ ...seedData.milestones[1], id: 'missing-milestone' })).rejects.toThrow('Milestone not found')
+    await expect(
+      client.recordFeishuNotification({
+        id: 'notification-missing-standup',
+        trigger: '站会摘要',
+        targetGroup: 'AgiliX 团队群',
+        payload: { standupId: 'missing-standup' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    ).rejects.toThrow('Standup not found')
+    await expect(
+      client.recordFeishuNotification({
+        id: 'notification-missing-issue',
+        trigger: '阻塞提醒',
+        targetGroup: 'AgiliX 团队群',
+        payload: { issueKeys: ['MISSING-1'] },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    ).rejects.toThrow('Issue not found')
+    await expect(
+      client.recordFeishuNotification({
+        id: 'notification-missing-comment',
+        trigger: '文档评论',
+        targetGroup: 'AgiliX 团队群',
+        payload: { docId: 'doc-result-card', commentId: 'missing-comment' },
+        status: 'queued',
+        createdAt: '2026-06-06T10:00:00.000Z',
+      }),
+    ).rejects.toThrow('Comment not found')
+  })
+})
