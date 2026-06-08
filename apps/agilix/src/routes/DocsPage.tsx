@@ -3,7 +3,14 @@ import type { CreateDocInput } from '../api/client'
 import { ProjectFilter, type ProjectFilterValue } from '../components/ProjectFilter'
 import { filterDocs, searchDocs } from '../domain/docs'
 import type { Doc, DocComment, FeishuQueryCommand, ProjectId, SeedData } from '../domain/types'
-import { docProjectLabel, getMember, issueTypeLabel, linkedIssue, memberInitial, statusMeta } from '../domain/view-models'
+import {
+  docProjectLabel,
+  getMember,
+  issueTypeLabel,
+  linkedIssue,
+  memberInitial,
+  statusMeta,
+} from '../domain/view-models'
 
 export function DocsPage({
   data,
@@ -25,9 +32,14 @@ export function DocsPage({
   const tabDocs = filterDocsByTab(baseDocs, tab)
   const docs = query === '' ? tabDocs : searchDocs(tabDocs, query)
   const selected = docs[0]
-  const unresolvedComments = docs.reduce((sum, doc) => sum + doc.comments.filter((comment) => !comment.resolved).length, 0)
+  const unresolvedComments = docs.reduce(
+    (sum, doc) => sum + doc.comments.filter((comment) => !comment.resolved).length,
+    0,
+  )
   const directoryItems = useMemo(() => buildDirectoryItems(docs), [docs])
-  const docsQuery = data.feishu.queryCommands.find((command): command is Extract<FeishuQueryCommand, { type: 'docs' }> => command.type === 'docs')
+  const docsQuery = data.feishu.queryCommands.find(
+    (command): command is Extract<FeishuQueryCommand, { type: 'docs' }> => command.type === 'docs',
+  )
 
   return (
     <>
@@ -61,7 +73,9 @@ export function DocsPage({
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
               <path d="M4 6h16M7 12h10M10 18h4" />
             </svg>
-            {projectId === 'all' ? '全部项目' : docProjectLabel(data, projectDocForProject(data, projectId))}
+            {projectId === 'all'
+              ? '全部项目'
+              : docProjectLabel(data, projectDocForProject(data, projectId))}
           </button>
         )}
         <button
@@ -89,17 +103,28 @@ export function DocsPage({
       <div className="toolbar">
         <div className="seg">
           {docTabs.map((item) => (
-            <button className={tab === item.value ? 'on' : undefined} key={item.value} onClick={() => setTab(item.value)}>
+            <button
+              className={tab === item.value ? 'on' : undefined}
+              key={item.value}
+              onClick={() => setTab(item.value)}
+            >
               {item.label}
             </button>
           ))}
         </div>
-        <div className="chip-flat">项目:{projectId === 'all' ? '全部' : docProjectLabel(data, projectDocForProject(data, projectId))}</div>
-        <div className="chip-flat">目录:{directoryItems.length}</div>
+        <div className="chip-flat">
+          项目:
+          {projectId === 'all'
+            ? '全部'
+            : docProjectLabel(data, projectDocForProject(data, projectId))}
+        </div>
+        <div className="chip-flat">类型:方案 + 接口</div>
         <div className="chip-flat">评论:未解决 {unresolvedComments}</div>
         <div className="top-sp" />
         <span className="label">
-          {docs.length} 篇 · 项目文档 <b className="num">{docs.filter((doc) => doc.scope === 'project').length}</b> · 待评论 <b className="num block">{unresolvedComments}</b>
+          {docs.length} 篇 · 项目文档{' '}
+          <b className="num">{docs.filter((doc) => doc.scope === 'project').length}</b> · 待评论{' '}
+          <b className="num block">{unresolvedComments}</b>
         </span>
       </div>
 
@@ -112,19 +137,47 @@ export function DocsPage({
                 <circle cx="11" cy="11" r="7" />
                 <path d="M21 21l-4-4" />
               </svg>
-              <input ref={searchInputRef} aria-label="搜索文档" type="search" placeholder="搜索标题、正文、评论" value={query} onChange={(event) => setQuery(event.currentTarget.value)} />
+              <input
+                ref={searchInputRef}
+                aria-label="搜索文档"
+                type="search"
+                placeholder="搜索标题、正文、评论"
+                value={query}
+                onChange={(event) => setQuery(event.currentTarget.value)}
+              />
             </label>
           </div>
-          <TreeSection title="全局文档" items={directoryItems.filter((item) => item.scope === 'global')} />
-          <TreeSection title="项目文档" items={directoryItems.filter((item) => item.scope === 'project')} />
-          <TreeSection title="快捷筛选" items={[{ label: '有未解决评论', count: unresolvedComments }, { label: '关联 Issue', count: docs.filter((doc) => doc.linkedIssueKeys.length > 0).length }]} />
+          <TreeSection
+            title="全局文档"
+            items={directoryItems.filter((item) => item.scope === 'global')}
+          />
+          <TreeSection
+            title="项目文档"
+            items={directoryItems.filter((item) => item.scope === 'project')}
+          />
+          <TreeSection
+            title="快捷筛选"
+            items={[
+              { label: '有未解决评论', count: unresolvedComments },
+              {
+                label: '关联 Issue',
+                count: docs.filter((doc) => doc.linkedIssueKeys.length > 0).length,
+              },
+            ]}
+          />
         </aside>
 
         <main className="doc-list">
           <div className="doc-summary">
             <Summary label="全部文档" value={String(docs.length)} />
-            <Summary label="项目文档" value={String(docs.filter((doc) => doc.scope === 'project').length)} />
-            <Summary label="全局文档" value={String(docs.filter((doc) => doc.scope === 'global').length)} />
+            <Summary
+              label="项目文档"
+              value={String(docs.filter((doc) => doc.scope === 'project').length)}
+            />
+            <Summary
+              label="全局文档"
+              value={String(docs.filter((doc) => doc.scope === 'global').length)}
+            />
             <Summary label="待评论" value={String(unresolvedComments)} danger />
           </div>
           <div className="list-head">
@@ -137,7 +190,14 @@ export function DocsPage({
           ))}
         </main>
 
-        {selected ? <DocDetail data={data} selected={selected} docsQuery={docsQuery} onAddComment={onAddComment} /> : null}
+        {selected ? (
+          <DocDetail
+            data={data}
+            selected={selected}
+            docsQuery={docsQuery}
+            onAddComment={onAddComment}
+          />
+        ) : null}
       </div>
     </>
   )
@@ -154,13 +214,20 @@ const docTabs: Array<{ label: string; value: DocTab }> = [
 ]
 
 function filterDocsByTab(docs: Doc[], tab: DocTab): Doc[] {
-  if (tab === 'comments') return docs.filter((doc) => doc.comments.some((comment) => !comment.resolved))
+  if (tab === 'comments')
+    return docs.filter((doc) => doc.comments.some((comment) => !comment.resolved))
   if (tab === 'project') return docs.filter((doc) => doc.scope === 'project')
   if (tab === 'global') return docs.filter((doc) => doc.scope === 'global')
   return docs
 }
 
-function TreeSection({ title, items }: { title: string; items: Array<{ label: string; count: number; scope?: Doc['scope'] }> }) {
+function TreeSection({
+  title,
+  items,
+}: {
+  title: string
+  items: Array<{ label: string; count: number; scope?: Doc['scope'] }>
+}) {
   return (
     <div className="tree-sec">
       <div className="tree-sec-t">{title}</div>
@@ -195,10 +262,13 @@ function DocListRow({ data, doc, active }: { data: SeedData; doc: Doc; active: b
       <div className="doc-main">
         <div className="doc-title">
           <span>{doc.title}</span>
-          <span className={`scope ${doc.scope === 'global' ? 'global' : ''}`}>{docProjectLabel(data, doc)}</span>
+          <span className={`scope ${doc.scope === 'global' ? 'global' : ''}`}>
+            {docProjectLabel(data, doc)}
+          </span>
         </div>
         <div className="doc-meta">
-          {lastDirectorySegment(doc)} · 关联 {doc.linkedIssueKeys.join(' / ')} · {doc.updatedAtLabel}
+          {lastDirectorySegment(doc)} · 关联 {doc.linkedIssueKeys.join(' / ')} ·{' '}
+          {doc.updatedAtLabel}
         </div>
       </div>
       {owner ? (
@@ -217,17 +287,27 @@ function DocListRow({ data, doc, active }: { data: SeedData; doc: Doc; active: b
   )
 }
 
-function DocDetail({ data, selected, docsQuery, onAddComment }: { data: SeedData; selected: Doc; docsQuery?: Extract<FeishuQueryCommand, { type: 'docs' }>; onAddComment: (docId: string, comment: DocComment) => void | Promise<void> }) {
+function DocDetail({
+  data,
+  selected,
+  docsQuery,
+  onAddComment,
+}: {
+  data: SeedData
+  selected: Doc
+  docsQuery?: Extract<FeishuQueryCommand, { type: 'docs' }>
+  onAddComment: (docId: string, comment: DocComment) => void | Promise<void>
+}) {
   return (
     <aside className="doc-detail">
       <div className="detail-top">
         <div className="kicker">Selected Document</div>
-        <h2>详情 · {selected.title}</h2>
+        <h2>{selected.title}</h2>
         <div className="detail-meta">
           <span className="scope">{docProjectLabel(data, selected)}</span>
           <span>{lastDirectorySegment(selected)}</span>
           <span>·</span>
-          <span>{selected.updatedAtLabel}</span>
+          <span>{detailUpdatedLabel(data, selected)}</span>
         </div>
       </div>
 
@@ -307,7 +387,8 @@ function DocDetail({ data, selected, docsQuery, onAddComment }: { data: SeedData
         <div className="detail-section">
           <div className="feishu-doc">
             <b>飞书查询示例</b>
-            群里发送 <span className="wid">/docs {docsQuery.query}</span>，返回文档摘要、关联 Issue 和未解决评论数。
+            群里发送 <span className="wid">/docs {docsQuery.query}</span>，返回文档摘要、关联 Issue
+            和未解决评论数。
           </div>
         </div>
       ) : null}
@@ -315,11 +396,13 @@ function DocDetail({ data, selected, docsQuery, onAddComment }: { data: SeedData
   )
 }
 
-function buildDirectoryItems(docs: Doc[]): Array<{ label: string; count: number; scope: Doc['scope'] }> {
+function buildDirectoryItems(
+  docs: Doc[],
+): Array<{ label: string; count: number; scope: Doc['scope'] }> {
   const map = new Map<string, { label: string; count: number; scope: Doc['scope'] }>()
   for (const doc of docs) {
     const key = `${doc.scope}:${doc.directory}`
-    const current = map.get(key) ?? { label: doc.directory, count: 0, scope: doc.scope }
+    const current = map.get(key) ?? { label: lastDirectorySegment(doc), count: 0, scope: doc.scope }
     current.count += 1
     map.set(key, current)
   }
@@ -336,6 +419,11 @@ function docOwner(data: SeedData, doc: Doc) {
   const issueKey = doc.linkedIssueKeys[0]
   if (issueKey) return getMember(data, linkedIssue(data, issueKey).assigneeId)
   return null
+}
+
+function detailUpdatedLabel(data: SeedData, doc: Doc) {
+  const owner = docOwner(data, doc)
+  return owner ? `${owner.name}更新于 ${doc.updatedAtLabel}` : doc.updatedAtLabel
 }
 
 function projectDocForProject(data: SeedData, projectId: ProjectId): Doc {

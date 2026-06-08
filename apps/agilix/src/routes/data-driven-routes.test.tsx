@@ -18,9 +18,27 @@ import { WorkloadPage } from './WorkloadPage'
 afterEach(() => cleanup())
 
 const marsDocQuery = '火星方案' as DocQueryText
+const marsCalendarWeeks = [
+  { label: 'M1', rangeLabel: '07/01-07/05 · R42', days: ['1', '2', '3', '4', '5'] },
+  { label: 'M2', rangeLabel: '07/08-07/12 · R43', days: ['8', '9', '10', '11', '12'] },
+]
+const compactCalendarWeeks = [
+  { label: 'W1', rangeLabel: '当前周', days: ['1', '2', '3', '4', '5'] },
+]
 
 const dataDrivenSeed: SeedData = {
-  navItems: ['团队工作台', '项目总览', 'Issues', '看板', '迭代统计', '文档', '成员负载', '每日站会', '排期甘特', '飞书'],
+  navItems: [
+    '团队工作台',
+    '项目总览',
+    'Issues',
+    '看板',
+    '迭代统计',
+    '文档',
+    '成员负载',
+    '每日站会',
+    '排期甘特',
+    '飞书',
+  ],
   projects: [
     { id: 'search', name: '星舰平台', glyph: '星', color: '#476b7c', activeIterationCode: 'R42' },
     { id: 'data', name: '补给看板', glyph: '补', color: '#7c5f47', activeIterationCode: 'S02' },
@@ -38,18 +56,133 @@ const dataDrivenSeed: SeedData = {
     { id: 'zhou', name: '周远', role: '前端工程', capacity: 5 },
   ],
   iterations: [
-    { id: 'search-r42', projectId: 'search', code: 'R42', name: '火星救援迭代', day: 2, totalDays: 5, goal: '打通火星救援主路径', velocity: 13 },
-    { id: 'data-s02', projectId: 'data', code: 'S02', name: '补给指标迭代', day: 1, totalDays: 5, goal: '补给状态透明化', velocity: 8 },
-    { id: 'api-o11', projectId: 'api', code: 'O11', name: '轨道权限迭代', day: 4, totalDays: 8, goal: '轨道 API 权限清晰', velocity: 10 },
-    { id: 'mobile-m08', projectId: 'mobile', code: 'M08', name: '舱外弱网迭代', day: 3, totalDays: 7, goal: '弱网状态可恢复', velocity: 7 },
+    {
+      id: 'search-r42',
+      projectId: 'search',
+      code: 'R42',
+      name: '火星救援迭代',
+      dateRangeLabel: '07/01-07/05',
+      calendarTitle: '7 月 · Rescue 42 → 43',
+      calendarWeeks: marsCalendarWeeks,
+      day: 2,
+      totalDays: 5,
+      goal: '打通火星救援主路径',
+      velocity: 13,
+    },
+    {
+      id: 'data-s02',
+      projectId: 'data',
+      code: 'S02',
+      name: '补给指标迭代',
+      dateRangeLabel: '07/02-07/06',
+      calendarTitle: '7 月 · Supply 02',
+      calendarWeeks: compactCalendarWeeks,
+      day: 1,
+      totalDays: 5,
+      goal: '补给状态透明化',
+      velocity: 8,
+    },
+    {
+      id: 'api-o11',
+      projectId: 'api',
+      code: 'O11',
+      name: '轨道权限迭代',
+      dateRangeLabel: '07/03-07/10',
+      calendarTitle: '7 月 · Orbit 11',
+      calendarWeeks: compactCalendarWeeks,
+      day: 4,
+      totalDays: 8,
+      goal: '轨道 API 权限清晰',
+      velocity: 10,
+    },
+    {
+      id: 'mobile-m08',
+      projectId: 'mobile',
+      code: 'M08',
+      name: '舱外弱网迭代',
+      dateRangeLabel: '07/04-07/10',
+      calendarTitle: '7 月 · EVA 08',
+      calendarWeeks: compactCalendarWeeks,
+      day: 3,
+      totalDays: 7,
+      goal: '弱网状态可恢复',
+      velocity: 7,
+    },
   ],
   issues: [
-    { key: 'MARS-1', projectId: 'search', iterationId: 'search-r42', type: 'story', title: '火星土壤采样流程', status: 'todo', priority: 'high', assigneeId: 'lin', storyPoints: 5, linkedDocIds: ['doc-mars-plan'] },
-    { key: 'MARS-2', projectId: 'search', iterationId: 'search-r42', type: 'bug', title: '氧气读数刷新延迟', status: 'doing', priority: 'medium', assigneeId: 'gao', storyPoints: 3, linkedDocIds: [] },
-    { key: 'MARS-3', projectId: 'search', iterationId: 'search-r42', type: 'tech', title: '轨道通信重试策略', status: 'review', priority: 'medium', assigneeId: 'zhou', storyPoints: 2, linkedDocIds: ['doc-mars-plan'] },
-    { key: 'MARS-4', projectId: 'search', iterationId: 'search-r42', type: 'story', title: '太阳能板展开确认', status: 'blocked', priority: 'high', assigneeId: 'su', storyPoints: 8, blockerReason: '等待地面站确认', linkedDocIds: [] },
-    { key: 'MARS-5', projectId: 'search', iterationId: 'search-r42', type: 'task', title: '着陆日志归档', status: 'done', priority: 'low', assigneeId: 'he', storyPoints: 1, linkedDocIds: ['doc-global-runbook'] },
-    { key: 'SUP-1', projectId: 'data', iterationId: 'data-s02', type: 'story', title: '补给库存字段配置', status: 'doing', priority: 'medium', assigneeId: 'chen', storyPoints: 4, linkedDocIds: [] },
+    {
+      key: 'MARS-1',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      type: 'story',
+      title: '火星土壤采样流程',
+      status: 'todo',
+      priority: 'high',
+      assigneeId: 'lin',
+      storyPoints: 5,
+      linkedDocIds: ['doc-mars-plan'],
+    },
+    {
+      key: 'MARS-2',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      type: 'bug',
+      title: '氧气读数刷新延迟',
+      status: 'doing',
+      priority: 'medium',
+      assigneeId: 'gao',
+      storyPoints: 3,
+      linkedDocIds: [],
+    },
+    {
+      key: 'MARS-3',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      type: 'tech',
+      title: '轨道通信重试策略',
+      status: 'review',
+      priority: 'medium',
+      assigneeId: 'zhou',
+      storyPoints: 2,
+      linkedDocIds: ['doc-mars-plan'],
+    },
+    {
+      key: 'MARS-4',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      type: 'story',
+      title: '太阳能板展开确认',
+      status: 'blocked',
+      priority: 'high',
+      assigneeId: 'su',
+      storyPoints: 8,
+      blockerReason: '等待地面站确认',
+      linkedDocIds: [],
+    },
+    {
+      key: 'MARS-5',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      type: 'task',
+      title: '着陆日志归档',
+      status: 'done',
+      priority: 'low',
+      assigneeId: 'he',
+      storyPoints: 1,
+      linkedDocIds: ['doc-global-runbook'],
+    },
+    {
+      key: 'SUP-1',
+      projectId: 'data',
+      iterationId: 'data-s02',
+      type: 'story',
+      title: '补给库存字段配置',
+      status: 'doing',
+      priority: 'medium',
+      assigneeId: 'chen',
+      storyPoints: 4,
+      linkedDocIds: [],
+    },
   ],
   docs: [
     {
@@ -60,7 +193,16 @@ const dataDrivenSeed: SeedData = {
       directory: '项目文档/星舰平台/方案',
       body: '火星任务采样、回传与风险控制。',
       linkedIssueKeys: ['MARS-1', 'MARS-3'],
-      comments: [{ id: 'comment-mars-a', docId: 'doc-mars-plan', authorId: 'jiang', body: '采样路径图需要更新。', resolved: false, createdAtLabel: '3 分钟前' }],
+      comments: [
+        {
+          id: 'comment-mars-a',
+          docId: 'doc-mars-plan',
+          authorId: 'jiang',
+          body: '采样路径图需要更新。',
+          resolved: false,
+          createdAtLabel: '3 分钟前',
+        },
+      ],
       updatedAtLabel: '3 分钟前',
     },
     {
@@ -78,17 +220,47 @@ const dataDrivenSeed: SeedData = {
     {
       id: 'standup-mars-today',
       projectId: 'search',
-      dateLabel: '星期一',
+      dateLabel: '07 / 02',
+      weekdayLabel: '星期一',
       timeLabel: '09:30-09:45',
+      calendarLabel: '每日 09:30',
       items: [
-        { memberId: 'lin', yesterday: ['确认 MARS-1 采样流程'], today: ['推进 MARS-4 地面站确认'], blockers: ['MARS-4'] },
-        { memberId: 'gao', yesterday: ['定位氧气读数刷新延迟'], today: ['修复 MARS-2 并补回归'], blockers: [] },
+        {
+          memberId: 'lin',
+          yesterday: ['确认 MARS-1 采样流程'],
+          today: ['推进 MARS-4 地面站确认'],
+          blockers: ['MARS-4'],
+        },
+        {
+          memberId: 'gao',
+          yesterday: ['定位氧气读数刷新延迟'],
+          today: ['修复 MARS-2 并补回归'],
+          blockers: [],
+        },
       ],
     },
   ],
   milestones: [
-    { id: 'ms-mars-design', projectId: 'search', iterationId: 'search-r42', title: '采样方案冻结', startDay: 1, endDay: 2, status: 'done', ownerId: 'jiang' },
-    { id: 'ms-mars-release', projectId: 'search', iterationId: 'search-r42', title: '地面站联调', startDay: 3, endDay: 5, status: 'risk', ownerId: 'lin' },
+    {
+      id: 'ms-mars-design',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      title: '采样方案冻结',
+      startDay: 1,
+      endDay: 2,
+      status: 'done',
+      ownerId: 'jiang',
+    },
+    {
+      id: 'ms-mars-release',
+      projectId: 'search',
+      iterationId: 'search-r42',
+      title: '地面站联调',
+      startDay: 3,
+      endDay: 5,
+      status: 'risk',
+      ownerId: 'lin',
+    },
   ],
   feishu: {
     groups: ['星舰任务群'],
@@ -106,7 +278,10 @@ function createClient(data: SeedData): AgiliXClient {
     saveStandup: vi.fn(async () => undefined),
     saveMilestone: vi.fn(async () => undefined),
     recordFeishuNotification: vi.fn(async () => undefined),
-    queryFeishu: vi.fn(async (command: FeishuQueryCommand) => ({ title: `查询 ${command.type}`, lines: ['星舰任务群'] })),
+    queryFeishu: vi.fn(async (command: FeishuQueryCommand) => ({
+      title: `查询 ${command.type}`,
+      lines: ['星舰任务群'],
+    })),
   }
 }
 
@@ -141,7 +316,7 @@ describe('data-driven route rendering', () => {
     cleanup()
 
     render(<StandupPage data={dataDrivenSeed} projectId="search" onSaveStandup={vi.fn()} />)
-    expect(screen.getByText('09:30-09:45')).toBeInTheDocument()
+    expect(screen.getByText('星期一 · 站会 09:30-09:45')).toBeInTheDocument()
     expect(screen.getByText('确认 MARS-1 采样流程')).toBeInTheDocument()
     cleanup()
 
@@ -150,8 +325,15 @@ describe('data-driven route rendering', () => {
     expect(screen.getByText('地面站联调')).toBeInTheDocument()
     cleanup()
 
-    render(<DocsPage data={dataDrivenSeed} projectId="all" onAddComment={vi.fn()} onCreateDoc={vi.fn()} />)
-    expect(screen.getByText('火星采样方案')).toBeInTheDocument()
+    render(
+      <DocsPage
+        data={dataDrivenSeed}
+        projectId="all"
+        onAddComment={vi.fn()}
+        onCreateDoc={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByText('火星采样方案').length).toBeGreaterThan(0)
     expect(screen.getByText('深空任务运行手册')).toBeInTheDocument()
     expect(screen.queryByText('结果卡片重设计方案')).not.toBeInTheDocument()
     cleanup()
@@ -183,7 +365,7 @@ describe('data-driven route rendering', () => {
     expect(screen.getByText('太阳能板展开确认')).toBeInTheDocument()
 
     await userEvent.click(screen.getByLabelText('文档'))
-    expect(screen.getByText('火星采样方案')).toBeInTheDocument()
+    expect(screen.getAllByText('火星采样方案').length).toBeGreaterThan(0)
 
     await userEvent.click(screen.getByLabelText('群机器人'))
     expect(screen.getAllByText('星舰任务群').length).toBeGreaterThan(0)

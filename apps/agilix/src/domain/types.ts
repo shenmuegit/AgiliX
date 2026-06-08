@@ -7,7 +7,10 @@ export type DocScope = 'global' | 'project'
 export type MilestoneStatus = 'done' | 'doing' | 'risk' | 'planned'
 export type DocQueryText = string & { readonly __brand: 'DocQueryText' }
 export type NonEmptyArray<T> = [T, ...T[]]
-export type FeishuQueryCommand = { type: 'team' } | { type: 'blockers' } | { type: 'docs'; query: DocQueryText }
+export type FeishuQueryCommand =
+  | { type: 'team' }
+  | { type: 'blockers' }
+  | { type: 'docs'; query: DocQueryText }
 export type FeishuNotificationTrigger = '站会摘要' | '阻塞提醒' | '文档评论'
 export type FeishuNotificationPayload =
   | { trigger: '站会摘要'; payload: { standupId: string } }
@@ -34,10 +37,19 @@ export interface Iteration {
   projectId: ProjectId
   code: string
   name: string
+  dateRangeLabel: string
+  calendarTitle: string
+  calendarWeeks: IterationCalendarWeek[]
   day: number
   totalDays: number
   goal: string
   velocity: number
+}
+
+export interface IterationCalendarWeek {
+  label: string
+  rangeLabel: string
+  days: string[]
 }
 
 export interface Issue {
@@ -96,7 +108,9 @@ export interface Standup {
   id: string
   projectId: ProjectId
   dateLabel: string
+  weekdayLabel: string
   timeLabel: string
+  calendarLabel: string
   items: StandupItem[]
 }
 

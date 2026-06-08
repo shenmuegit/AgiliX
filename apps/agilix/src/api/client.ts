@@ -1,6 +1,15 @@
 import { z } from 'zod'
 import { createDocQueryCommand } from '../domain/feishu'
-import type { Doc, DocComment, FeishuNotificationPayload, FeishuQueryCommand, IssueStatus, Milestone, SeedData, Standup } from '../domain/types'
+import type {
+  Doc,
+  DocComment,
+  FeishuNotificationPayload,
+  FeishuQueryCommand,
+  IssueStatus,
+  Milestone,
+  SeedData,
+  Standup,
+} from '../domain/types'
 
 export interface FeishuReply {
   title: string
@@ -15,7 +24,11 @@ export type FeishuNotificationInput = {
 } & FeishuNotificationPayload
 
 type CreateDocInputFor<T extends Doc> = Omit<T, 'comments'> & { comments: never[] }
-export type CreateDocInput = Doc extends infer D ? (D extends Doc ? CreateDocInputFor<D> : never) : never
+export type CreateDocInput = Doc extends infer D
+  ? D extends Doc
+    ? CreateDocInputFor<D>
+    : never
+  : never
 
 export interface AgiliXClient {
   loadData(): Promise<SeedData>
@@ -37,12 +50,18 @@ const issueTypeSchema = z.enum(['story', 'bug', 'task', 'tech'])
 const prioritySchema = z.enum(['high', 'medium', 'low'])
 const milestoneStatusSchema = z.enum(['done', 'doing', 'risk', 'planned'])
 const feishuNotificationTriggerSchema = z.enum(['站会摘要', '阻塞提醒', '文档评论'])
-const nonEmptyStringArraySchema = z.array(z.string().min(1)).min(1).transform((items) => items as [string, ...string[]])
+const nonEmptyStringArraySchema = z
+  .array(z.string().min(1))
+  .min(1)
+  .transform((items) => items as [string, ...string[]])
 
 const feishuDocsQuerySchema = z
   .string()
   .min(1)
-  .refine((query) => query === query.trim(), 'docs query must not include leading or trailing whitespace')
+  .refine(
+    (query) => query === query.trim(),
+    'docs query must not include leading or trailing whitespace',
+  )
 
 const feishuCommandSchema: z.ZodType<FeishuQueryCommand, z.ZodTypeDef, unknown> = z.union([
   z.object({ type: z.literal('team') }).strict(),
@@ -69,13 +88,17 @@ const docBaseSchema = {
   title: z.string().min(1),
   directory: z.string().min(1),
   body: z.string().min(1),
-  linkedIssueKeys: z.array(z.string().min(1)).refine((keys) => new Set(keys).size === keys.length, 'linkedIssueKeys must be unique'),
+  linkedIssueKeys: z
+    .array(z.string().min(1))
+    .refine((keys) => new Set(keys).size === keys.length, 'linkedIssueKeys must be unique'),
   comments: z.array(docCommentSchema),
   updatedAtLabel: z.string().min(1),
 }
 
 const docSchema: z.ZodType<Doc, z.ZodTypeDef, unknown> = z.discriminatedUnion('scope', [
-  z.object({ ...docBaseSchema, scope: z.literal('global'), projectId: z.undefined().optional() }).strict(),
+  z
+    .object({ ...docBaseSchema, scope: z.literal('global'), projectId: z.undefined().optional() })
+    .strict(),
   z.object({ ...docBaseSchema, scope: z.literal('project'), projectId: projectIdSchema }).strict(),
 ])
 
@@ -84,14 +107,30 @@ const createDocInputBaseSchema = {
   comments: z.array(z.never()).length(0),
 }
 
-const createDocInputSchema: z.ZodType<CreateDocInput, z.ZodTypeDef, unknown> = z.discriminatedUnion('scope', [
-  z.object({ ...createDocInputBaseSchema, scope: z.literal('global'), projectId: z.undefined().optional() }).strict(),
-  z.object({ ...createDocInputBaseSchema, scope: z.literal('project'), projectId: projectIdSchema }).strict(),
-])
+const createDocInputSchema: z.ZodType<CreateDocInput, z.ZodTypeDef, unknown> = z.discriminatedUnion(
+  'scope',
+  [
+    z
+      .object({
+        ...createDocInputBaseSchema,
+        scope: z.literal('global'),
+        projectId: z.undefined().optional(),
+      })
+      .strict(),
+    z
+      .object({
+        ...createDocInputBaseSchema,
+        scope: z.literal('project'),
+        projectId: projectIdSchema,
+      })
+      .strict(),
+  ],
+)
 
 function validateCreateDocInput(doc: CreateDocInput): CreateDocInput {
   if (doc.comments.length > 0) throw new Error('Document comments must be empty on create')
-  if (new Set(doc.linkedIssueKeys).size !== doc.linkedIssueKeys.length) throw new Error('Duplicate linked issue')
+  if (new Set(doc.linkedIssueKeys).size !== doc.linkedIssueKeys.length)
+    throw new Error('Duplicate linked issue')
   createDocInputSchema.parse(doc)
   return doc
 }
@@ -115,12 +154,23 @@ const memberSchema = z
   })
   .strict()
 
+const iterationCalendarWeekSchema = z
+  .object({
+    label: z.string().min(1),
+    rangeLabel: z.string().min(1),
+    days: z.array(z.string().min(1)).min(1),
+  })
+  .strict()
+
 const iterationSchema = z
   .object({
     id: z.string().min(1),
     projectId: projectIdSchema,
     code: z.string().min(1),
     name: z.string().min(1),
+    dateRangeLabel: z.string().min(1),
+    calendarTitle: z.string().min(1),
+    calendarWeeks: z.array(iterationCalendarWeekSchema).min(1),
     day: z.number().int(),
     totalDays: z.number().int(),
     goal: z.string().min(1),
@@ -158,7 +208,9 @@ const standupSchema = z
     id: z.string().min(1),
     projectId: projectIdSchema,
     dateLabel: z.string().min(1),
+    weekdayLabel: z.string().min(1),
     timeLabel: z.string().min(1),
+    calendarLabel: z.string().min(1),
     items: z.array(standupItemSchema),
   })
   .strict()
@@ -176,38 +228,39 @@ const milestoneSchema = z
   })
   .strict()
 
-const feishuNotificationSchema: z.ZodType<FeishuNotificationInput, z.ZodTypeDef, unknown> = z.discriminatedUnion('trigger', [
-  z
-    .object({
-      id: z.string().min(1),
-      targetGroup: z.literal('AgiliX 团队群'),
-      status: z.enum(['queued', 'sent', 'failed']),
-      createdAt: z.string().min(1),
-      trigger: z.literal('站会摘要'),
-      payload: z.object({ standupId: z.string().min(1) }).strict(),
-    })
-    .strict(),
-  z
-    .object({
-      id: z.string().min(1),
-      targetGroup: z.literal('AgiliX 团队群'),
-      status: z.enum(['queued', 'sent', 'failed']),
-      createdAt: z.string().min(1),
-      trigger: z.literal('阻塞提醒'),
-      payload: z.object({ issueKeys: nonEmptyStringArraySchema }).strict(),
-    })
-    .strict(),
-  z
-    .object({
-      id: z.string().min(1),
-      targetGroup: z.literal('AgiliX 团队群'),
-      status: z.enum(['queued', 'sent', 'failed']),
-      createdAt: z.string().min(1),
-      trigger: z.literal('文档评论'),
-      payload: z.object({ docId: z.string().min(1), commentId: z.string().min(1) }).strict(),
-    })
-    .strict(),
-])
+const feishuNotificationSchema: z.ZodType<FeishuNotificationInput, z.ZodTypeDef, unknown> =
+  z.discriminatedUnion('trigger', [
+    z
+      .object({
+        id: z.string().min(1),
+        targetGroup: z.literal('AgiliX 团队群'),
+        status: z.enum(['queued', 'sent', 'failed']),
+        createdAt: z.string().min(1),
+        trigger: z.literal('站会摘要'),
+        payload: z.object({ standupId: z.string().min(1) }).strict(),
+      })
+      .strict(),
+    z
+      .object({
+        id: z.string().min(1),
+        targetGroup: z.literal('AgiliX 团队群'),
+        status: z.enum(['queued', 'sent', 'failed']),
+        createdAt: z.string().min(1),
+        trigger: z.literal('阻塞提醒'),
+        payload: z.object({ issueKeys: nonEmptyStringArraySchema }).strict(),
+      })
+      .strict(),
+    z
+      .object({
+        id: z.string().min(1),
+        targetGroup: z.literal('AgiliX 团队群'),
+        status: z.enum(['queued', 'sent', 'failed']),
+        createdAt: z.string().min(1),
+        trigger: z.literal('文档评论'),
+        payload: z.object({ docId: z.string().min(1), commentId: z.string().min(1) }).strict(),
+      })
+      .strict(),
+  ])
 
 const seedDataSchema: z.ZodType<SeedData, z.ZodTypeDef, unknown> = z
   .object({
@@ -246,17 +299,31 @@ async function send(fetcher: Fetcher, path: string, init: RequestInit = {}): Pro
   })
 }
 
-async function requestJson<T>(fetcher: Fetcher, path: string, expectedStatus: number, schema: z.ZodType<T, z.ZodTypeDef, unknown>, init: RequestInit = {}): Promise<T> {
+async function requestJson<T>(
+  fetcher: Fetcher,
+  path: string,
+  expectedStatus: number,
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  init: RequestInit = {},
+): Promise<T> {
   const response = await send(fetcher, path, init)
-  if (response.status !== expectedStatus) throw new Error(`AgiliX API request failed: expected ${expectedStatus}, received ${response.status}`)
+  if (response.status !== expectedStatus)
+    throw new Error(
+      `AgiliX API request failed: expected ${expectedStatus}, received ${response.status}`,
+    )
   const parsed = schema.safeParse(await response.json())
   if (!parsed.success) throw new Error(`AgiliX API response validation failed: ${path}`)
   return parsed.data
 }
 
-async function requestNoContent(fetcher: Fetcher, path: string, init: RequestInit = {}): Promise<void> {
+async function requestNoContent(
+  fetcher: Fetcher,
+  path: string,
+  init: RequestInit = {},
+): Promise<void> {
   const response = await send(fetcher, path, init)
-  if (response.status !== 204) throw new Error(`AgiliX API request failed: expected 204, received ${response.status}`)
+  if (response.status !== 204)
+    throw new Error(`AgiliX API request failed: expected 204, received ${response.status}`)
 }
 
 export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {

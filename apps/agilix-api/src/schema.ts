@@ -12,7 +12,10 @@ export const prioritySchema = z.enum(['high', 'medium', 'low'])
 export const docScopeSchema = z.enum(['global', 'project'])
 export const milestoneStatusSchema = z.enum(['done', 'doing', 'risk', 'planned'])
 export const stringArraySchema = z.array(z.string())
-const nonEmptyStringArraySchema = z.array(z.string().min(1)).min(1).transform((items) => items as [string, ...string[]])
+const nonEmptyStringArraySchema = z
+  .array(z.string().min(1))
+  .min(1)
+  .transform((items) => items as [string, ...string[]])
 
 export const issueQuerySchema = z
   .object({
@@ -47,15 +50,24 @@ const docBaseSchema = {
   title: z.string().min(1),
   directory: z.string().min(1),
   body: z.string().min(1),
-  linkedIssueKeys: z.array(z.string().min(1)).refine((keys) => new Set(keys).size === keys.length, 'linkedIssueKeys must be unique'),
+  linkedIssueKeys: z
+    .array(z.string().min(1))
+    .refine((keys) => new Set(keys).size === keys.length, 'linkedIssueKeys must be unique'),
   comments: z.array(z.never()).length(0),
   updatedAtLabel: z.string().min(1),
 }
 
-export const docSchema: z.ZodType<CreateDocInput, z.ZodTypeDef, unknown> = z.discriminatedUnion('scope', [
-  z.object({ ...docBaseSchema, scope: z.literal('global'), projectId: z.undefined().optional() }).strict(),
-  z.object({ ...docBaseSchema, scope: z.literal('project'), projectId: projectIdSchema }).strict(),
-])
+export const docSchema: z.ZodType<CreateDocInput, z.ZodTypeDef, unknown> = z.discriminatedUnion(
+  'scope',
+  [
+    z
+      .object({ ...docBaseSchema, scope: z.literal('global'), projectId: z.undefined().optional() })
+      .strict(),
+    z
+      .object({ ...docBaseSchema, scope: z.literal('project'), projectId: projectIdSchema })
+      .strict(),
+  ],
+)
 
 export const docCommentSchema = z
   .object({
@@ -71,7 +83,10 @@ export const docCommentSchema = z
 const feishuDocsQuerySchema = z
   .string()
   .min(1)
-  .refine((query) => query === query.trim(), 'docs query must not include leading or trailing whitespace')
+  .refine(
+    (query) => query === query.trim(),
+    'docs query must not include leading or trailing whitespace',
+  )
 
 const feishuCommandSchema: z.ZodType<FeishuQueryCommand, z.ZodTypeDef, unknown> = z.union([
   z.object({ type: z.literal('team') }).strict(),
@@ -95,13 +110,30 @@ const feishuNotificationBaseSchema = {
   createdAt: z.string().min(1),
 }
 
-export const feishuNotificationSchema: z.ZodType<FeishuNotificationRecord, z.ZodTypeDef, unknown> = z.discriminatedUnion('trigger', [
-  z.object({ ...feishuNotificationBaseSchema, trigger: z.literal('站会摘要'), payload: z.object({ standupId: z.string().min(1) }).strict() }).strict(),
-  z.object({ ...feishuNotificationBaseSchema, trigger: z.literal('阻塞提醒'), payload: z.object({ issueKeys: nonEmptyStringArraySchema }).strict() }).strict(),
-  z
-    .object({ ...feishuNotificationBaseSchema, trigger: z.literal('文档评论'), payload: z.object({ docId: z.string().min(1), commentId: z.string().min(1) }).strict() })
-    .strict(),
-])
+export const feishuNotificationSchema: z.ZodType<FeishuNotificationRecord, z.ZodTypeDef, unknown> =
+  z.discriminatedUnion('trigger', [
+    z
+      .object({
+        ...feishuNotificationBaseSchema,
+        trigger: z.literal('站会摘要'),
+        payload: z.object({ standupId: z.string().min(1) }).strict(),
+      })
+      .strict(),
+    z
+      .object({
+        ...feishuNotificationBaseSchema,
+        trigger: z.literal('阻塞提醒'),
+        payload: z.object({ issueKeys: nonEmptyStringArraySchema }).strict(),
+      })
+      .strict(),
+    z
+      .object({
+        ...feishuNotificationBaseSchema,
+        trigger: z.literal('文档评论'),
+        payload: z.object({ docId: z.string().min(1), commentId: z.string().min(1) }).strict(),
+      })
+      .strict(),
+  ])
 
 export const standupItemSchema = z
   .object({
@@ -117,7 +149,9 @@ export const standupSchema = z
     id: z.string().min(1),
     projectId: projectIdSchema,
     dateLabel: z.string().min(1),
+    weekdayLabel: z.string().min(1),
     timeLabel: z.string().min(1),
+    calendarLabel: z.string().min(1),
     items: z.array(standupItemSchema),
   })
   .strict()

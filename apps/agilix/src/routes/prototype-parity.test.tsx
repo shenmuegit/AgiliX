@@ -73,6 +73,7 @@ describe('prototype parity for core screens', () => {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
     }
     expect(screen.getByText('项目:全部')).toBeInTheDocument()
+    expect(screen.getByText('类型:方案 + 接口')).toBeInTheDocument()
     expect(screen.getByText('评论:未解决 2')).toBeInTheDocument()
     expect(screen.getAllByText('目录').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByPlaceholderText('搜索标题、正文、评论')).toBeInTheDocument()
@@ -80,6 +81,10 @@ describe('prototype parity for core screens', () => {
     expect(screen.getAllByText('最近更新').length).toBeGreaterThanOrEqual(2)
     expect(container.querySelectorAll('.doc-row-lg')).toHaveLength(3)
     expect(screen.getByText('Selected Document')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '结果卡片重设计方案' })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: '详情 · 结果卡片重设计方案' }),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('飞书查询示例')).toBeInTheDocument()
   })
 
@@ -98,7 +103,9 @@ describe('prototype parity for core screens', () => {
   })
 
   it('matches the issue ledger prototype layout', () => {
-    const { container } = render(<IssuesPage data={seedData} projectId="search" onProjectChange={vi.fn()} />)
+    const { container } = render(
+      <IssuesPage data={seedData} projectId="search" onProjectChange={vi.fn()} />,
+    )
 
     expect(container.querySelector('.lg-body')).toBeInTheDocument()
     expect(container.querySelector('.lg-table')).toBeInTheDocument()
@@ -111,7 +118,9 @@ describe('prototype parity for core screens', () => {
   })
 
   it('matches the kanban board prototype layout', () => {
-    const { container } = render(<BoardPage data={seedData} projectId="search" onMoveIssue={vi.fn()} />)
+    const { container } = render(
+      <BoardPage data={seedData} projectId="search" onMoveIssue={vi.fn()} />,
+    )
 
     expect(container.querySelector('.sprint-chip')).toBeInTheDocument()
     expect(container.querySelector('.toolbar')).toBeInTheDocument()
@@ -119,7 +128,8 @@ describe('prototype parity for core screens', () => {
     expect(container.querySelectorAll('.col')).toHaveLength(5)
     expect(container.querySelectorAll('.card')).toHaveLength(5)
     expect(screen.getByText('搜索体验重构')).toBeInTheDocument()
-    expect(screen.getByText('AgiliX 团队群')).toBeInTheDocument()
+    expect(screen.getByText('06/02-06/13 · 第 7 天')).toBeInTheDocument()
+    expect(screen.getByText('机器人已同步')).toBeInTheDocument()
     expect(screen.getByText('表格')).toBeInTheDocument()
     expect(screen.getByText('时间线')).toBeInTheDocument()
     expect(screen.getByText('向量召回 beta 开关接入')).toBeInTheDocument()
@@ -127,7 +137,9 @@ describe('prototype parity for core screens', () => {
   })
 
   it('matches the iteration statistics prototype layout', () => {
-    const { container } = render(<StatsPage data={seedData} projectId="search" iterationCode="S24" />)
+    const { container } = render(
+      <StatsPage data={seedData} projectId="search" iterationCode="S24" />,
+    )
 
     expect(container.querySelector('.st-body')).toBeInTheDocument()
     expect(container.querySelector('.metric-strip')).toBeInTheDocument()
@@ -152,12 +164,16 @@ describe('prototype parity for core screens', () => {
   })
 
   it('matches the daily standup prototype layout', () => {
-    const { container } = render(<StandupPage data={seedData} projectId="search" onSaveStandup={vi.fn()} />)
+    const { container } = render(
+      <StandupPage data={seedData} projectId="search" onSaveStandup={vi.fn()} />,
+    )
 
     expect(container.querySelector('.su-body')).toBeInTheDocument()
     expect(container.querySelector('.su-head')).toBeInTheDocument()
     expect(container.querySelectorAll('.su-row')).toHaveLength(3)
-    expect(screen.getByText('星期五')).toBeInTheDocument()
+    expect(screen.getByText('06 / 06')).toBeInTheDocument()
+    expect(screen.getByText('星期五 · 站会 10:00-10:15')).toBeInTheDocument()
+    expect(screen.getByText('关联飞书日历 · 每日 10:00')).toBeInTheDocument()
     expect(screen.getByText('推送纪要到群')).toBeInTheDocument()
     expect(screen.getAllByText('昨日完成').length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('今日计划')).toBeInTheDocument()
@@ -165,13 +181,24 @@ describe('prototype parity for core screens', () => {
   })
 
   it('matches the gantt prototype layout', () => {
-    const { container } = render(<GanttPage data={seedData} projectId="search" onSaveMilestone={vi.fn()} />)
+    const { container } = render(
+      <GanttPage data={seedData} projectId="search" onSaveMilestone={vi.fn()} />,
+    )
 
     expect(container.querySelector('.gt-body')).toBeInTheDocument()
     expect(container.querySelector('.gt')).toBeInTheDocument()
     expect(container.querySelector('.gt-head')).toBeInTheDocument()
     expect(container.querySelectorAll('.gt-row').length).toBeGreaterThanOrEqual(7)
-    expect(screen.getByText('S24 · 搜索体验重构 · 第 7/10 天')).toBeInTheDocument()
+    expect(screen.getByText('6 月 · Sprint 24 → 25')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '周' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '双周' })).toHaveClass('on')
+    expect(screen.getByRole('button', { name: '月' })).toBeInTheDocument()
+    expect(screen.getByText('W23')).toBeInTheDocument()
+    expect(screen.getByText('06/02-06/06 · S24')).toBeInTheDocument()
+    expect(screen.getByText('W24')).toBeInTheDocument()
+    expect(screen.getByText('06/09-06/13 · S24')).toBeInTheDocument()
+    expect(screen.getByText('W25')).toBeInTheDocument()
+    expect(screen.getByText('06/16-06/20 · S25')).toBeInTheDocument()
     expect(screen.getByText('同步飞书日历')).toBeInTheDocument()
     expect(screen.getByText('工作项 / 里程碑')).toBeInTheDocument()
     expect(screen.getByText('迭代 · 搜索体验重构')).toBeInTheDocument()
@@ -179,7 +206,9 @@ describe('prototype parity for core screens', () => {
   })
 
   it('matches the Feishu single-group notification and query surface', () => {
-    const { container } = render(<FeishuPage data={seedData} onNotify={vi.fn()} onQuery={vi.fn()} />)
+    const { container } = render(
+      <FeishuPage data={seedData} onNotify={vi.fn()} onQuery={vi.fn()} />,
+    )
 
     expect(container.querySelector('.fs-body')).toBeInTheDocument()
     expect(container.querySelector('.fs-command-grid')).toBeInTheDocument()

@@ -24,6 +24,9 @@ export const iterations = sqliteTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     code: text('code').notNull(),
     name: text('name').notNull(),
+    dateRangeLabel: text('date_range_label').notNull(),
+    calendarTitle: text('calendar_title').notNull(),
+    calendarWeeksJson: text('calendar_weeks_json').notNull(),
     day: integer('day').notNull(),
     totalDays: integer('total_days').notNull(),
     goal: text('goal').notNull(),
@@ -52,7 +55,10 @@ export const issues = sqliteTable(
     storyPoints: integer('story_points').notNull(),
     blockerReason: text('blocker_reason'),
   },
-  (table) => [index('issues_project_status').on(table.projectId, table.status), index('issues_assignee').on(table.assigneeId)],
+  (table) => [
+    index('issues_project_status').on(table.projectId, table.status),
+    index('issues_assignee').on(table.assigneeId),
+  ],
 )
 
 export const issueEvents = sqliteTable('issue_events', {
@@ -112,7 +118,9 @@ export const standups = sqliteTable('standups', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   dateLabel: text('date_label').notNull(),
+  weekdayLabel: text('weekday_label').notNull(),
   timeLabel: text('time_label').notNull(),
+  calendarLabel: text('calendar_label').notNull(),
 })
 
 export const standupItems = sqliteTable('standup_items', {

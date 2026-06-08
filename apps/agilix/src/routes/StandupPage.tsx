@@ -1,7 +1,15 @@
 import type { ProjectId, SeedData, Standup, StandupItem } from '../domain/types'
 import { getActiveIteration, getMember, getProject, memberInitial } from '../domain/view-models'
 
-export function StandupPage({ data, projectId, onSaveStandup }: { data: SeedData; projectId: ProjectId; onSaveStandup: (standup: Standup) => void }) {
+export function StandupPage({
+  data,
+  projectId,
+  onSaveStandup,
+}: {
+  data: SeedData
+  projectId: ProjectId
+  onSaveStandup: (standup: Standup) => void
+}) {
   const project = getProject(data, projectId)
   const iteration = getActiveIteration(data, project)
   const standup = data.standups.find((item) => item.projectId === projectId)
@@ -27,9 +35,17 @@ export function StandupPage({ data, projectId, onSaveStandup }: { data: SeedData
         </div>
         <div className="top-sp" />
         <div className="feishu-dot">
-          {data.feishu.groups[0]} · {standup.timeLabel}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <rect x="3" y="4" width="18" height="17" rx="2" />
+            <path d="M8 2v4M16 2v4M3 10h18" />
+          </svg>
+          关联飞书日历 · {standup.calendarLabel}
         </div>
-        <button className="btn btn-primary" aria-label="保存站会" onClick={() => onSaveStandup(standup)}>
+        <button
+          className="btn btn-primary"
+          aria-label="保存站会"
+          onClick={() => onSaveStandup(standup)}
+        >
           推送纪要到群
         </button>
       </header>
@@ -38,12 +54,14 @@ export function StandupPage({ data, projectId, onSaveStandup }: { data: SeedData
           <div className="su-date">
             <div className="d">{standup.dateLabel}</div>
             <div className="w">
-              站会 <span>{standup.timeLabel}</span>
+              {standup.weekdayLabel} · 站会 {standup.timeLabel}
             </div>
           </div>
           <div className="su-meta">
             <div className="it">
-              <div className="stat-num">{standup.items.length}/{data.members.length}</div>
+              <div className="stat-num">
+                {standup.items.length}/{data.members.length}
+              </div>
               <div className="label">已同步</div>
             </div>
             <div className="it">
@@ -70,7 +88,15 @@ export function StandupPage({ data, projectId, onSaveStandup }: { data: SeedData
   )
 }
 
-function StandupRow({ data, item, isSpeaking }: { data: SeedData; item: StandupItem; isSpeaking: boolean }) {
+function StandupRow({
+  data,
+  item,
+  isSpeaking,
+}: {
+  data: SeedData
+  item: StandupItem
+  isSpeaking: boolean
+}) {
   const member = getMember(data, item.memberId)
 
   return (

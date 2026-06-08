@@ -1,8 +1,20 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { createAgiliXClient, type AgiliXClient, type CreateDocInput, type FeishuNotificationInput } from './api/client'
+import {
+  createAgiliXClient,
+  type AgiliXClient,
+  type CreateDocInput,
+  type FeishuNotificationInput,
+} from './api/client'
 import type { ProjectFilterValue } from './components/ProjectFilter'
 import { Shell, type NavItem } from './components/Shell'
-import type { DocComment, FeishuNotificationTrigger, IssueStatus, Milestone, SeedData, Standup } from './domain/types'
+import type {
+  DocComment,
+  FeishuNotificationTrigger,
+  IssueStatus,
+  Milestone,
+  SeedData,
+  Standup,
+} from './domain/types'
 import { BoardPage } from './routes/BoardPage'
 import { DocsPage } from './routes/DocsPage'
 import { FeishuPage } from './routes/FeishuPage'
@@ -19,6 +31,7 @@ const defaultAgiliXClient = createAgiliXClient((input, init) => fetch(input, ini
 export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient }) {
   const [active, setActive] = useState<NavItem>('团队工作台')
   const [projectId, setProjectId] = useState<ProjectFilterValue>('search')
+  const [docsProjectId, setDocsProjectId] = useState<ProjectFilterValue>('all')
   const [data, setData] = useState<SeedData | null>(null)
 
   async function refresh() {
@@ -80,8 +93,11 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
         input = { ...base, trigger, payload: { standupId: 'standup-search-today' } }
         break
       case '阻塞提醒': {
-        const issueKeys = loadedData.issues.filter((issue) => issue.status === 'blocked').map((issue) => issue.key)
-        if (issueKeys.length === 0) throw new Error('Cannot record blocker notification without blocked issues')
+        const issueKeys = loadedData.issues
+          .filter((issue) => issue.status === 'blocked')
+          .map((issue) => issue.key)
+        if (issueKeys.length === 0)
+          throw new Error('Cannot record blocker notification without blocked issues')
         input = { ...base, trigger, payload: { issueKeys: issueKeys as [string, ...string[]] } }
         break
       }
@@ -93,7 +109,8 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
     await client.recordFeishuNotification(input)
   }
 
-  const selectedProject = projectId === 'all' ? null : loadedData.projects.find((project) => project.id === projectId)
+  const selectedProject =
+    projectId === 'all' ? null : loadedData.projects.find((project) => project.id === projectId)
   if (projectId !== 'all' && !selectedProject) throw new Error(`Project not found: ${projectId}`)
 
   function projectRequiredPage(title: string) {
@@ -106,16 +123,70 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   }
 
   const page: Record<NavItem, ReactNode> = {
-    团队工作台: <TeamPage data={loadedData} onOpenIssues={() => setActive('Issues')} onOpenDocs={() => setActive('文档')} onOpenStandup={() => setActive('每日站会')} />,
+    团队工作台: (
+      <TeamPage
+        data={loadedData}
+        onOpenIssues={() => setActive('Issues')}
+        onOpenDocs={() => setActive('文档')}
+        onOpenStandup={() => setActive('每日站会')}
+      />
+    ),
     项目总览: <ProjectsPage data={loadedData} />,
     Issues: <IssuesPage data={loadedData} projectId={projectId} onProjectChange={setProjectId} />,
-    看板: <BoardPage data={loadedData} projectId={projectId} onMoveIssue={moveAndRefresh} onOpenIssues={() => setActive('Issues')} onOpenFeishu={() => setActive('飞书')} />,
-    迭代统计: selectedProject ? <StatsPage data={loadedData} projectId={selectedProject.id} iterationCode={selectedProject.activeIterationCode} /> : projectRequiredPage('迭代统计'),
-    文档: <DocsPage data={loadedData} projectId={projectId} onProjectChange={setProjectId} onAddComment={commentAndRefresh} onCreateDoc={createDocAndRefresh} />,
+    看板: (
+      <BoardPage
+        data={loadedData}
+        projectId={projectId}
+        onMoveIssue={moveAndRefresh}
+        onOpenIssues={() => setActive('Issues')}
+        onOpenFeishu={() => setActive('飞书')}
+      />
+    ),
+    迭代统计: selectedProject ? (
+      <StatsPage
+        data={loadedData}
+        projectId={selectedProject.id}
+        iterationCode={selectedProject.activeIterationCode}
+      />
+    ) : (
+      projectRequiredPage('迭代统计')
+    ),
+    文档: (
+      <DocsPage
+        data={loadedData}
+        projectId={docsProjectId}
+        onProjectChange={setDocsProjectId}
+        onAddComment={commentAndRefresh}
+        onCreateDoc={createDocAndRefresh}
+      />
+    ),
     成员负载: <WorkloadPage data={loadedData} onOpenIssues={() => setActive('Issues')} />,
-    每日站会: selectedProject ? <StandupPage data={loadedData} projectId={selectedProject.id} onSaveStandup={saveStandupAndRefresh} /> : projectRequiredPage('每日站会'),
-    排期甘特: selectedProject ? <GanttPage data={loadedData} projectId={selectedProject.id} onSaveMilestone={saveMilestoneAndRefresh} onOpenFeishu={() => setActive('飞书')} /> : projectRequiredPage('排期甘特'),
-    飞书: <FeishuPage data={loadedData} onNotify={recordFeishuNotification} onQuery={(command) => client.queryFeishu(command)} />,
+    每日站会: selectedProject ? (
+      <StandupPage
+        data={loadedData}
+        projectId={selectedProject.id}
+        onSaveStandup={saveStandupAndRefresh}
+      />
+    ) : (
+      projectRequiredPage('每日站会')
+    ),
+    排期甘特: selectedProject ? (
+      <GanttPage
+        data={loadedData}
+        projectId={selectedProject.id}
+        onSaveMilestone={saveMilestoneAndRefresh}
+        onOpenFeishu={() => setActive('飞书')}
+      />
+    ) : (
+      projectRequiredPage('排期甘特')
+    ),
+    飞书: (
+      <FeishuPage
+        data={loadedData}
+        onNotify={recordFeishuNotification}
+        onQuery={(command) => client.queryFeishu(command)}
+      />
+    ),
   }
 
   return (
