@@ -48,6 +48,19 @@ describe('AgiliX API client', () => {
       cadence: '双周',
       template_key: 'scrum-board-burndown',
       member_ids: [],
+      initial_iteration: {
+        code: 'S01',
+        name: '启动迭代',
+        date_range_label: '06.10 - 06.21',
+        calendar_title: '运营平台 · S01',
+        calendar_weeks: [
+          { label: 'W1', range_label: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+        ],
+        day: 1,
+        total_days: 10,
+        goal: '完成项目初始化',
+        velocity: 0,
+      },
     })
     await client.moveIssueById('730000000000000401', 'done')
 
@@ -65,6 +78,19 @@ describe('AgiliX API client', () => {
         cadence: '双周',
         template_key: 'scrum-board-burndown',
         member_ids: [],
+        initial_iteration: {
+          code: 'S01',
+          name: '启动迭代',
+          date_range_label: '06.10 - 06.21',
+          calendar_title: '运营平台 · S01',
+          calendar_weeks: [
+            { label: 'W1', range_label: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+          ],
+          day: 1,
+          total_days: 10,
+          goal: '完成项目初始化',
+          velocity: 0,
+        },
       }),
     })
     expect(fetcher).toHaveBeenCalledWith('/api/issues/730000000000000401/status', {

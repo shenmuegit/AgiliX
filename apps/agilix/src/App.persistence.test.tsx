@@ -41,6 +41,18 @@ describe('App API wiring', () => {
     await userEvent.clear(screen.getByLabelText('迭代 ID'))
     await userEvent.type(screen.getByLabelText('迭代 ID'), 'growth-s01')
     await userEvent.click(screen.getByRole('button', { name: '创建项目' }))
+    expect(client.recordedContractProjectCreates()).toEqual([
+      expect.objectContaining({
+        code: 'growth',
+        name: '增长实验',
+        initial_iteration: expect.objectContaining({
+          code: 'S01',
+          name: '启动迭代',
+          goal: '验证首批增长假设',
+          velocity: 0,
+        }),
+      }),
+    ])
     await waitFor(async () =>
       expect(
         (await client.loadData()).projects.find((project) => project.id === 'growth')?.name,

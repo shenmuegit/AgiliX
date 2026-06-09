@@ -21,6 +21,19 @@ describe('AgiliX shared contract', () => {
       cadence: '双周',
       template_key: 'scrum-board-burndown',
       member_ids: ['730000000000000201'],
+      initial_iteration: {
+        code: 'S01',
+        name: '启动迭代',
+        date_range_label: '06.10 - 06.21',
+        calendar_title: '运营平台 · S01',
+        calendar_weeks: [
+          { label: 'W1', range_label: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+        ],
+        day: 1,
+        total_days: 10,
+        goal: '完成项目初始化',
+        velocity: 0,
+      },
     }
     const issue = {
       project_id: '730000000000000001',
@@ -53,8 +66,49 @@ describe('AgiliX shared contract', () => {
     expect(createIssueRequestSchema.safeParse({ ...issue }).success).toBe(true)
     expect(createDocumentRequestSchema.safeParse({ ...document }).success).toBe(true)
     expect(createProjectRequestSchema.safeParse({ id: 'client-id', ...project }).success).toBe(false)
+    expect(createProjectRequestSchema.safeParse({
+      ...project,
+      initial_iteration: { id: 'client-id', ...project.initial_iteration },
+    }).success).toBe(false)
     expect(createIssueRequestSchema.safeParse({ id: 'client-id', key: 'OPS-1', ...issue }).success).toBe(false)
     expect(createDocumentRequestSchema.safeParse({ id: 'client-id', ...document }).success).toBe(false)
+  })
+
+  it('requires current frontend initial iteration fields when creating a project', () => {
+    const result = createProjectRequestSchema.safeParse({
+      code: 'GROWTH',
+      name: '增长实验',
+      glyph: 'G',
+      color: '#2563eb',
+      cadence: '双周',
+      template_key: 'scrum-board-burndown',
+      member_ids: [],
+      initial_iteration: {
+        code: 'S01',
+        name: '启动迭代',
+        date_range_label: '06.10 - 06.21',
+        calendar_title: '增长实验 · S01',
+        calendar_weeks: [
+          { label: 'W1', range_label: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+          { label: 'W2', range_label: '06.17 - 06.21', days: ['17', '18', '19', '20', '21'] },
+        ],
+        day: 1,
+        total_days: 10,
+        goal: '验证首批增长假设',
+        velocity: 0,
+      },
+    })
+
+    expect(result.success).toBe(true)
+    expect(createProjectRequestSchema.safeParse({
+      code: 'GROWTH',
+      name: '增长实验',
+      glyph: 'G',
+      color: '#2563eb',
+      cadence: '双周',
+      template_key: 'scrum-board-burndown',
+      member_ids: [],
+    }).success).toBe(false)
   })
 
   it('requires target_group_id for every bot rule', () => {

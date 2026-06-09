@@ -246,6 +246,24 @@ export const appStateResponseSchema = z.object({
   feishu_queries: z.array(feishuQueryRowSchema),
 }).strict()
 
+export const createProjectIterationCalendarWeekRequestSchema = z.object({
+  label: z.string().min(1),
+  range_label: z.string().min(1),
+  days: z.array(z.string().min(1)).min(1),
+}).strict()
+
+export const createProjectInitialIterationRequestSchema = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1),
+  date_range_label: z.string().min(1),
+  calendar_title: z.string().min(1),
+  calendar_weeks: z.array(createProjectIterationCalendarWeekRequestSchema).min(1),
+  day: z.number().int(),
+  total_days: z.number().int(),
+  goal: z.string(),
+  velocity: z.number().int(),
+}).strict()
+
 export const createProjectRequestSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
@@ -254,6 +272,7 @@ export const createProjectRequestSchema = z.object({
   cadence: z.string().min(1),
   template_key: z.string().min(1),
   member_ids: z.array(idSchema),
+  initial_iteration: createProjectInitialIterationRequestSchema,
 }).strict()
 
 export const createIssueRequestSchema = z.object({

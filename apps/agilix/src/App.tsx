@@ -62,8 +62,7 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   }
 
   async function createProjectAndRefresh(input: CreateProjectInput) {
-    await client.createProject(input)
-    await refresh()
+    setData(toDisplaySeedData(await client.createContractProject(toCreateProjectRequest(input))))
   }
 
   async function saveStandupAndRefresh(standup: Standup) {
@@ -208,6 +207,33 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
 function toContractIssueStatus(status: IssueStatus): ContractIssueStatus {
   if (status === 'review') throw new Error('Review status is not supported by the contract issue status API')
   return status
+}
+
+function toCreateProjectRequest(input: CreateProjectInput) {
+  return {
+    code: input.project.id,
+    name: input.project.name,
+    glyph: input.project.glyph,
+    color: input.project.color,
+    cadence: '双周',
+    template_key: 'scrum-board-burndown',
+    member_ids: [],
+    initial_iteration: {
+      code: input.iteration.code,
+      name: input.iteration.name,
+      date_range_label: input.iteration.dateRangeLabel,
+      calendar_title: input.iteration.calendarTitle,
+      calendar_weeks: input.iteration.calendarWeeks.map((week) => ({
+        label: week.label,
+        range_label: week.rangeLabel,
+        days: week.days,
+      })),
+      day: input.iteration.day,
+      total_days: input.iteration.totalDays,
+      goal: input.iteration.goal,
+      velocity: input.iteration.velocity,
+    },
+  }
 }
 
 function initialNavItemFromPath(pathname: string): NavItem {

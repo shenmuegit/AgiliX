@@ -1,4 +1,4 @@
-import type { AppStateResponse } from '@agilix/contract'
+import type { AppStateResponse, CreateProjectRequest } from '@agilix/contract'
 import type {
   AgiliXClient,
   CreateDocInput,
@@ -32,6 +32,7 @@ export function createInMemoryClient() {
   let loadAppStateCalls = 0
   let loadDataCalls = 0
   const issueStatusSaves: RecordedIssueStatusSave[] = []
+  const contractProjectCreates: CreateProjectRequest[] = []
   const standupSaves: string[] = []
   const milestoneSaves: string[] = []
   const feishuNotifications: FeishuNotificationInput[] = []
@@ -69,6 +70,7 @@ export function createInMemoryClient() {
     recordedFeishuQueries(): string[]
     loadAppStateCount(): number
     recordedIssueStatusSaves(): RecordedIssueStatusSave[]
+    recordedContractProjectCreates(): CreateProjectRequest[]
   } = {
     async loadAppState() {
       loadAppStateCalls += 1
@@ -78,8 +80,44 @@ export function createInMemoryClient() {
       loadDataCalls += 1
       return clone(data)
     },
-    async createContractProject() {
-      throw new Error('Contract project creation is not wired in the in-memory test client')
+    async createContractProject(input) {
+      if (data.projects.some((project) => project.id === input.code))
+        throw new Error(`Project already exists: ${input.code}`)
+      contractProjectCreates.push(clone(input))
+      data = {
+        ...data,
+        projects: [
+          ...data.projects,
+          {
+            id: input.code,
+            name: input.name,
+            glyph: input.glyph,
+            color: input.color,
+            activeIterationCode: input.initial_iteration.code,
+          },
+        ],
+        iterations: [
+          ...data.iterations,
+          {
+            id: `${input.code}-${input.initial_iteration.code}`,
+            projectId: input.code,
+            code: input.initial_iteration.code,
+            name: input.initial_iteration.name,
+            dateRangeLabel: input.initial_iteration.date_range_label,
+            calendarTitle: input.initial_iteration.calendar_title,
+            calendarWeeks: input.initial_iteration.calendar_weeks.map((week) => ({
+              label: week.label,
+              rangeLabel: week.range_label,
+              days: week.days,
+            })),
+            day: input.initial_iteration.day,
+            totalDays: input.initial_iteration.total_days,
+            goal: input.initial_iteration.goal,
+            velocity: input.initial_iteration.velocity,
+          },
+        ],
+      }
+      return seedDataToAppState(data)
     },
     async moveIssue(issueKey: string, status: IssueStatus) {
       if (!data.issues.some((issue) => issue.key === issueKey))
@@ -203,6 +241,9 @@ export function createInMemoryClient() {
     },
     recordedIssueStatusSaves() {
       return [...issueStatusSaves]
+    },
+    recordedContractProjectCreates() {
+      return clone(contractProjectCreates)
     },
   }
 

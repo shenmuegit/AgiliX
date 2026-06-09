@@ -30,6 +30,19 @@ describe('AgiliX API app', () => {
         cadence: '双周',
         template_key: 'scrum-board-burndown',
         member_ids: [],
+        initial_iteration: {
+          code: 'S01',
+          name: '运营启动迭代',
+          date_range_label: '06.10 - 06.21',
+          calendar_title: '运营平台 · S01',
+          calendar_weeks: [
+            { label: 'W1', range_label: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+          ],
+          day: 1,
+          total_days: 10,
+          goal: '完成运营平台初始化',
+          velocity: 3,
+        },
       }),
     })
     expect(rejected.status).toBe(400)
@@ -45,12 +58,40 @@ describe('AgiliX API app', () => {
         cadence: '双周',
         template_key: 'scrum-board-burndown',
         member_ids: [],
+        initial_iteration: {
+          code: 'S02',
+          name: '运营配置迭代',
+          date_range_label: '06.24 - 07.05',
+          calendar_title: '运营平台 · S02',
+          calendar_weeks: [
+            { label: 'W1', range_label: '06.24 - 06.28', days: ['24', '25', '26', '27', '28'] },
+            { label: 'W2', range_label: '07.01 - 07.05', days: ['1', '2', '3', '4', '5'] },
+          ],
+          day: 2,
+          total_days: 10,
+          goal: '配置运营项目流程',
+          velocity: 5,
+        },
       }),
     })
 
     const state = appStateResponseSchema.parse(await created.json())
     expect(created.status).toBe(201)
     expect(state.projects.some((project) => project.code === 'OPS')).toBe(true)
+    const project = state.projects.find((item) => item.code === 'OPS')
+    const iteration = state.iterations.find((item) => item.project_id === project?.id)
+    expect(iteration).toEqual(expect.objectContaining({
+      code: 'S02',
+      name: '运营配置迭代',
+      date_range_label: '06.24 - 07.05',
+      calendar_title: '运营平台 · S02',
+      day: 2,
+      total_days: 10,
+      goal: '配置运营项目流程',
+      velocity: 5,
+    }))
+    const weeks = state.iteration_calendar_weeks.filter((week) => week.iteration_id === iteration?.id)
+    expect(weeks.map((week) => week.range_label)).toEqual(['06.24 - 06.28', '07.01 - 07.05'])
   })
 
   it('updates issue status through the shared contract by app-state id', async () => {
