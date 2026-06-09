@@ -1,6 +1,12 @@
 import { buildFeishuReply } from '@agilix/app/domain/feishu'
+import {
+  appStateResponseSchema,
+  createProjectRequestSchema,
+  updateIssueStatusRequestSchema,
+} from '@agilix/contract'
 import { Hono, type Context } from 'hono'
 import type { z } from 'zod'
+import { legacyIssueKeyFromContractId, toAppStateResponse } from './appStateAdapter'
 import type {
   AddDocCommentResult,
   AgiliXRepository,
@@ -87,6 +93,14 @@ async function parseJson<T>(
   return { value: parsed.data }
 }
 
+async function parseJsonValue(context: Context): Promise<ParseResult<unknown>> {
+  try {
+    return { value: await context.req.json() }
+  } catch {
+    return { response: context.json({ message: 'Malformed JSON' }, 400) }
+  }
+}
+
 function parseQuery<T>(
   context: Context,
   schema: z.ZodType<T, z.ZodTypeDef, unknown>,
@@ -116,15 +130,69 @@ async function validateProjectFilter(
 export function createApp(repository: AgiliXRepository) {
   const app = new Hono()
 
+  async function contractAppState() {
+    return appStateResponseSchema.parse(toAppStateResponse(await repository.loadData()))
+  }
+
+  app.get('/api/app-state', async (context) => context.json(await contractAppState()))
+
   app.get('/api/bootstrap', async (context) => context.json(await repository.loadData()))
 
   app.get('/api/projects', async (context) => context.json(await repository.listProjects()))
 
   app.post('/api/projects', async (context) => {
-    const parsed = await parseJson(context, createProjectSchema)
-    if ('response' in parsed) return parsed.response
-    const result = await repository.createProject(parsed.value)
-    if (result === 'created') return context.json(parsed.value.project, 201)
+    const json = await parseJsonValue(context)
+    if ('response' in json) return json.response
+
+    const contractProject = createProjectRequestSchema.safeParse(json.value)
+    if (contractProject.success) {
+      const input = contractProject.data
+      const result = await repository.createProject({
+        project: {
+          id: input.code,
+          name: input.name,
+          glyph: input.glyph,
+          color: input.color,
+          activeIterationCode: 'S01',
+        },
+        iteration: {
+          id: `${input.code}-s01`,
+          projectId: input.code,
+          code: 'S01',
+          name: '启动迭代',
+          dateRangeLabel: '06.10 - 06.21',
+          calendarTitle: `${input.name} · S01`,
+          calendarWeeks: [
+            { label: 'W1', rangeLabel: '06.10 - 06.14', days: ['10', '11', '12', '13', '14'] },
+            { label: 'W2', rangeLabel: '06.17 - 06.21', days: ['17', '18', '19', '20', '21'] },
+          ],
+          day: 1,
+          totalDays: 10,
+          goal: '完成项目初始化',
+          velocity: 0,
+        },
+      })
+      if (result === 'created') return context.json(await contractAppState(), 201)
+      const failure = createProjectFailures[result]
+      return context.json({ message: failure.message }, failure.status)
+    }
+
+    if (
+      typeof json.value === 'object' &&
+      json.value !== null &&
+      ('code' in json.value || 'template_key' in json.value || 'member_ids' in json.value)
+    ) {
+      return context.json(
+        { message: 'Validation error', issues: contractProject.error.issues },
+        400,
+      )
+    }
+
+    const parsed = createProjectSchema.safeParse(json.value)
+    if (!parsed.success)
+      return context.json({ message: 'Validation error', issues: parsed.error.issues }, 400)
+    const result = await repository.createProject(parsed.data)
+    if (result === 'created') return context.json(parsed.data.project, 201)
     const failure = createProjectFailures[result]
     return context.json({ message: failure.message }, failure.status)
   })
@@ -138,9 +206,14 @@ export function createApp(repository: AgiliXRepository) {
   })
 
   app.patch('/api/issues/:key/status', async (context) => {
-    const parsed = await parseJson(context, moveIssueSchema)
+    const parsed = await parseJson(context, updateIssueStatusRequestSchema)
     if ('response' in parsed) return parsed.response
-    const moved = await repository.moveIssue(context.req.param('key'), parsed.value.status)
+    const loadedData = await repository.loadData()
+    const legacyIssueKey =
+      legacyIssueKeyFromContractId(loadedData, context.req.param('key')) ?? context.req.param('key')
+    const moved = await repository.moveIssue(legacyIssueKey, parsed.value.status)
+    if (moved && legacyIssueKey !== context.req.param('key'))
+      return context.json(await contractAppState(), 200)
     return moved ? context.body(null, 204) : context.json({ message: 'Issue not found' }, 404)
   })
 

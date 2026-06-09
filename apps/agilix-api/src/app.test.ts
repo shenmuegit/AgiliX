@@ -1,9 +1,74 @@
 import { seedData } from '@agilix/app/domain/fixtures'
+import { appStateResponseSchema } from '@agilix/contract'
 import { describe, expect, it } from 'vitest'
 import { createApp } from './app'
 import { createMemoryRepository } from './test/memoryRepository'
 
 describe('AgiliX API app', () => {
+  it('returns app state from the shared contract route', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+
+    const response = await app.request('/api/app-state')
+    const json = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(appStateResponseSchema.parse(json).projects.length).toBeGreaterThan(0)
+  })
+
+  it('creates a project through the shared contract without accepting a client id', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+
+    const rejected = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-generated',
+        code: 'OPS',
+        name: '运营平台',
+        glyph: '运',
+        color: '#6f7f5b',
+        cadence: '双周',
+        template_key: 'scrum-board-burndown',
+        member_ids: [],
+      }),
+    })
+    expect(rejected.status).toBe(400)
+
+    const created = await app.request('/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'OPS',
+        name: '运营平台',
+        glyph: '运',
+        color: '#6f7f5b',
+        cadence: '双周',
+        template_key: 'scrum-board-burndown',
+        member_ids: [],
+      }),
+    })
+
+    const state = appStateResponseSchema.parse(await created.json())
+    expect(created.status).toBe(201)
+    expect(state.projects.some((project) => project.code === 'OPS')).toBe(true)
+  })
+
+  it('updates issue status through the shared contract by app-state id', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+    const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
+    const issue = state.issues.find((item) => item.key === 'SRCH-186')
+
+    const response = await app.request(`/api/issues/${issue?.id}/status`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    })
+
+    const next = appStateResponseSchema.parse(await response.json())
+    expect(response.status).toBe(200)
+    expect(next.issues.find((item) => item.id === issue?.id)?.status).toBe('done')
+  })
+
   it('serves every full product module', async () => {
     const app = createApp(createMemoryRepository(seedData))
 
