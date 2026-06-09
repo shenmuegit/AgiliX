@@ -1,46 +1,46 @@
-# AgiliX Current Frontend Data Model Design
+# AgiliX 当前前端数据模型设计
 
-## Goal
+## 目标
 
-Redesign the AgiliX database schema and persistence relationships so they strictly satisfy the current frontend's displayed data, user flows, and business logic, while adding document versions as a persisted document capability.
+重新设计 AgiliX 的数据库表结构和持久化关系，使其严格满足当前前端已经展示的数据、用户操作流程和业务逻辑，同时为文档增加真实的版本系统。
 
-## Hard Constraints
+## 硬性约束
 
-- Do not change current frontend user operation flows.
-- Do not change current frontend display style.
-- Do not change current frontend business logic.
-- Do not introduce permissions.
-- Do not introduce approvals.
-- Do not introduce owner or responsible-person concepts.
-- Do not introduce team concepts.
-- Do not design for speculative future collaboration features.
-- Keep `/api/bootstrap` compatible with the current frontend `SeedData` shape.
-- Keep current mutation semantics compatible with existing frontend calls.
+- 不改变当前前端用户操作流程。
+- 不改变当前前端展示样式。
+- 不改变当前前端业务逻辑。
+- 不引入权限。
+- 不引入审批。
+- 不引入负责人或责任人概念。
+- 不引入团队概念。
+- 不为猜测性的未来协作能力设计数据库。
+- 保持 `/api/bootstrap` 与当前前端 `SeedData` 数据形状兼容。
+- 保持当前 mutation API 的语义与现有前端调用兼容。
 
-## Product Contract
+## 产品契约
 
-The current frontend is the source of truth. The database must be a relational expression of the data already represented by these frontend surfaces:
+当前前端是数据模型的唯一真实契约。数据库必须是当前前端已经表达的数据关系的关系型实现，覆盖这些页面和业务面：
 
-- Team workbench.
-- Project overview.
-- Issues and defects.
-- Board, table, and timeline views.
-- Iteration statistics.
-- Documents.
-- Member workload.
-- Daily standup.
-- Gantt schedule.
-- Feishu notifications and query commands.
+- 团队工作台。
+- 项目总览。
+- 需求与缺陷。
+- 看板、表格、时间线视图。
+- 迭代统计。
+- 文档。
+- 成员负载。
+- 每日站会。
+- 排期甘特。
+- 飞书通知和查询命令。
 
-The database may be more normalized than the frontend data shape, but the repository must project data back into the current frontend contract without changing UI behavior.
+数据库可以比前端数据形状更关系化，但 repository 必须把数据投影回当前前端契约，且不能改变 UI 行为。
 
-## Recommended Data Model
+## 推荐数据模型
 
-### Projects
+### 项目
 
-`projects` remains the top-level project container.
+`projects` 仍然是顶层项目容器。
 
-Required fields:
+必需字段：
 
 - `id`
 - `name`
@@ -48,20 +48,20 @@ Required fields:
 - `color`
 - `active_iteration_id`
 
-Relationship rules:
+关系规则：
 
-- A project has many iterations.
-- A project has many issues.
-- A project has many project-scoped documents.
-- A project has many standups.
-- A project has many milestones.
-- `active_iteration_id` must reference an iteration belonging to the same project.
+- 一个项目有多个迭代。
+- 一个项目有多个 Issue。
+- 一个项目有多个项目文档。
+- 一个项目有多个站会。
+- 一个项目有多个里程碑。
+- `active_iteration_id` 必须引用同一项目下的迭代。
 
-### Iterations
+### 迭代
 
-Iterations are project-internal units, not peers of projects.
+迭代是项目内单位，不与项目平级。
 
-Required fields:
+必需字段：
 
 - `id`
 - `project_id`
@@ -74,11 +74,11 @@ Required fields:
 - `goal`
 - `velocity`
 
-Supporting table:
+辅助表：
 
 - `iteration_calendar_weeks`
 
-`iteration_calendar_weeks` required fields:
+`iteration_calendar_weeks` 必需字段：
 
 - `id`
 - `iteration_id`
@@ -86,24 +86,24 @@ Supporting table:
 - `label`
 - `range_label`
 
-Supporting table:
+辅助表：
 
 - `iteration_calendar_days`
 
-`iteration_calendar_days` required fields:
+`iteration_calendar_days` 必需字段：
 
 - `id`
 - `week_id`
 - `sort_order`
 - `label`
 
-This replaces JSON calendar storage with explicit rows because the current frontend treats weeks and days as structured iteration data.
+当前前端已经把周和日期当成结构化迭代数据展示，因此这里用显式子表替代 JSON 日历字段。
 
-### Members
+### 成员
 
-Members represent people visible in workload, standup, issue handling, comments, and online avatar display. They are not teams and do not imply permissions.
+成员代表当前前端中可见的人：用于成员负载、站会、Issue 当前处理人、评论作者和在线头像展示。成员不是团队，也不代表权限。
 
-Required fields:
+必需字段：
 
 - `id`
 - `name`
@@ -115,18 +115,18 @@ Required fields:
 - `feishu_union_id`
 - `online_sort_order`
 
-Relationship rules:
+关系规则：
 
-- Issues can reference a member as current handler.
-- Comments can reference a member as author.
-- Standup items reference members.
-- Milestones can reference a member as participant for current frontend compatibility, but UI must not present this as an owner concept.
+- Issue 可以引用成员作为当前处理人。
+- 评论可以引用成员作为作者。
+- 站会条目引用成员。
+- 里程碑可以引用成员作为参与者，以兼容当前前端展示，但 UI 不得把它表达为负责人概念。
 
-### Issues
+### Issue
 
-Issues represent需求、缺陷、任务、技术事项 exactly as current frontend boards and lists display them.
+Issue 表示当前前端列表和看板中展示的需求、缺陷、任务和技术事项。
 
-Required fields:
+必需字段：
 
 - `key`
 - `project_id`
@@ -139,17 +139,17 @@ Required fields:
 - `story_points`
 - `blocker_reason`
 
-Relationship rules:
+关系规则：
 
-- `project_id` must reference the issue's project.
-- `iteration_id` must reference an iteration in the same project.
-- `handler_member_id` references `members.id` and is a current handler, not a responsible owner.
+- `project_id` 必须引用 Issue 所属项目。
+- `iteration_id` 必须引用同一项目下的迭代。
+- `handler_member_id` 引用 `members.id`，含义是当前处理人，不是负责人。
 
-Supporting table:
+辅助表：
 
 - `issue_events`
 
-`issue_events` required fields:
+`issue_events` 必需字段：
 
 - `id`
 - `issue_key`
@@ -158,13 +158,13 @@ Supporting table:
 - `message`
 - `created_at`
 
-Events are retained because the existing schema already has issue events, and current UI concepts such as status movement and blockers need a durable audit trail. They are not a global activity feed.
+保留事件表是因为现有 schema 已经存在 Issue 事件，并且当前 UI 的状态流转、阻塞等概念需要持久化记录。它不是全局动态流。
 
-### Documents
+### 文档
 
-Documents must support the current frontend's global/project scopes, directory tree, linked issues, comments, Markdown rendering, Mermaid rendering, diagram rendering, mindmap rendering, and the newly required version system.
+文档必须支持当前前端已经表达的全局/项目范围、目录树、关联 Issue、评论、Markdown 渲染、Mermaid 渲染、Diagram 渲染、脑图渲染，以及新增要求的版本系统。
 
-Required fields:
+必需字段：
 
 - `id`
 - `scope`
@@ -176,30 +176,30 @@ Required fields:
 - `created_at`
 - `updated_at`
 
-Allowed `scope` values:
+允许的 `scope` 值：
 
 - `global`
 - `project`
 
-Allowed `content_type` values:
+允许的 `content_type` 值：
 
 - `markdown`
 - `mermaid`
 - `diagram`
 - `mindmap`
 
-Relationship rules:
+关系规则：
 
-- Global documents must not have `project_id`.
-- Project documents must have `project_id`.
-- `directory_id` must reference a directory with matching scope and project.
-- `current_version_id` must reference the latest active document version for that document.
+- 全局文档不能有 `project_id`。
+- 项目文档必须有 `project_id`。
+- `directory_id` 必须引用范围和项目匹配的目录。
+- `current_version_id` 必须引用该文档当前使用的版本。
 
-### Document Directories
+### 文档目录
 
-Directories are first-class data because the current frontend expresses create, rename, delete, multi-level selection, and directory tree behavior.
+目录必须是一等数据，因为当前前端已经表达了新建目录、重命名、删除、多级选择和目录树行为。
 
-Required fields:
+必需字段：
 
 - `id`
 - `scope`
@@ -210,19 +210,19 @@ Required fields:
 - `created_at`
 - `updated_at`
 
-Relationship rules:
+关系规则：
 
-- Global directories must not have `project_id`.
-- Project directories must have `project_id`.
-- Child directories must share the same `scope` and `project_id` as their parent.
-- Directory path shown to the current frontend is projected from ancestors and `name`.
-- Deleting a directory is allowed only when no document or child directory remains under it.
+- 全局目录不能有 `project_id`。
+- 项目目录必须有 `project_id`。
+- 子目录必须与父目录拥有相同的 `scope` 和 `project_id`。
+- 当前前端展示的目录路径由祖先目录和 `name` 投影生成。
+- 只有目录下没有文档且没有子目录时，才允许删除目录。
 
-### Document Versions
+### 文档版本
 
-Document versions are required even though the current frontend does not yet expose a version UI. The current visible document body must come from the document's current version so the existing frontend still sees one `body` string.
+文档版本是必需能力，即使当前前端暂时还没有版本 UI。当前可见的文档正文必须来自文档的当前版本，因此现有前端仍然只看到一个 `body` 字符串。
 
-Required fields:
+必需字段：
 
 - `id`
 - `doc_id`
@@ -231,34 +231,34 @@ Required fields:
 - `created_by_member_id`
 - `created_at`
 
-Relationship rules:
+关系规则：
 
-- Each document has one or more versions.
-- `documents.current_version_id` references one version belonging to the same document.
-- Creating a document creates version `1`.
-- Updating document body creates a new version and moves `current_version_id`.
-- The current frontend projection exposes `Doc.body` from the current version.
-- The current frontend projection exposes `Doc.updatedAtLabel` by formatting `documents.updated_at`.
+- 每个文档至少有一个版本。
+- `documents.current_version_id` 引用同一文档下的某一个版本。
+- 创建文档时创建版本 `1`。
+- 更新文档正文时创建新版本，并移动 `current_version_id`。
+- 当前前端投影中的 `Doc.body` 来自当前版本。
+- 当前前端投影中的 `Doc.updatedAtLabel` 由 `documents.updated_at` 格式化得到。
 
-### Document Issue Links
+### 文档与 Issue 关联
 
-Document-to-Issue links remain explicit.
+文档与 Issue 的关联保持显式建模。
 
-Required fields:
+必需字段：
 
 - `doc_id`
 - `issue_key`
 
-Relationship rules:
+关系规则：
 
-- The pair must be unique.
-- Links project into both `Doc.linkedIssueKeys` and `Issue.linkedDocIds`.
+- `doc_id` 和 `issue_key` 组合必须唯一。
+- 关联关系同时投影为 `Doc.linkedIssueKeys` 和 `Issue.linkedDocIds`。
 
-### Document Comments
+### 文档评论
 
-Document comments remain scoped to documents.
+文档评论仍然只归属于文档。
 
-Required fields:
+必需字段：
 
 - `id`
 - `doc_id`
@@ -267,16 +267,16 @@ Required fields:
 - `resolved`
 - `created_at`
 
-Projection rules:
+投影规则：
 
-- `author_member_id` projects to current frontend `authorId`.
-- `created_at` projects to current frontend `createdAtLabel`.
+- `author_member_id` 投影为当前前端的 `authorId`。
+- `created_at` 投影为当前前端的 `createdAtLabel`。
 
-### Standups
+### 站会
 
-Standups remain project-scoped and support the current daily standup page.
+站会保持项目维度，用于支持当前每日站会页面。
 
-Required fields:
+必需字段：
 
 - `id`
 - `project_id`
@@ -286,11 +286,11 @@ Required fields:
 - `time_label`
 - `calendar_label`
 
-Supporting table:
+辅助表：
 
 - `standup_items`
 
-`standup_items` required fields:
+`standup_items` 必需字段：
 
 - `id`
 - `standup_id`
@@ -300,16 +300,16 @@ Supporting table:
 - `today_text`
 - `blockers_text`
 
-Projection rules:
+投影规则：
 
-- Text fields project to the current frontend string arrays by splitting stored lines.
-- Empty text projects to an empty array.
+- 文本字段按行拆分后投影为当前前端需要的字符串数组。
+- 空文本投影为空数组。
 
-### Milestones
+### 里程碑
 
-Milestones remain project and iteration scoped for the current Gantt page.
+里程碑保持项目和迭代维度，用于当前排期甘特页面。
 
-Required fields:
+必需字段：
 
 - `id`
 - `project_id`
@@ -320,24 +320,24 @@ Required fields:
 - `status`
 - `participant_member_id`
 
-Relationship rules:
+关系规则：
 
-- `iteration_id` must reference an iteration in the same project.
-- `participant_member_id` references a member for current frontend display compatibility, not ownership.
+- `iteration_id` 必须引用同一项目下的迭代。
+- `participant_member_id` 引用成员，用于兼容当前前端展示，不代表负责人。
 
-Projection rules:
+投影规则：
 
-- `participant_member_id` projects to the existing frontend `ownerId` field until the frontend contract is renamed in a separate approved change.
+- 在单独批准前端契约改名之前，`participant_member_id` 投影为现有前端字段 `ownerId`。
 
-### Feishu
+### 飞书
 
-Feishu data must support the current notification buttons, command query buttons, and online member identity display.
+飞书数据必须支持当前通知按钮、查询命令按钮和在线成员身份展示。
 
-Required table:
+必需表：
 
 - `feishu_member_profiles`
 
-Required fields:
+必需字段：
 
 - `member_id`
 - `open_id`
@@ -346,11 +346,11 @@ Required fields:
 - `display_name`
 - `last_seen_at`
 
-Required table:
+必需表：
 
 - `feishu_notifications`
 
-Required fields:
+必需字段：
 
 - `id`
 - `trigger`
@@ -359,11 +359,11 @@ Required fields:
 - `status`
 - `created_at`
 
-Required table:
+必需表：
 
 - `feishu_queries`
 
-Required fields:
+必需字段：
 
 - `id`
 - `command`
@@ -371,14 +371,14 @@ Required fields:
 - `response_body_json`
 - `created_at`
 
-Projection rules:
+投影规则：
 
-- Current frontend `feishu.groups`, `feishu.queryCommands`, and `feishu.notificationTriggers` remain available from repository projection.
-- Member avatar and display name are projected into current member data without changing page layout.
+- 当前前端的 `feishu.groups`、`feishu.queryCommands` 和 `feishu.notificationTriggers` 继续由 repository 投影提供。
+- 成员头像和展示名投影进当前成员数据，不改变页面布局。
 
-## API Compatibility
+## API 兼容性
 
-Existing API routes remain semantically stable:
+现有 API 路由语义保持稳定：
 
 - `GET /api/bootstrap`
 - `GET /api/projects`
@@ -396,51 +396,51 @@ Existing API routes remain semantically stable:
 - `POST /api/feishu/query`
 - `POST /api/feishu/notifications`
 
-The repository may use new internal tables, but route payloads must continue to accept the current frontend client contract.
+repository 可以使用新的内部表，但路由 payload 必须继续接受当前前端 client 的数据契约。
 
-## Projection Contract
+## 投影契约
 
-The repository must expose current frontend shapes:
+repository 必须输出当前前端需要的数据形状：
 
-- `Project.activeIterationCode` is derived from `projects.active_iteration_id -> iterations.code`.
-- `Iteration.calendarWeeks` is assembled from `iteration_calendar_weeks` and `iteration_calendar_days`.
-- `Issue.assigneeId` is projected from `issues.handler_member_id`.
-- `Issue.linkedDocIds` is assembled from `document_issue_links`.
-- `Doc.directory` is derived from `doc_directories` ancestor path.
-- `Doc.body` is read from `document_versions` through `documents.current_version_id`.
-- `Doc.linkedIssueKeys` is assembled from `document_issue_links`.
-- `Doc.comments` is assembled from `doc_comments`.
-- `Doc.updatedAtLabel` is derived from `documents.updated_at`.
-- `DocComment.authorId` is projected from `doc_comments.author_member_id`.
-- `DocComment.createdAtLabel` is derived from `doc_comments.created_at`.
-- `Milestone.ownerId` is projected from `milestones.participant_member_id` for compatibility only.
+- `Project.activeIterationCode` 由 `projects.active_iteration_id -> iterations.code` 派生。
+- `Iteration.calendarWeeks` 由 `iteration_calendar_weeks` 和 `iteration_calendar_days` 组装。
+- `Issue.assigneeId` 由 `issues.handler_member_id` 投影。
+- `Issue.linkedDocIds` 由 `document_issue_links` 组装。
+- `Doc.directory` 由 `doc_directories` 祖先路径派生。
+- `Doc.body` 通过 `documents.current_version_id` 从 `document_versions` 读取。
+- `Doc.linkedIssueKeys` 由 `document_issue_links` 组装。
+- `Doc.comments` 由 `doc_comments` 组装。
+- `Doc.updatedAtLabel` 由 `documents.updated_at` 派生。
+- `DocComment.authorId` 由 `doc_comments.author_member_id` 投影。
+- `DocComment.createdAtLabel` 由 `doc_comments.created_at` 派生。
+- `Milestone.ownerId` 仅为兼容，由 `milestones.participant_member_id` 投影。
 
-## Test Strategy
+## 测试策略
 
-Implementation must be TDD-first.
+实施必须 TDD 先行。
 
-Required red-green coverage:
+必须覆盖的红绿循环：
 
-- Schema tests prove the new tables and relations exist.
-- Repository conformance tests prove seed, load, create project, move issue, create document, document version creation, comment creation, standup save, milestone save, Feishu notification, and Feishu query all persist correctly.
-- API tests prove existing route payloads and response shapes stay compatible.
-- Frontend route tests prove current pages continue to render without behavior changes.
-- Visual audit proves current style remains unchanged.
-- Real API e2e tests prove no Playwright API mocks are used.
+- schema 测试证明新表和关系存在。
+- repository conformance 测试证明 seed、load、创建项目、移动 Issue、创建文档、创建文档版本、创建评论、保存站会、保存里程碑、飞书通知和飞书查询都能正确持久化。
+- API 测试证明现有路由 payload 和响应形状保持兼容。
+- 前端 route 测试证明当前页面继续渲染，行为不变。
+- 视觉审计证明当前样式不变。
+- 真实 API e2e 测试证明不使用 Playwright API mock。
 
-## Non-Goals
+## 非目标
 
-- No permission model.
-- No approval flow.
-- No owner or responsible-person model.
-- No team model.
-- No UI redesign.
-- No frontend operation-flow redesign.
-- No speculative collaboration feed.
-- No document editing UI beyond current document creation and comment behavior.
+- 不做权限模型。
+- 不做审批流。
+- 不做负责人或责任人模型。
+- 不做团队模型。
+- 不做 UI 重设计。
+- 不做前端操作流程重设计。
+- 不做猜测性的协作动态流。
+- 不做超出当前文档创建和评论行为之外的文档编辑 UI。
 
-## Open Implementation Notes
+## 实施说明
 
-- The implementation can migrate from JSON fields to normalized child tables where the current frontend already treats data as structured rows.
-- The implementation must keep compatibility names such as `assigneeId` and `ownerId` at the API projection boundary until a separate frontend contract change is explicitly approved.
-- The version system must be real in persistence even if the current frontend only consumes the current document body.
+- 当前前端已经把某些数据当作结构化行使用时，实施可以从 JSON 字段迁移为规范化子表。
+- 在单独批准前端契约变更前，API 投影边界必须保留 `assigneeId`、`ownerId` 等兼容字段名。
+- 即使当前前端只消费当前文档正文，版本系统也必须在持久化层真实存在。
