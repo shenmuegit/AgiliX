@@ -1,8 +1,85 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { AppStateResponse } from '@agilix/contract'
 import { seedData } from '../domain/fixtures'
 import { createAgiliXClient } from './client'
 
+const emptyAppStateResponse: AppStateResponse = {
+  projects: [],
+  project_members: [],
+  iterations: [],
+  iteration_calendar_weeks: [],
+  iteration_calendar_days: [],
+  members: [],
+  issues: [],
+  issue_events: [],
+  issue_labels: [],
+  issue_collaborators: [],
+  documents: [],
+  document_directories: [],
+  document_issue_links: [],
+  document_comments: [],
+  standups: [],
+  standup_items: [],
+  milestones: [],
+  feishu_member_profiles: [],
+  feishu_groups: [],
+  feishu_bot_rules: [],
+  feishu_notifications: [],
+  feishu_queries: [],
+}
+
 describe('AgiliX API client', () => {
+  it('loads shared contract app state and sends shared project and issue status requests', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === '/api/app-state') return Response.json(emptyAppStateResponse)
+      if (String(input) === '/api/projects') return Response.json(emptyAppStateResponse, { status: 201 })
+      if (String(input) === '/api/issues/730000000000000401/status')
+        return Response.json(emptyAppStateResponse)
+      throw new Error(`Unexpected path: ${String(input)}`)
+    })
+    const client = createAgiliXClient(fetcher)
+
+    await expect(client.loadAppState()).resolves.toEqual(emptyAppStateResponse)
+    await client.createContractProject({
+      code: 'OPS',
+      name: '运营平台',
+      glyph: '运',
+      color: '#6f7f5b',
+      cadence: '双周',
+      template_key: 'scrum-board-burndown',
+      member_ids: [],
+    })
+    await client.moveIssueById('730000000000000401', 'done')
+
+    expect(fetcher).toHaveBeenCalledWith('/api/app-state', {
+      headers: { 'content-type': 'application/json' },
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/projects', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'OPS',
+        name: '运营平台',
+        glyph: '运',
+        color: '#6f7f5b',
+        cadence: '双周',
+        template_key: 'scrum-board-burndown',
+        member_ids: [],
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/issues/730000000000000401/status', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    })
+  })
+
+  it('rejects malformed shared contract app state instead of using fallback data', async () => {
+    const client = createAgiliXClient(vi.fn(async () => Response.json({ projects: 'not-array' })))
+
+    await expect(client.loadAppState()).rejects.toThrow('AgiliX API response validation failed')
+  })
+
   it('loads bootstrap data and sends core mutations with JSON headers', async () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === '/api/bootstrap')

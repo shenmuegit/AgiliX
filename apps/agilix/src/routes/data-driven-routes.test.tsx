@@ -271,8 +271,17 @@ const dataDrivenSeed: SeedData = {
 
 function createClient(data: SeedData): AgiliXClient {
   return {
+    loadAppState: vi.fn(async () => {
+      throw new Error('Contract app-state client is not used in this route test')
+    }),
     loadData: vi.fn(async () => data),
+    createContractProject: vi.fn(async () => {
+      throw new Error('Contract project creation is not used in this route test')
+    }),
     createProject: vi.fn(async () => undefined),
+    moveIssueById: vi.fn(async () => {
+      throw new Error('Contract issue status updates are not used in this route test')
+    }),
     moveIssue: vi.fn(async () => undefined),
     addDocComment: vi.fn(async () => undefined),
     createDoc: vi.fn(async () => undefined),

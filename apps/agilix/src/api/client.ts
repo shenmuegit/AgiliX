@@ -1,3 +1,11 @@
+import {
+  appStateResponseSchema,
+  createProjectRequestSchema,
+  updateIssueStatusRequestSchema,
+  type AppStateResponse,
+  type CreateProjectRequest,
+  type IssueStatus as ContractIssueStatus,
+} from '@agilix/contract'
 import { z } from 'zod'
 import { createDocQueryCommand } from '../domain/feishu'
 import type {
@@ -32,8 +40,11 @@ export type CreateDocInput = Doc extends infer D
   : never
 
 export interface AgiliXClient {
+  loadAppState(): Promise<AppStateResponse>
   loadData(): Promise<SeedData>
+  createContractProject(input: CreateProjectRequest): Promise<AppStateResponse>
   createProject(input: CreateProjectInput): Promise<void>
+  moveIssueById(issueId: string, status: ContractIssueStatus): Promise<AppStateResponse>
   moveIssue(issueKey: string, status: IssueStatus): Promise<void>
   addDocComment(docId: string, comment: DocComment): Promise<void>
   createDoc(doc: CreateDocInput): Promise<void>
@@ -348,13 +359,30 @@ async function requestNoContent(
 
 export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
   return {
+    loadAppState() {
+      return requestJson(fetcher, '/api/app-state', 200, appStateResponseSchema)
+    },
     loadData() {
       return requestJson(fetcher, '/api/bootstrap', 200, seedDataSchema)
+    },
+    async createContractProject(input) {
+      const parsed = createProjectRequestSchema.parse(input)
+      return requestJson(fetcher, '/api/projects', 201, appStateResponseSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      })
     },
     async createProject(input) {
       const parsed = createProjectInputSchema.parse(input)
       await requestJson(fetcher, '/api/projects', 201, projectSchema, {
         method: 'POST',
+        body: JSON.stringify(parsed),
+      })
+    },
+    moveIssueById(issueId, status) {
+      const parsed = updateIssueStatusRequestSchema.parse({ status })
+      return requestJson(fetcher, `/api/issues/${issueId}/status`, 200, appStateResponseSchema, {
+        method: 'PATCH',
         body: JSON.stringify(parsed),
       })
     },

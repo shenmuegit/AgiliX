@@ -60,14 +60,23 @@ export function createInMemoryClient() {
     recordedFeishuNotifications(): string[]
     recordedFeishuQueries(): string[]
   } = {
+    async loadAppState() {
+      throw new Error('Contract app-state client is not wired in the in-memory test client')
+    },
     async loadData() {
       loadDataCalls += 1
       return clone(data)
+    },
+    async createContractProject() {
+      throw new Error('Contract project creation is not wired in the in-memory test client')
     },
     async moveIssue(issueKey: string, status: IssueStatus) {
       if (!data.issues.some((issue) => issue.key === issueKey))
         throw new Error(`Issue not found: ${issueKey}`)
       data = { ...data, issues: moveIssue(data.issues, issueKey, status) }
+    },
+    async moveIssueById() {
+      throw new Error('Contract issue status updates are not wired in the in-memory test client')
     },
     async createProject(input: CreateProjectInput) {
       if (input.project.id !== input.iteration.projectId)
