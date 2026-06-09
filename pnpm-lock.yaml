@@ -26,6 +26,9 @@ importers:
 
   apps/agilix:
     dependencies:
+      '@agilix/contract':
+        specifier: workspace:*
+        version: link:../../packages/agilix-contract
       react:
         specifier: ^19.0.0
         version: 19.2.6
@@ -75,6 +78,9 @@ importers:
       '@agilix/app':
         specifier: workspace:*
         version: link:../agilix
+      '@agilix/contract':
+        specifier: workspace:*
+        version: link:../../packages/agilix-contract
       drizzle-orm:
         specifier: ^0.38.0
         version: 0.38.4(@cloudflare/workers-types@4.20260518.1)(@prisma/client@6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3))(@types/better-sqlite3@7.6.13)(@types/react@19.2.14)(better-sqlite3@11.10.0)(prisma@6.19.3(typescript@5.9.3))(react@19.2.6)
@@ -100,6 +106,19 @@ importers:
       tsx:
         specifier: ^4.20.6
         version: 4.22.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.32.0)
+
+  packages/agilix-contract:
+    dependencies:
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
+    devDependencies:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
