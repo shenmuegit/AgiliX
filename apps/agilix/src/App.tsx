@@ -5,6 +5,7 @@ import {
   type CreateDocInput,
   type FeishuNotificationInput,
 } from './api/client'
+import { toDisplaySeedData } from './api/appStateAdapter'
 import type { ProjectFilterValue } from './components/ProjectFilter'
 import { Shell, type NavItem } from './components/Shell'
 import type {
@@ -36,7 +37,7 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   const [data, setData] = useState<SeedData | null>(null)
 
   async function refresh() {
-    setData(await client.loadData())
+    setData(toDisplaySeedData(await client.loadAppState()))
   }
 
   useEffect(() => {

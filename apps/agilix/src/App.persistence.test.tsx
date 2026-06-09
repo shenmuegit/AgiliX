@@ -1,11 +1,23 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { App } from './App'
 import { seedData } from './domain/fixtures'
 import { createInMemoryClient } from './test/createInMemoryClient'
 
 describe('App API wiring', () => {
+  afterEach(() => cleanup())
+
+  it('loads the main pages from shared contract app-state before rendering', async () => {
+    const client = createInMemoryClient()
+
+    render(<App client={client} />)
+
+    expect(await screen.findByText('SRCH-198')).toBeInTheDocument()
+    expect(client.loadAppStateCount()).toBe(1)
+    expect(client.loadCount()).toBe(0)
+  })
+
   it('loads data and persists core route mutations through the client', async () => {
     const client = createInMemoryClient()
 
@@ -60,16 +72,16 @@ describe('App API wiring', () => {
     )
 
     await userEvent.click(screen.getByRole('link', { name: '每日站会' }))
-    const standupLoadCount = client.loadCount()
+    const standupLoadCount = client.loadAppStateCount()
     await userEvent.click(await screen.findByRole('button', { name: '保存站会' }))
     expect(client.recordedStandupSaves()).toContain('standup-search-today')
-    await waitFor(() => expect(client.loadCount()).toBeGreaterThan(standupLoadCount))
+    await waitFor(() => expect(client.loadAppStateCount()).toBeGreaterThan(standupLoadCount))
 
     await userEvent.click(screen.getByRole('link', { name: '排期甘特' }))
-    const milestoneLoadCount = client.loadCount()
+    const milestoneLoadCount = client.loadAppStateCount()
     await userEvent.click(await screen.findByRole('button', { name: '保存 Beta 开关接入' }))
     expect(client.recordedMilestoneSaves()).toContain('ms-beta')
-    await waitFor(() => expect(client.loadCount()).toBeGreaterThan(milestoneLoadCount))
+    await waitFor(() => expect(client.loadAppStateCount()).toBeGreaterThan(milestoneLoadCount))
 
     await userEvent.click(screen.getByRole('link', { name: '群机器人' }))
     await userEvent.click(await screen.findByRole('button', { name: '记录 站会摘要' }))

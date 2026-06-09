@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from './App'
 import { seedData } from './domain/fixtures'
-import { createInMemoryClient } from './test/createInMemoryClient'
+import { createInMemoryClient, seedDataToAppState } from './test/createInMemoryClient'
 
 afterEach(() => cleanup())
 
@@ -76,7 +76,7 @@ describe('AgiliX app shell', () => {
     const fetcher = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(
-        new Response(JSON.stringify(seedData), {
+        new Response(JSON.stringify(seedDataToAppState(seedData)), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),

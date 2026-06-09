@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App } from '../App'
 import type { AgiliXClient } from '../api/client'
 import type { DocQueryText, FeishuQueryCommand, SeedData } from '../domain/types'
+import { seedDataToAppState } from '../test/createInMemoryClient'
 import { BoardPage } from './BoardPage'
 import { DocsPage } from './DocsPage'
 import { FeishuPage } from './FeishuPage'
@@ -271,9 +272,7 @@ const dataDrivenSeed: SeedData = {
 
 function createClient(data: SeedData): AgiliXClient {
   return {
-    loadAppState: vi.fn(async () => {
-      throw new Error('Contract app-state client is not used in this route test')
-    }),
+    loadAppState: vi.fn(async () => seedDataToAppState(data)),
     loadData: vi.fn(async () => data),
     createContractProject: vi.fn(async () => {
       throw new Error('Contract project creation is not used in this route test')
