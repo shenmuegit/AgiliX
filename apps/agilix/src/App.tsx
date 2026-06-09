@@ -4,6 +4,7 @@ import {
   type AgiliXClient,
   type CreateDocInput,
   type FeishuNotificationInput,
+  type ContractIssueStatus,
 } from './api/client'
 import { toDisplaySeedData } from './api/appStateAdapter'
 import type { ProjectFilterValue } from './components/ProjectFilter'
@@ -45,8 +46,9 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   }, [client])
 
   async function moveAndRefresh(issueKey: string, status: IssueStatus) {
-    await client.moveIssue(issueKey, status)
-    await refresh()
+    const issue = data?.issues.find((item) => item.key === issueKey)
+    if (!issue?.id) throw new Error(`Issue contract id not found: ${issueKey}`)
+    setData(toDisplaySeedData(await client.moveIssueById(issue.id, toContractIssueStatus(status))))
   }
 
   async function commentAndRefresh(docId: string, comment: DocComment) {
@@ -201,6 +203,11 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
       {page[active]}
     </Shell>
   )
+}
+
+function toContractIssueStatus(status: IssueStatus): ContractIssueStatus {
+  if (status === 'review') throw new Error('Review status is not supported by the contract issue status API')
+  return status
 }
 
 function initialNavItemFromPath(pathname: string): NavItem {

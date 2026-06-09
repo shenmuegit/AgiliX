@@ -27,6 +27,7 @@ describe('App API wiring', () => {
 
     await userEvent.click(screen.getByRole('link', { name: '看板' }))
     await userEvent.click(await screen.findByRole('button', { name: 'SRCH-186 完成' }))
+    expect(client.recordedIssueStatusSaves()).toEqual([{ issueId: 'issue:SRCH-186', status: 'done' }])
     expect((await client.loadData()).issues.find((issue) => issue.key === 'SRCH-186')?.status).toBe(
       'done',
     )

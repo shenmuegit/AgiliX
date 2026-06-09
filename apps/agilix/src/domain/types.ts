@@ -58,6 +58,7 @@ export interface IterationCalendarWeek {
 }
 
 export interface Issue {
+  id?: string
   key: string
   projectId: ProjectId
   iterationId: string

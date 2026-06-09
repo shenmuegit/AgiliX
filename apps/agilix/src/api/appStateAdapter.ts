@@ -77,6 +77,7 @@ export function toDisplaySeedData(state: AppStateResponse): SeedData {
       velocity: iteration.velocity,
     })),
     issues: state.issues.map((issue) => ({
+      id: issue.id,
       key: issue.key,
       projectId: requireProjectCode(projectCodeById, issue.project_id),
       iterationId: issue.iteration_id,

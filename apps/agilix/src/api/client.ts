@@ -25,6 +25,8 @@ export interface FeishuReply {
   lines: string[]
 }
 
+export type { ContractIssueStatus }
+
 export type FeishuNotificationInput = {
   id: string
   targetGroup: 'AgiliX 团队群'

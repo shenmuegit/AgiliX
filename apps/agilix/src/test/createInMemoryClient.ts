@@ -22,10 +22,16 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+type RecordedIssueStatusSave = {
+  issueId: string
+  status: 'todo' | 'doing' | 'blocked' | 'done'
+}
+
 export function createInMemoryClient() {
   let data: SeedData = clone(seedData)
   let loadAppStateCalls = 0
   let loadDataCalls = 0
+  const issueStatusSaves: RecordedIssueStatusSave[] = []
   const standupSaves: string[] = []
   const milestoneSaves: string[] = []
   const feishuNotifications: FeishuNotificationInput[] = []
@@ -62,6 +68,7 @@ export function createInMemoryClient() {
     recordedFeishuNotifications(): string[]
     recordedFeishuQueries(): string[]
     loadAppStateCount(): number
+    recordedIssueStatusSaves(): RecordedIssueStatusSave[]
   } = {
     async loadAppState() {
       loadAppStateCalls += 1
@@ -79,8 +86,13 @@ export function createInMemoryClient() {
         throw new Error(`Issue not found: ${issueKey}`)
       data = { ...data, issues: moveIssue(data.issues, issueKey, status) }
     },
-    async moveIssueById() {
-      throw new Error('Contract issue status updates are not wired in the in-memory test client')
+    async moveIssueById(issueId: string, status: RecordedIssueStatusSave['status']) {
+      const issueKey = legacyScopedId(issueId, 'issue')
+      if (!data.issues.some((issue) => issue.key === issueKey))
+        throw new Error(`Issue not found: ${issueId}`)
+      issueStatusSaves.push({ issueId, status })
+      data = { ...data, issues: moveIssue(data.issues, issueKey, status) }
+      return seedDataToAppState(data)
     },
     async createProject(input: CreateProjectInput) {
       if (input.project.id !== input.iteration.projectId)
@@ -188,6 +200,9 @@ export function createInMemoryClient() {
     },
     loadAppStateCount() {
       return loadAppStateCalls
+    },
+    recordedIssueStatusSaves() {
+      return [...issueStatusSaves]
     },
   }
 
