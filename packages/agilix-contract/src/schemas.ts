@@ -6,6 +6,7 @@ export const issuePriorityValues = ['high', 'medium', 'low'] as const
 export const docScopeValues = ['global', 'project'] as const
 export const docContentTypeValues = ['markdown', 'mermaid', 'diagram', 'mindmap'] as const
 export const botRuleTypeValues = ['scheduled_summary', 'iteration_weekly', 'risk_alert'] as const
+export const milestoneStatusValues = ['done', 'doing', 'risk', 'planned'] as const
 
 const idSchema = z.string().min(1)
 const nullableIdSchema = idSchema.nullable()
@@ -169,7 +170,7 @@ export const milestoneRowSchema = z.object({
   title: z.string().min(1),
   start_day: z.number().int(),
   end_day: z.number().int(),
-  status: z.string().min(1),
+  status: z.enum(milestoneStatusValues),
   participant_member_id: idSchema,
 }).strict()
 
@@ -342,7 +343,7 @@ export const saveMilestoneRequestSchema = z.object({
   title: z.string().min(1),
   start_day: z.number().int(),
   end_day: z.number().int(),
-  status: z.string().min(1),
+  status: z.enum(milestoneStatusValues),
   participant_member_id: idSchema,
 }).strict()
 

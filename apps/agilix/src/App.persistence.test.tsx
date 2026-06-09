@@ -85,16 +85,14 @@ describe('App API wiring', () => {
     )
 
     await userEvent.click(screen.getByRole('link', { name: '每日站会' }))
-    const standupLoadCount = client.loadAppStateCount()
     await userEvent.click(await screen.findByRole('button', { name: '保存站会' }))
+    expect(client.recordedContractStandupSaves()).toContain('standup:standup-search-today')
     expect(client.recordedStandupSaves()).toContain('standup-search-today')
-    await waitFor(() => expect(client.loadAppStateCount()).toBeGreaterThan(standupLoadCount))
 
     await userEvent.click(screen.getByRole('link', { name: '排期甘特' }))
-    const milestoneLoadCount = client.loadAppStateCount()
     await userEvent.click(await screen.findByRole('button', { name: '保存 Beta 开关接入' }))
+    expect(client.recordedContractMilestoneSaves()).toContain('milestone:ms-beta')
     expect(client.recordedMilestoneSaves()).toContain('ms-beta')
-    await waitFor(() => expect(client.loadAppStateCount()).toBeGreaterThan(milestoneLoadCount))
 
     await userEvent.click(screen.getByRole('link', { name: '群机器人' }))
     await userEvent.click(await screen.findByRole('button', { name: '记录 站会摘要' }))

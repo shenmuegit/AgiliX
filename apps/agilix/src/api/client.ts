@@ -1,13 +1,20 @@
 import {
   appStateResponseSchema,
   createProjectRequestSchema,
+  feishuQueryRequestSchema,
+  feishuQueryResponseSchema,
+  saveMilestoneRequestSchema,
+  saveStandupRequestSchema,
   updateIssueStatusRequestSchema,
   type AppStateResponse,
   type CreateProjectRequest,
+  type FeishuQueryResponse,
   type IssueStatus as ContractIssueStatus,
+  type SaveMilestoneRequest,
+  type SaveStandupRequest,
 } from '@agilix/contract'
 import { z } from 'zod'
-import { createDocQueryCommand } from '../domain/feishu'
+import { createDocQueryCommand, formatFeishuCommand } from '../domain/feishu'
 import type {
   Doc,
   DocComment,
@@ -48,6 +55,8 @@ export interface AgiliXClient {
   createProject(input: CreateProjectInput): Promise<void>
   moveIssueById(issueId: string, status: ContractIssueStatus): Promise<AppStateResponse>
   moveIssue(issueKey: string, status: IssueStatus): Promise<void>
+  saveContractStandup(standupId: string, input: SaveStandupRequest): Promise<AppStateResponse>
+  saveContractMilestone(milestoneId: string, input: SaveMilestoneRequest): Promise<AppStateResponse>
   addDocComment(docId: string, comment: DocComment): Promise<void>
   createDoc(doc: CreateDocInput): Promise<void>
   saveStandup(standup: Standup): Promise<void>
@@ -322,6 +331,10 @@ const feishuReplySchema: z.ZodType<FeishuReply, z.ZodTypeDef, unknown> = z
   })
   .strict()
 
+const feishuQueryResponseBodySchema = z.object({
+  lines: z.array(z.string()),
+}).strict()
+
 async function send(fetcher: Fetcher, path: string, init: RequestInit = {}): Promise<Response> {
   return fetcher(path, {
     ...init,
@@ -394,6 +407,20 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
         body: JSON.stringify({ status }),
       })
     },
+    saveContractStandup(standupId, input) {
+      const parsed = saveStandupRequestSchema.parse(input)
+      return requestJson(fetcher, `/api/standups/${standupId}`, 200, appStateResponseSchema, {
+        method: 'PUT',
+        body: JSON.stringify(parsed),
+      })
+    },
+    saveContractMilestone(milestoneId, input) {
+      const parsed = saveMilestoneRequestSchema.parse(input)
+      return requestJson(fetcher, `/api/milestones/${milestoneId}`, 200, appStateResponseSchema, {
+        method: 'PUT',
+        body: JSON.stringify(parsed),
+      })
+    },
     addDocComment(docId, comment) {
       return requestJson(fetcher, `/api/docs/${docId}/comments`, 201, docCommentSchema, {
         method: 'POST',
@@ -428,10 +455,18 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
     },
     async queryFeishu(command) {
       const input = feishuCommandSchema.parse(command)
-      return requestJson(fetcher, '/api/feishu/query', 200, feishuReplySchema, {
+      const request = feishuQueryRequestSchema.parse({ command: formatFeishuCommand(input) })
+      const response = await requestJson(fetcher, '/api/feishu/query', 200, feishuQueryResponseSchema, {
         method: 'POST',
-        body: JSON.stringify({ command: input }),
+        body: JSON.stringify(request),
       })
+      return toFeishuReply(response)
     },
   }
+}
+
+function toFeishuReply(response: FeishuQueryResponse): FeishuReply {
+  const body = feishuQueryResponseBodySchema.safeParse(response.response_body_json)
+  if (!body.success) throw new Error('AgiliX API response validation failed: /api/feishu/query')
+  return { title: response.response_title, lines: body.data.lines }
 }

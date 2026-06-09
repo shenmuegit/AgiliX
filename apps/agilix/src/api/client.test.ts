@@ -136,9 +136,10 @@ describe('AgiliX API client', () => {
         )
       }
       if (String(input) === '/api/feishu/query')
-        return new Response(JSON.stringify({ title: '团队状态', lines: ['Issue 7'] }), {
-          status: 200,
-        })
+        return new Response(
+          JSON.stringify({ response_title: '团队状态', response_body_json: { lines: ['Issue 7'] } }),
+          { status: 200 },
+        )
       throw new Error(`Unexpected path: ${String(input)}`)
     })
     const client = createAgiliXClient(fetcher)
@@ -257,7 +258,7 @@ describe('AgiliX API client', () => {
     expect(fetcher).toHaveBeenCalledWith('/api/feishu/query', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ command: { type: 'team' } }),
+      body: JSON.stringify({ command: '/team' }),
     })
   })
 
@@ -335,10 +336,10 @@ describe('AgiliX API client', () => {
 
     await expect(
       createAgiliXClient(
-        vi.fn(
-          async () =>
-            new Response(JSON.stringify({ title: '团队状态', lines: [7] }), { status: 200 }),
-        ),
+        vi.fn(async () => new Response(
+          JSON.stringify({ response_title: '团队状态', response_body_json: { lines: [7] } }),
+          { status: 200 },
+        )),
       ).queryFeishu({ type: 'team' }),
     ).rejects.toThrow('AgiliX API response validation failed')
 

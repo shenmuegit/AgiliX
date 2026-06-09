@@ -11,6 +11,7 @@ import type {
   feishuQueryResponseSchema,
   feishuTestMessageResponseSchema,
   issueStatusValues,
+  milestoneStatusValues,
   recordFeishuNotificationRequestSchema,
   saveAssignmentRequestSchema,
   saveBotConfigRequestSchema,
@@ -38,3 +39,4 @@ export type FeishuQueryRequest = z.infer<typeof feishuQueryRequestSchema>
 export type FeishuQueryResponse = z.infer<typeof feishuQueryResponseSchema>
 export type RecordFeishuNotificationRequest = z.infer<typeof recordFeishuNotificationRequestSchema>
 export type IssueStatus = (typeof issueStatusValues)[number]
+export type MilestoneStatus = (typeof milestoneStatusValues)[number]

@@ -110,6 +110,51 @@ describe('AgiliX API app', () => {
     expect(next.issues.find((item) => item.id === issue?.id)?.status).toBe('done')
   })
 
+  it('saves standup and milestone through shared contract ids', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+    const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
+    const standup = state.standups[0]
+    const member = state.members[0]
+    const milestone = state.milestones[0]
+
+    const standupResponse = await app.request(`/api/standups/${standup.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        items: [
+          {
+            member_id: member.id,
+            yesterday_text: '完成接口联调',
+            today_text: '推进灰度',
+            blockers_text: '',
+          },
+        ],
+      }),
+    })
+    const standupState = appStateResponseSchema.parse(await standupResponse.json())
+    expect(standupResponse.status).toBe(200)
+    expect(standupState.standup_items.filter((item) => item.standup_id === standup.id)).toEqual([
+      expect.objectContaining({ member_id: member.id, today_text: '推进灰度' }),
+    ])
+
+    const milestoneResponse = await app.request(`/api/milestones/${milestone.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        title: '更新后的里程碑',
+        start_day: 1,
+        end_day: 3,
+        status: 'doing',
+        participant_member_id: member.id,
+      }),
+    })
+    const milestoneState = appStateResponseSchema.parse(await milestoneResponse.json())
+    expect(milestoneResponse.status).toBe(200)
+    expect(milestoneState.milestones.find((item) => item.id === milestone.id)).toEqual(
+      expect.objectContaining({ title: '更新后的里程碑', participant_member_id: member.id }),
+    )
+  })
+
   it('serves every full product module', async () => {
     const app = createApp(createMemoryRepository(seedData))
 
@@ -233,22 +278,36 @@ describe('AgiliX API app', () => {
     ).toBe(201)
     expect((await repository.getDoc('doc-api-created'))?.title).toBe('API 创建文档')
 
-    const editedStandup = {
-      ...seedData.standups[0],
-      items: seedData.standups[0].items.map((item) =>
-        item.memberId === 'gao' ? { ...item, today: ['更新后的站会计划'], blockers: [] } : item,
-      ),
-    }
+    const contractState = appStateResponseSchema.parse(
+      await (await app.request('/api/app-state')).json(),
+    )
+    const contractStandup = contractState.standups[0]
+    const contractGao = contractState.members.find((member) => member.name === '高远')
+    const contractMilestone = contractState.milestones.find(
+      (milestone) => milestone.title === 'Beta 开关接入',
+    )
+    expect(contractStandup).toBeDefined()
+    expect(contractGao).toBeDefined()
+    expect(contractMilestone).toBeDefined()
 
     expect(
       (
-        await app.request('/api/standups/standup-search-today', {
+        await app.request(`/api/standups/${contractStandup?.id}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(editedStandup),
+          body: JSON.stringify({
+            items: [
+              {
+                member_id: contractGao?.id,
+                yesterday_text: '推进接口联调',
+                today_text: '更新后的站会计划',
+                blockers_text: '',
+              },
+            ],
+          }),
         })
       ).status,
-    ).toBe(204)
+    ).toBe(200)
     expect(
       (await repository.listStandups({ projectId: 'search' }))[0].items.find(
         (item) => item.memberId === 'gao',
@@ -257,13 +316,19 @@ describe('AgiliX API app', () => {
 
     expect(
       (
-        await app.request('/api/milestones/ms-beta', {
+        await app.request(`/api/milestones/${contractMilestone?.id}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...seedData.milestones[1], status: 'doing' }),
+          body: JSON.stringify({
+            title: contractMilestone?.title,
+            start_day: contractMilestone?.start_day,
+            end_day: contractMilestone?.end_day,
+            status: 'doing',
+            participant_member_id: contractGao?.id,
+          }),
         })
       ).status,
-    ).toBe(204)
+    ).toBe(200)
     expect(
       (await repository.listMilestones({ projectId: 'search' })).find(
         (milestone) => milestone.id === 'ms-beta',
@@ -273,10 +338,13 @@ describe('AgiliX API app', () => {
     const queryResponse = await app.request('/api/feishu/query', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ command: { type: 'team' } }),
+      body: JSON.stringify({ command: '/team' }),
     })
     expect(queryResponse.status).toBe(200)
-    expect(((await queryResponse.json()) as { title: string }).title).toBe('团队状态')
+    expect(await queryResponse.json()).toEqual({
+      response_title: '团队状态',
+      response_body_json: expect.objectContaining({ lines: expect.arrayContaining([expect.stringMatching(/^Issue \d+$/)]) }),
+    })
     expect((await repository.listFeishuQueries()).map((query) => query.command)).toEqual([
       { type: 'team' },
     ])
@@ -304,6 +372,11 @@ describe('AgiliX API app', () => {
 
   it('rejects invalid mutation payloads, id mismatches, missing documents, and invalid document references', async () => {
     const app = createApp(createMemoryRepository(seedData))
+    const contractState = appStateResponseSchema.parse(
+      await (await app.request('/api/app-state')).json(),
+    )
+    const member = contractState.members[0]
+    const milestone = contractState.milestones[0]
 
     expect(
       (
@@ -504,7 +577,16 @@ describe('AgiliX API app', () => {
         await app.request('/api/standups/missing-standup', {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...seedData.standups[0], id: 'missing-standup' }),
+          body: JSON.stringify({
+            items: [
+              {
+                member_id: member.id,
+                yesterday_text: '',
+                today_text: '处理异常路径',
+                blockers_text: '',
+              },
+            ],
+          }),
         })
       ).status,
     ).toBe(404)
@@ -524,17 +606,29 @@ describe('AgiliX API app', () => {
         await app.request('/api/milestones/missing-milestone', {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...seedData.milestones[1], id: 'missing-milestone' }),
+          body: JSON.stringify({
+            title: '缺失里程碑',
+            start_day: 1,
+            end_day: 2,
+            status: 'doing',
+            participant_member_id: member.id,
+          }),
         })
       ).status,
     ).toBe(404)
 
     expect(
       (
-        await app.request('/api/milestones/ms-beta', {
+        await app.request(`/api/milestones/${milestone.id}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...seedData.milestones[1], iterationId: 'missing-iteration' }),
+          body: JSON.stringify({
+            title: '非法状态里程碑',
+            start_day: 1,
+            end_day: 2,
+            status: 'invalid',
+            participant_member_id: member.id,
+          }),
         })
       ).status,
     ).toBe(400)

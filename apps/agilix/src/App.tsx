@@ -66,13 +66,24 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   }
 
   async function saveStandupAndRefresh(standup: Standup) {
-    await client.saveStandup(standup)
-    await refresh()
+    setData(toDisplaySeedData(await client.saveContractStandup(standup.id, {
+      items: standup.items.map((item) => ({
+        member_id: requireMemberContractId(loadedData, item.memberId),
+        yesterday_text: item.yesterday.join('\n'),
+        today_text: item.today.join('\n'),
+        blockers_text: item.blockers.join('\n'),
+      })),
+    })))
   }
 
   async function saveMilestoneAndRefresh(milestone: Milestone) {
-    await client.saveMilestone(milestone)
-    await refresh()
+    setData(toDisplaySeedData(await client.saveContractMilestone(milestone.id, {
+      title: milestone.title,
+      start_day: milestone.startDay,
+      end_day: milestone.endDay,
+      status: milestone.status,
+      participant_member_id: requireMemberContractId(loadedData, milestone.ownerId),
+    })))
   }
 
   if (!data) {
@@ -234,6 +245,12 @@ function toCreateProjectRequest(input: CreateProjectInput) {
       velocity: input.iteration.velocity,
     },
   }
+}
+
+function requireMemberContractId(data: SeedData, memberId: string) {
+  const member = data.members.find((item) => item.id === memberId)
+  if (!member?.contractId) throw new Error(`Member contract id not found: ${memberId}`)
+  return member.contractId
 }
 
 function initialNavItemFromPath(pathname: string): NavItem {

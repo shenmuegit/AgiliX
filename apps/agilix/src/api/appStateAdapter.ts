@@ -49,6 +49,7 @@ export function toDisplaySeedData(state: AppStateResponse): SeedData {
       .sort((a, b) => a.online_sort_order - b.online_sort_order)
       .map((member) => ({
         id: memberIdFromRow(member.id, member.name),
+        contractId: member.id,
         name: member.name,
         role: member.role,
         capacity: member.capacity,

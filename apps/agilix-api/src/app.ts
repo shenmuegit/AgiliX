@@ -1,12 +1,17 @@
-import { buildFeishuReply } from '@agilix/app/domain/feishu'
+import { buildFeishuReply, parseFeishuCommand } from '@agilix/app/domain/feishu'
 import {
   appStateResponseSchema,
   createProjectRequestSchema,
+  feishuQueryRequestSchema,
+  feishuQueryResponseSchema,
+  saveMilestoneRequestSchema,
+  saveStandupRequestSchema,
   updateIssueStatusRequestSchema,
 } from '@agilix/contract'
 import { Hono, type Context } from 'hono'
 import type { z } from 'zod'
-import { legacyIssueKeyFromContractId, toAppStateResponse } from './appStateAdapter'
+import type { MemberId, MilestoneStatus, SeedData, Standup } from '@agilix/app/domain/types'
+import { contractId, legacyIssueKeyFromContractId, toAppStateResponse } from './appStateAdapter'
 import type {
   AddDocCommentResult,
   AgiliXRepository,
@@ -21,12 +26,8 @@ import {
   docQuerySchema,
   docSchema,
   feishuNotificationSchema,
-  feishuQuerySchema,
   issueQuerySchema,
-  milestoneSchema,
-  moveIssueSchema,
   projectScopedQuerySchema,
-  standupSchema,
 } from './schema'
 
 type ParseResult<T> = { value: T; response?: never } | { value?: never; response: Response }
@@ -115,6 +116,22 @@ function parseQuery<T>(
 
 function idMismatch(context: Context, message: string) {
   return context.json({ message }, 400)
+}
+
+function splitContractText(value: string) {
+  return value === '' ? [] : value.split('\n')
+}
+
+function legacyMemberIdFromContractId(data: SeedData, memberId: string) {
+  return data.members.find((member) => contractId('member', member.id) === memberId)?.id
+}
+
+function legacyStandupFromContractId(data: SeedData, standupId: string) {
+  return data.standups.find((standup) => contractId('standup', standup.id) === standupId)
+}
+
+function legacyMilestoneFromContractId(data: SeedData, milestoneId: string) {
+  return data.milestones.find((milestone) => contractId('milestone', milestone.id) === milestoneId)
 }
 
 async function validateProjectFilter(
@@ -260,12 +277,26 @@ export function createApp(repository: AgiliXRepository) {
   })
 
   app.put('/api/standups/:id', async (context) => {
-    const parsed = await parseJson(context, standupSchema)
+    const parsed = await parseJson(context, saveStandupRequestSchema)
     if ('response' in parsed) return parsed.response
-    if (parsed.value.id !== context.req.param('id'))
-      return idMismatch(context, 'Standup id must match route id')
-    const saved = await repository.saveStandup(parsed.value)
-    return saved ? context.body(null, 204) : context.json({ message: 'Standup not found' }, 404)
+    const loadedData = await repository.loadData()
+    const currentStandup = legacyStandupFromContractId(loadedData, context.req.param('id'))
+    if (!currentStandup) return context.json({ message: 'Standup not found' }, 404)
+
+    const items: Standup['items'] = []
+    for (const item of parsed.value.items) {
+      const memberId = legacyMemberIdFromContractId(loadedData, item.member_id)
+      if (!memberId) return context.json({ message: 'Member not found' }, 400)
+      items.push({
+        memberId,
+        yesterday: splitContractText(item.yesterday_text),
+        today: splitContractText(item.today_text),
+        blockers: splitContractText(item.blockers_text),
+      })
+    }
+
+    const saved = await repository.saveStandup({ ...currentStandup, items })
+    return saved ? context.json(await contractAppState(), 200) : context.json({ message: 'Standup not found' }, 404)
   })
 
   app.get('/api/milestones', async (context) => {
@@ -277,27 +308,42 @@ export function createApp(repository: AgiliXRepository) {
   })
 
   app.put('/api/milestones/:id', async (context) => {
-    const parsed = await parseJson(context, milestoneSchema)
+    const parsed = await parseJson(context, saveMilestoneRequestSchema)
     if ('response' in parsed) return parsed.response
-    if (parsed.value.id !== context.req.param('id'))
-      return idMismatch(context, 'Milestone id must match route id')
-    const result = await repository.saveMilestone(parsed.value)
-    if (result === 'saved') return context.body(null, 204)
+    const loadedData = await repository.loadData()
+    const currentMilestone = legacyMilestoneFromContractId(loadedData, context.req.param('id'))
+    if (!currentMilestone) return context.json({ message: 'Milestone not found' }, 404)
+    const ownerId = legacyMemberIdFromContractId(loadedData, parsed.value.participant_member_id)
+    if (!ownerId) return context.json({ message: 'Owner not found' }, 400)
+
+    const result = await repository.saveMilestone({
+      ...currentMilestone,
+      title: parsed.value.title,
+      startDay: parsed.value.start_day,
+      endDay: parsed.value.end_day,
+      status: parsed.value.status as MilestoneStatus,
+      ownerId,
+    })
+    if (result === 'saved') return context.json(await contractAppState(), 200)
     const failure = saveMilestoneFailures[result]
     return context.json({ message: failure.message }, failure.status)
   })
 
   app.post('/api/feishu/query', async (context) => {
-    const parsed = await parseJson(context, feishuQuerySchema)
-    if ('response' in parsed) return parsed.response
-    const reply = buildFeishuReply(parsed.value.command, await repository.loadData())
+    const contractParsed = await parseJson(context, feishuQueryRequestSchema)
+    if ('response' in contractParsed) return contractParsed.response
+    const command = parseFeishuCommand(contractParsed.value.command)
+    const reply = buildFeishuReply(command, await repository.loadData())
     await repository.saveFeishuQuery({
       id: crypto.randomUUID(),
-      command: parsed.value.command,
+      command,
       reply,
       createdAt: new Date().toISOString(),
     })
-    return context.json(reply)
+    return context.json(feishuQueryResponseSchema.parse({
+      response_title: reply.title,
+      response_body_json: { lines: reply.lines },
+    }))
   })
 
   app.post('/api/feishu/notifications', async (context) => {

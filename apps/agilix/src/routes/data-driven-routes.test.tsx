@@ -284,6 +284,12 @@ function createClient(data: SeedData): AgiliXClient {
     moveIssue: vi.fn(async () => undefined),
     addDocComment: vi.fn(async () => undefined),
     createDoc: vi.fn(async () => undefined),
+    saveContractStandup: vi.fn(async () => {
+      throw new Error('Contract standup saves are not used in this route test')
+    }),
+    saveContractMilestone: vi.fn(async () => {
+      throw new Error('Contract milestone saves are not used in this route test')
+    }),
     saveStandup: vi.fn(async () => undefined),
     saveMilestone: vi.fn(async () => undefined),
     recordFeishuNotification: vi.fn(async () => undefined),

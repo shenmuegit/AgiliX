@@ -32,6 +32,7 @@ export interface CreateProjectInput {
 
 export interface Member {
   id: MemberId
+  contractId?: string
   name: string
   role: string
   capacity: number

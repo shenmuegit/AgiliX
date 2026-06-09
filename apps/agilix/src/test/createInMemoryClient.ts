@@ -33,6 +33,8 @@ export function createInMemoryClient() {
   let loadDataCalls = 0
   const issueStatusSaves: RecordedIssueStatusSave[] = []
   const contractProjectCreates: CreateProjectRequest[] = []
+  const contractStandupSaves: string[] = []
+  const contractMilestoneSaves: string[] = []
   const standupSaves: string[] = []
   const milestoneSaves: string[] = []
   const feishuNotifications: FeishuNotificationInput[] = []
@@ -71,6 +73,8 @@ export function createInMemoryClient() {
     loadAppStateCount(): number
     recordedIssueStatusSaves(): RecordedIssueStatusSave[]
     recordedContractProjectCreates(): CreateProjectRequest[]
+    recordedContractStandupSaves(): string[]
+    recordedContractMilestoneSaves(): string[]
   } = {
     async loadAppState() {
       loadAppStateCalls += 1
@@ -213,6 +217,51 @@ export function createInMemoryClient() {
         ],
       }
     },
+    async saveContractStandup(standupId, input) {
+      const legacyStandupId = legacyScopedId(standupId, 'standup')
+      const standup = data.standups.find((item) => item.id === legacyStandupId)
+      if (!standup) throw new Error(`Standup not found: ${standupId}`)
+      contractStandupSaves.push(standupId)
+      standupSaves.push(legacyStandupId)
+      data = {
+        ...data,
+        standups: [
+          ...data.standups.filter((item) => item.id !== legacyStandupId),
+          {
+            ...standup,
+            items: input.items.map((item) => ({
+              memberId: legacyScopedId(item.member_id, 'member') as Standup['items'][number]['memberId'],
+              yesterday: splitContractLines(item.yesterday_text),
+              today: splitContractLines(item.today_text),
+              blockers: splitContractLines(item.blockers_text),
+            })),
+          },
+        ],
+      }
+      return seedDataToAppState(data)
+    },
+    async saveContractMilestone(milestoneId, input) {
+      const legacyMilestoneId = legacyScopedId(milestoneId, 'milestone')
+      const milestone = data.milestones.find((item) => item.id === legacyMilestoneId)
+      if (!milestone) throw new Error(`Milestone not found: ${milestoneId}`)
+      contractMilestoneSaves.push(milestoneId)
+      milestoneSaves.push(legacyMilestoneId)
+      data = {
+        ...data,
+        milestones: [
+          ...data.milestones.filter((item) => item.id !== legacyMilestoneId),
+          {
+            ...milestone,
+            title: input.title,
+            startDay: input.start_day,
+            endDay: input.end_day,
+            status: input.status as Milestone['status'],
+            ownerId: legacyScopedId(input.participant_member_id, 'member') as Milestone['ownerId'],
+          },
+        ],
+      }
+      return seedDataToAppState(data)
+    },
     async recordFeishuNotification(input: FeishuNotificationInput) {
       validateFeishuNotification(input)
       feishuNotifications.push(clone(input))
@@ -245,6 +294,12 @@ export function createInMemoryClient() {
     recordedContractProjectCreates() {
       return clone(contractProjectCreates)
     },
+    recordedContractStandupSaves() {
+      return [...contractStandupSaves]
+    },
+    recordedContractMilestoneSaves() {
+      return [...contractMilestoneSaves]
+    },
   }
 
   return client
@@ -256,6 +311,10 @@ function scopedId(scope: string, value: string) {
 
 function legacyScopedId(value: string, scope: string) {
   return value.startsWith(`${scope}:`) ? value.slice(scope.length + 1) : value
+}
+
+function splitContractLines(value: string) {
+  return value === '' ? [] : value.split('\n')
 }
 
 export function seedDataToAppState(data: SeedData): AppStateResponse {
