@@ -18,45 +18,32 @@ export function createTestDrizzleDb() {
     },
   })
 
-  db.run(
-    sql`create table projects (id text primary key, name text not null, glyph text not null, color text not null, active_iteration_code text not null)`,
-  )
-  db.run(
-    sql`create table members (id text primary key, name text not null, role text not null, capacity integer not null)`,
-  )
-  db.run(
-    sql`create table iterations (id text primary key, project_id text not null references projects(id) on delete cascade, code text not null, name text not null, date_range_label text not null, calendar_title text not null, calendar_weeks_json text not null, day integer not null, total_days integer not null, goal text not null, velocity integer not null, unique(project_id, code))`,
-  )
-  db.run(
-    sql`create table issues (key text primary key, project_id text not null references projects(id) on delete cascade, iteration_id text not null references iterations(id) on delete cascade, type text not null, title text not null, status text not null, priority text not null, assignee_id text not null references members(id), story_points integer not null, blocker_reason text)`,
-  )
-  db.run(
-    sql`create table issue_events (id text primary key, issue_key text not null references issues(key) on delete cascade, type text not null, actor_id text references members(id), message text not null, created_at text not null)`,
-  )
-  db.run(
-    sql`create table documents (id text primary key, scope text not null, project_id text references projects(id) on delete cascade, title text not null, directory text not null, body text not null, updated_at_label text not null)`,
-  )
-  db.run(
-    sql`create table doc_issue_links (doc_id text not null references documents(id) on delete cascade, issue_key text not null references issues(key) on delete cascade, unique(doc_id, issue_key))`,
-  )
-  db.run(
-    sql`create table doc_comments (id text primary key, doc_id text not null references documents(id) on delete cascade, author_id text not null references members(id), body text not null, resolved integer not null, created_at_label text not null)`,
-  )
-  db.run(
-    sql`create table standups (id text primary key, project_id text not null references projects(id) on delete cascade, date_label text not null, weekday_label text not null, time_label text not null, calendar_label text not null)`,
-  )
-  db.run(
-    sql`create table standup_items (id text primary key, standup_id text not null references standups(id) on delete cascade, member_id text not null references members(id), yesterday_json text not null, today_json text not null, blockers_json text not null)`,
-  )
-  db.run(
-    sql`create table milestones (id text primary key, project_id text not null references projects(id) on delete cascade, iteration_id text not null references iterations(id) on delete cascade, title text not null, start_day integer not null, end_day integer not null, status text not null, owner_id text not null references members(id))`,
-  )
-  db.run(
-    sql`create table feishu_notifications (id text primary key, trigger text not null, target_group text not null, payload_json text not null, status text not null, created_at text not null)`,
-  )
-  db.run(
+  const statements = [
+    sql`create table projects (id text primary key, code text not null, name text not null, glyph text not null, color text not null, active_iteration_id text not null, cadence text not null, template_key text not null)`,
+    sql`create table project_members (project_id text not null, member_id text not null, sort_order integer not null, primary key (project_id, member_id))`,
+    sql`create table iterations (id text primary key, project_id text not null, code text not null, name text not null, date_range_label text not null, calendar_title text not null, day integer not null, total_days integer not null, goal text not null, velocity integer not null)`,
+    sql`create table iteration_calendar_weeks (id text primary key, iteration_id text not null, sort_order integer not null, label text not null, range_label text not null)`,
+    sql`create table iteration_calendar_days (id text primary key, week_id text not null, sort_order integer not null, label text not null)`,
+    sql`create table members (id text primary key, name text not null, role text not null, capacity integer not null, online_sort_order integer not null)`,
+    sql`create table issues (id text primary key, key text not null, project_id text not null, iteration_id text not null, type text not null, title text not null, status text not null, priority text not null, handler_member_id text not null, story_points integer not null, blocker_reason text, description text not null, acceptance_criteria text not null, epic_name text not null, draft integer not null)`,
+    sql`create table issue_events (id text primary key, issue_id text not null, event_type text not null, actor_member_id text not null, message text not null, created_at text not null)`,
+    sql`create table issue_labels (issue_id text not null, label text not null, sort_order integer not null, primary key (issue_id, label))`,
+    sql`create table issue_collaborators (issue_id text not null, member_id text not null, sort_order integer not null, primary key (issue_id, member_id))`,
+    sql`create table documents (id text primary key, scope text not null, project_id text, directory_id text not null, title text not null, content_type text not null, body text not null, editor_member_id text not null, sync_feishu_doc integer not null, created_at text not null, updated_at text not null)`,
+    sql`create table document_directories (id text primary key, scope text not null, project_id text, parent_id text, name text not null, sort_order integer not null, created_at text not null, updated_at text not null)`,
+    sql`create table document_issue_links (doc_id text not null, issue_id text not null, primary key (doc_id, issue_id))`,
+    sql`create table document_comments (id text primary key, doc_id text not null, author_member_id text not null, body text not null, resolved integer not null, created_at text not null)`,
+    sql`create table standups (id text primary key, project_id text not null, date text not null, date_label text not null, weekday_label text not null, time_label text not null, calendar_label text not null)`,
+    sql`create table standup_items (id text primary key, standup_id text not null, member_id text not null, sort_order integer not null, yesterday_text text not null, today_text text not null, blockers_text text not null)`,
+    sql`create table milestones (id text primary key, project_id text not null, iteration_id text not null, title text not null, start_day integer not null, end_day integer not null, status text not null, participant_member_id text not null)`,
+    sql`create table feishu_member_profiles (member_id text primary key, open_id text not null, union_id text not null, avatar_url text not null, display_name text not null, last_seen_at text not null)`,
+    sql`create table feishu_notifications (id text primary key, trigger text not null, target_group_id text not null, payload_json text not null, status text not null, created_at text not null)`,
     sql`create table feishu_queries (id text primary key, command text not null, response_title text not null, response_body_json text not null, created_at text not null)`,
-  )
+    sql`create table feishu_groups (id text primary key, project_id text not null, name text not null, purpose text not null, member_count_label text not null, status text not null, sort_order integer not null)`,
+    sql`create table feishu_bot_rules (id text primary key, project_id text not null, rule_type text not null, title text not null, description text not null, schedule_label text not null, target_group_id text not null, enabled integer not null, sort_order integer not null)`,
+  ]
+
+  for (const statement of statements) db.run(statement)
 
   return Object.assign(createTransactionDatabase(transactionDb as unknown as TransactionDatabase), {
     run(statement: SQL) {

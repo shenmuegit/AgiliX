@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
-export const issueTypeValues = ['requirement', 'bug', 'task', 'tech_debt'] as const
-export const issueStatusValues = ['todo', 'doing', 'blocked', 'done'] as const
+export const issueTypeValues = ['story', 'bug', 'task', 'tech'] as const
+export const issueStatusValues = ['todo', 'doing', 'review', 'blocked', 'done'] as const
 export const issuePriorityValues = ['high', 'medium', 'low'] as const
 export const docScopeValues = ['global', 'project'] as const
 export const docContentTypeValues = ['markdown', 'mermaid', 'diagram', 'mindmap'] as const

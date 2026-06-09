@@ -25,7 +25,7 @@ describe('AgiliX shared contract', () => {
     const issue = {
       project_id: '730000000000000001',
       iteration_id: '730000000000000101',
-      type: 'requirement',
+      type: 'story',
       title: '检索日志接入留存分析',
       description: '接入搜索日志',
       acceptance_criteria: '可按日期查看留存',

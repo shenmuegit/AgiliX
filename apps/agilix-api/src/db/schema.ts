@@ -1,11 +1,52 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 export const projects = sqliteTable('projects', {
   id: text('id').primaryKey(),
+  code: text('code').notNull(),
   name: text('name').notNull(),
   glyph: text('glyph').notNull(),
   color: text('color').notNull(),
-  activeIterationCode: text('active_iteration_code').notNull(),
+  activeIterationId: text('active_iteration_id').notNull(),
+  cadence: text('cadence').notNull(),
+  templateKey: text('template_key').notNull(),
+})
+
+export const projectMembers = sqliteTable(
+  'project_members',
+  {
+    projectId: text('project_id').notNull(),
+    memberId: text('member_id').notNull(),
+    sortOrder: integer('sort_order').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.projectId, table.memberId] })],
+)
+
+export const iterations = sqliteTable('iterations', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  code: text('code').notNull(),
+  name: text('name').notNull(),
+  dateRangeLabel: text('date_range_label').notNull(),
+  calendarTitle: text('calendar_title').notNull(),
+  day: integer('day').notNull(),
+  totalDays: integer('total_days').notNull(),
+  goal: text('goal').notNull(),
+  velocity: integer('velocity').notNull(),
+})
+
+export const iterationCalendarWeeks = sqliteTable('iteration_calendar_weeks', {
+  id: text('id').primaryKey(),
+  iterationId: text('iteration_id').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  label: text('label').notNull(),
+  rangeLabel: text('range_label').notNull(),
+})
+
+export const iterationCalendarDays = sqliteTable('iteration_calendar_days', {
+  id: text('id').primaryKey(),
+  weekId: text('week_id').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  label: text('label').notNull(),
 })
 
 export const members = sqliteTable('members', {
@@ -13,110 +54,103 @@ export const members = sqliteTable('members', {
   name: text('name').notNull(),
   role: text('role').notNull(),
   capacity: integer('capacity').notNull(),
+  onlineSortOrder: integer('online_sort_order').notNull(),
 })
 
-export const iterations = sqliteTable(
-  'iterations',
-  {
-    id: text('id').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    code: text('code').notNull(),
-    name: text('name').notNull(),
-    dateRangeLabel: text('date_range_label').notNull(),
-    calendarTitle: text('calendar_title').notNull(),
-    calendarWeeksJson: text('calendar_weeks_json').notNull(),
-    day: integer('day').notNull(),
-    totalDays: integer('total_days').notNull(),
-    goal: text('goal').notNull(),
-    velocity: integer('velocity').notNull(),
-  },
-  (table) => [uniqueIndex('iterations_project_code').on(table.projectId, table.code)],
-)
-
-export const issues = sqliteTable(
-  'issues',
-  {
-    key: text('key').primaryKey(),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    iterationId: text('iteration_id')
-      .notNull()
-      .references(() => iterations.id, { onDelete: 'cascade' }),
-    type: text('type', { enum: ['story', 'bug', 'task', 'tech'] }).notNull(),
-    title: text('title').notNull(),
-    status: text('status', { enum: ['todo', 'doing', 'review', 'blocked', 'done'] }).notNull(),
-    priority: text('priority', { enum: ['high', 'medium', 'low'] }).notNull(),
-    assigneeId: text('assignee_id')
-      .notNull()
-      .references(() => members.id),
-    storyPoints: integer('story_points').notNull(),
-    blockerReason: text('blocker_reason'),
-  },
-  (table) => [
-    index('issues_project_status').on(table.projectId, table.status),
-    index('issues_assignee').on(table.assigneeId),
-  ],
-)
+export const issues = sqliteTable('issues', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull(),
+  projectId: text('project_id').notNull(),
+  iterationId: text('iteration_id').notNull(),
+  type: text('type', { enum: ['story', 'bug', 'task', 'tech'] }).notNull(),
+  title: text('title').notNull(),
+  status: text('status', { enum: ['todo', 'doing', 'review', 'blocked', 'done'] }).notNull(),
+  priority: text('priority', { enum: ['high', 'medium', 'low'] }).notNull(),
+  handlerMemberId: text('handler_member_id').notNull(),
+  storyPoints: integer('story_points').notNull(),
+  blockerReason: text('blocker_reason'),
+  description: text('description').notNull(),
+  acceptanceCriteria: text('acceptance_criteria').notNull(),
+  epicName: text('epic_name').notNull(),
+  draft: integer('draft', { mode: 'boolean' }).notNull(),
+})
 
 export const issueEvents = sqliteTable('issue_events', {
   id: text('id').primaryKey(),
-  issueKey: text('issue_key')
-    .notNull()
-    .references(() => issues.key, { onDelete: 'cascade' }),
-  type: text('type').notNull(),
-  actorId: text('actor_id').references(() => members.id),
+  issueId: text('issue_id').notNull(),
+  eventType: text('event_type').notNull(),
+  actorMemberId: text('actor_member_id').notNull(),
   message: text('message').notNull(),
   createdAt: text('created_at').notNull(),
 })
 
-export const documents = sqliteTable(
-  'documents',
+export const issueLabels = sqliteTable(
+  'issue_labels',
   {
-    id: text('id').primaryKey(),
-    scope: text('scope', { enum: ['global', 'project'] }).notNull(),
-    projectId: text('project_id').references(() => projects.id, { onDelete: 'cascade' }),
-    title: text('title').notNull(),
-    directory: text('directory').notNull(),
-    body: text('body').notNull(),
-    updatedAtLabel: text('updated_at_label').notNull(),
+    issueId: text('issue_id').notNull(),
+    label: text('label').notNull(),
+    sortOrder: integer('sort_order').notNull(),
   },
-  (table) => [index('documents_project').on(table.projectId)],
+  (table) => [primaryKey({ columns: [table.issueId, table.label] })],
 )
 
-export const docIssueLinks = sqliteTable(
-  'doc_issue_links',
+export const issueCollaborators = sqliteTable(
+  'issue_collaborators',
   {
-    docId: text('doc_id')
-      .notNull()
-      .references(() => documents.id, { onDelete: 'cascade' }),
-    issueKey: text('issue_key')
-      .notNull()
-      .references(() => issues.key, { onDelete: 'cascade' }),
+    issueId: text('issue_id').notNull(),
+    memberId: text('member_id').notNull(),
+    sortOrder: integer('sort_order').notNull(),
   },
-  (table) => [uniqueIndex('doc_issue_links_unique').on(table.docId, table.issueKey)],
+  (table) => [primaryKey({ columns: [table.issueId, table.memberId] })],
 )
 
-export const docComments = sqliteTable('doc_comments', {
+export const documents = sqliteTable('documents', {
   id: text('id').primaryKey(),
-  docId: text('doc_id')
-    .notNull()
-    .references(() => documents.id, { onDelete: 'cascade' }),
-  authorId: text('author_id')
-    .notNull()
-    .references(() => members.id),
+  scope: text('scope', { enum: ['global', 'project'] }).notNull(),
+  projectId: text('project_id'),
+  directoryId: text('directory_id').notNull(),
+  title: text('title').notNull(),
+  contentType: text('content_type', { enum: ['markdown', 'mermaid', 'diagram', 'mindmap'] }).notNull(),
+  body: text('body').notNull(),
+  editorMemberId: text('editor_member_id').notNull(),
+  syncFeishuDoc: integer('sync_feishu_doc', { mode: 'boolean' }).notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const documentDirectories = sqliteTable('document_directories', {
+  id: text('id').primaryKey(),
+  scope: text('scope', { enum: ['global', 'project'] }).notNull(),
+  projectId: text('project_id'),
+  parentId: text('parent_id'),
+  name: text('name').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const documentIssueLinks = sqliteTable(
+  'document_issue_links',
+  {
+    docId: text('doc_id').notNull(),
+    issueId: text('issue_id').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.docId, table.issueId] })],
+)
+
+export const documentComments = sqliteTable('document_comments', {
+  id: text('id').primaryKey(),
+  docId: text('doc_id').notNull(),
+  authorMemberId: text('author_member_id').notNull(),
   body: text('body').notNull(),
   resolved: integer('resolved', { mode: 'boolean' }).notNull(),
-  createdAtLabel: text('created_at_label').notNull(),
+  createdAt: text('created_at').notNull(),
 })
 
 export const standups = sqliteTable('standups', {
   id: text('id').primaryKey(),
-  projectId: text('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull(),
+  date: text('date').notNull(),
   dateLabel: text('date_label').notNull(),
   weekdayLabel: text('weekday_label').notNull(),
   timeLabel: text('time_label').notNull(),
@@ -125,40 +159,40 @@ export const standups = sqliteTable('standups', {
 
 export const standupItems = sqliteTable('standup_items', {
   id: text('id').primaryKey(),
-  standupId: text('standup_id')
-    .notNull()
-    .references(() => standups.id, { onDelete: 'cascade' }),
-  memberId: text('member_id')
-    .notNull()
-    .references(() => members.id),
-  yesterdayJson: text('yesterday_json').notNull(),
-  todayJson: text('today_json').notNull(),
-  blockersJson: text('blockers_json').notNull(),
+  standupId: text('standup_id').notNull(),
+  memberId: text('member_id').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+  yesterdayText: text('yesterday_text').notNull(),
+  todayText: text('today_text').notNull(),
+  blockersText: text('blockers_text').notNull(),
 })
 
 export const milestones = sqliteTable('milestones', {
   id: text('id').primaryKey(),
-  projectId: text('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  iterationId: text('iteration_id')
-    .notNull()
-    .references(() => iterations.id, { onDelete: 'cascade' }),
+  projectId: text('project_id').notNull(),
+  iterationId: text('iteration_id').notNull(),
   title: text('title').notNull(),
   startDay: integer('start_day').notNull(),
   endDay: integer('end_day').notNull(),
-  status: text('status', { enum: ['done', 'doing', 'risk', 'planned'] }).notNull(),
-  ownerId: text('owner_id')
-    .notNull()
-    .references(() => members.id),
+  status: text('status').notNull(),
+  participantMemberId: text('participant_member_id').notNull(),
+})
+
+export const feishuMemberProfiles = sqliteTable('feishu_member_profiles', {
+  memberId: text('member_id').primaryKey(),
+  openId: text('open_id').notNull(),
+  unionId: text('union_id').notNull(),
+  avatarUrl: text('avatar_url').notNull(),
+  displayName: text('display_name').notNull(),
+  lastSeenAt: text('last_seen_at').notNull(),
 })
 
 export const feishuNotifications = sqliteTable('feishu_notifications', {
   id: text('id').primaryKey(),
   trigger: text('trigger').notNull(),
-  targetGroup: text('target_group').notNull(),
+  targetGroupId: text('target_group_id').notNull(),
   payloadJson: text('payload_json').notNull(),
-  status: text('status', { enum: ['queued', 'sent', 'failed'] }).notNull(),
+  status: text('status').notNull(),
   createdAt: text('created_at').notNull(),
 })
 
@@ -168,4 +202,26 @@ export const feishuQueries = sqliteTable('feishu_queries', {
   responseTitle: text('response_title').notNull(),
   responseBodyJson: text('response_body_json').notNull(),
   createdAt: text('created_at').notNull(),
+})
+
+export const feishuGroups = sqliteTable('feishu_groups', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  purpose: text('purpose').notNull(),
+  memberCountLabel: text('member_count_label').notNull(),
+  status: text('status').notNull(),
+  sortOrder: integer('sort_order').notNull(),
+})
+
+export const feishuBotRules = sqliteTable('feishu_bot_rules', {
+  id: text('id').primaryKey(),
+  projectId: text('project_id').notNull(),
+  ruleType: text('rule_type', { enum: ['scheduled_summary', 'iteration_weekly', 'risk_alert'] }).notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  scheduleLabel: text('schedule_label').notNull(),
+  targetGroupId: text('target_group_id').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+  sortOrder: integer('sort_order').notNull(),
 })

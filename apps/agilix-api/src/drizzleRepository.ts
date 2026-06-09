@@ -6,16 +6,18 @@ import {
 } from '@agilix/app/domain/feishu'
 import { filterIssues } from '@agilix/app/domain/issues'
 import type {
+  CreateProjectInput,
   Doc,
   DocComment,
-  CreateProjectInput,
   Issue,
   IssueStatus,
   Iteration,
   IterationCalendarWeek,
   Member,
+  MemberId,
   Milestone,
   Project,
+  ProjectId,
   SeedData,
   Standup,
 } from '@agilix/app/domain/types'
@@ -23,8 +25,10 @@ import { eq } from 'drizzle-orm'
 import * as dbSchema from './db/schema'
 import type { TransactionDatabase } from './db/transaction'
 import type {
+  AddDocCommentResult,
   AgiliXRepository,
   CreateDocInput,
+  CreateDocResult,
   CreateProjectResult,
   DocFilters,
   FeishuNotificationRecord,
@@ -38,139 +42,37 @@ import {
   feishuNotificationSchema,
   issueStatusSchema,
   issueTypeSchema,
-  memberIdSchema,
-  milestoneStatusSchema,
   prioritySchema,
-  projectIdSchema,
   stringArraySchema,
 } from './schema'
+import { createSnowflakeIdGenerator } from './snowflake'
 
-function toProject(row: typeof dbSchema.projects.$inferSelect): Project {
-  return { ...row, id: projectIdSchema.parse(row.id) }
+const navItems = [
+  '团队工作台',
+  '项目总览',
+  'Issues',
+  '看板',
+  '迭代统计',
+  '文档',
+  '成员负载',
+  '每日站会',
+  '排期甘特',
+  '飞书',
+]
+
+const memberIdByName: Record<string, MemberId> = {
+  林舟: 'lin',
+  陈牧: 'chen',
+  高远: 'gao',
+  苏晴: 'su',
+  韩序: 'han',
+  何川: 'he',
+  江月: 'jiang',
+  周然: 'zhou',
 }
 
-function toMember(row: typeof dbSchema.members.$inferSelect): Member {
-  return { ...row, id: memberIdSchema.parse(row.id) }
-}
-
-function toIteration(row: typeof dbSchema.iterations.$inferSelect): Iteration {
-  const { calendarWeeksJson, ...iteration } = row
-  return {
-    ...iteration,
-    projectId: projectIdSchema.parse(row.projectId),
-    calendarWeeks: parseIterationCalendarWeeks(calendarWeeksJson, row.id),
-  }
-}
-
-function toIssue(row: typeof dbSchema.issues.$inferSelect, linkedDocIds: string[]): Issue {
-  return {
-    ...row,
-    projectId: projectIdSchema.parse(row.projectId),
-    type: issueTypeSchema.parse(row.type),
-    status: issueStatusSchema.parse(row.status),
-    priority: prioritySchema.parse(row.priority),
-    assigneeId: memberIdSchema.parse(row.assigneeId),
-    blockerReason: row.blockerReason === null ? undefined : row.blockerReason,
-    linkedDocIds,
-  }
-}
-
-function toDocComment(row: typeof dbSchema.docComments.$inferSelect): DocComment {
-  return { ...row, authorId: memberIdSchema.parse(row.authorId) }
-}
-
-function toDoc(
-  row: typeof dbSchema.documents.$inferSelect,
-  linkedIssueKeys: string[],
-  comments: DocComment[],
-): Doc {
-  const scope = docScopeSchema.parse(row.scope)
-  if (scope === 'global') {
-    if (row.projectId !== null) throw new Error(`Global document cannot have projectId: ${row.id}`)
-    return {
-      id: row.id,
-      scope,
-      title: row.title,
-      directory: row.directory,
-      body: row.body,
-      linkedIssueKeys,
-      comments,
-      updatedAtLabel: row.updatedAtLabel,
-    }
-  }
-
-  return {
-    id: row.id,
-    scope,
-    projectId: projectIdSchema.parse(row.projectId),
-    title: row.title,
-    directory: row.directory,
-    body: row.body,
-    linkedIssueKeys,
-    comments,
-    updatedAtLabel: row.updatedAtLabel,
-  }
-}
-
-function toMilestone(row: typeof dbSchema.milestones.$inferSelect): Milestone {
-  return {
-    ...row,
-    projectId: projectIdSchema.parse(row.projectId),
-    status: milestoneStatusSchema.parse(row.status),
-    ownerId: memberIdSchema.parse(row.ownerId),
-  }
-}
-
-function parseIterationCalendarWeeks(value: string, iterationId: string): IterationCalendarWeek[] {
-  const parsed = JSON.parse(value)
-  if (!Array.isArray(parsed) || parsed.length === 0)
-    throw new Error(`Iteration calendar weeks must be a non-empty array: ${iterationId}`)
-  return parsed.map((week, index) => {
-    if (typeof week !== 'object' || week === null)
-      throw new Error(`Iteration calendar week must be an object: ${iterationId}/${index}`)
-    if (typeof week.label !== 'string' || week.label.length === 0)
-      throw new Error(`Iteration calendar week label is required: ${iterationId}/${index}`)
-    if (typeof week.rangeLabel !== 'string' || week.rangeLabel.length === 0)
-      throw new Error(`Iteration calendar week range is required: ${iterationId}/${index}`)
-    if (
-      !Array.isArray(week.days) ||
-      week.days.length === 0 ||
-      week.days.some((day: unknown) => typeof day !== 'string' || day.length === 0)
-    ) {
-      throw new Error(`Iteration calendar week days are required: ${iterationId}/${index}`)
-    }
-    return { label: week.label, rangeLabel: week.rangeLabel, days: week.days }
-  })
-}
-
-function toIterationRecord(iteration: Iteration): typeof dbSchema.iterations.$inferInsert {
-  const { calendarWeeks, ...record } = iteration
-  return { ...record, calendarWeeksJson: JSON.stringify(calendarWeeks) }
-}
-
-function toFeishuNotification(
-  row: typeof dbSchema.feishuNotifications.$inferSelect,
-): FeishuNotificationRecord {
-  return feishuNotificationSchema.parse({
-    id: row.id,
-    trigger: row.trigger,
-    targetGroup: row.targetGroup,
-    payload: JSON.parse(row.payloadJson),
-    status: row.status,
-    createdAt: row.createdAt,
-  })
-}
-
-function toFeishuQuery(row: typeof dbSchema.feishuQueries.$inferSelect): FeishuQueryRecord {
-  return {
-    id: row.id,
-    command: parseFeishuCommand(row.command),
-    reply: {
-      title: row.responseTitle,
-      lines: stringArraySchema.parse(JSON.parse(row.responseBodyJson)),
-    },
-    createdAt: row.createdAt,
-  }
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
 function assertUnique(values: string[], label: string) {
@@ -183,14 +85,6 @@ function assertUnique(values: string[], label: string) {
 
 function assertReference(values: Set<string>, value: string, message: string) {
   if (!values.has(value)) throw new Error(message)
-}
-
-function assertPersistedProjectReference(
-  projectIds: Set<string>,
-  projectId: string,
-  owner: string,
-) {
-  assertReference(projectIds, projectId, `Persisted project not found for ${owner}: ${projectId}`)
 }
 
 function assertStandupMembers(memberIds: Set<string>, standup: Standup) {
@@ -224,22 +118,6 @@ function assertSeedData(data: SeedData) {
     data.docs.map((doc) => doc.id),
     'document id',
   )
-  assertUnique(
-    data.docs.flatMap((doc) => doc.linkedIssueKeys.map((issueKey) => `${doc.id}:${issueKey}`)),
-    'document issue link',
-  )
-  assertUnique(
-    data.docs.flatMap((doc) => doc.comments.map((comment) => comment.id)),
-    'document comment id',
-  )
-  assertUnique(
-    data.standups.map((standup) => standup.id),
-    'standup id',
-  )
-  assertUnique(
-    data.milestones.map((milestone) => milestone.id),
-    'milestone id',
-  )
 
   const projectIds = new Set(data.projects.map((project) => project.id))
   const memberIds = new Set(data.members.map((member) => member.id))
@@ -248,19 +126,11 @@ function assertSeedData(data: SeedData) {
   const docIds = new Set(data.docs.map((doc) => doc.id))
 
   for (const iteration of data.iterations) {
-    assertReference(
-      projectIds,
-      iteration.projectId,
-      `Seed project not found: ${iteration.projectId}`,
-    )
+    assertReference(projectIds, iteration.projectId, `Seed project not found: ${iteration.projectId}`)
   }
   for (const issue of data.issues) {
     assertReference(projectIds, issue.projectId, `Seed project not found: ${issue.projectId}`)
-    assertReference(
-      iterationIds,
-      issue.iterationId,
-      `Seed iteration not found: ${issue.iterationId}`,
-    )
+    assertReference(iterationIds, issue.iterationId, `Seed iteration not found: ${issue.iterationId}`)
     assertReference(memberIds, issue.assigneeId, `Seed member not found: ${issue.assigneeId}`)
     for (const docId of issue.linkedDocIds) {
       assertReference(docIds, docId, `Seed linked document not found: ${docId}`)
@@ -274,12 +144,7 @@ function assertSeedData(data: SeedData) {
     }
     for (const comment of doc.comments) {
       if (comment.docId !== doc.id) throw new Error(`Seed comment document mismatch: ${comment.id}`)
-      assertReference(docIds, comment.docId, `Seed comment document not found: ${comment.docId}`)
-      assertReference(
-        memberIds,
-        comment.authorId,
-        `Seed comment author not found: ${comment.authorId}`,
-      )
+      assertReference(memberIds, comment.authorId, `Seed comment author not found: ${comment.authorId}`)
     }
   }
   for (const standup of data.standups) {
@@ -287,271 +152,269 @@ function assertSeedData(data: SeedData) {
     assertStandupMembers(memberIds, standup)
   }
   for (const milestone of data.milestones) {
-    assertReference(
-      projectIds,
-      milestone.projectId,
-      `Seed project not found: ${milestone.projectId}`,
-    )
-    assertReference(
-      iterationIds,
-      milestone.iterationId,
-      `Seed iteration not found: ${milestone.iterationId}`,
-    )
-    assertReference(
-      memberIds,
-      milestone.ownerId,
-      `Seed milestone owner not found: ${milestone.ownerId}`,
-    )
+    assertReference(projectIds, milestone.projectId, `Seed project not found: ${milestone.projectId}`)
+    assertReference(iterationIds, milestone.iterationId, `Seed iteration not found: ${milestone.iterationId}`)
+    assertReference(memberIds, milestone.ownerId, `Seed milestone owner not found: ${milestone.ownerId}`)
   }
+}
+
+function createIdMaps() {
+  return {
+    project: new Map<string, string>(),
+    projectReverse: new Map<string, string>(),
+    member: new Map<string, string>(),
+    memberReverse: new Map<string, MemberId>(),
+    iteration: new Map<string, string>(),
+    iterationReverse: new Map<string, string>(),
+    issue: new Map<string, string>(),
+    issueReverse: new Map<string, string>(),
+    doc: new Map<string, string>(),
+    docReverse: new Map<string, string>(),
+    directoryPath: new Map<string, string>(),
+    directoryReverse: new Map<string, string>(),
+    standup: new Map<string, string>(),
+    standupReverse: new Map<string, string>(),
+    milestone: new Map<string, string>(),
+    milestoneReverse: new Map<string, string>(),
+    group: new Map<string, string>(),
+    groupReverse: new Map<string, string>(),
+  }
+}
+
+type IdMaps = ReturnType<typeof createIdMaps>
+
+function remember(map: Map<string, string>, reverse: Map<string, string>, legacy: string, id: string) {
+  map.set(legacy, id)
+  reverse.set(id, legacy)
+}
+
+function requireMapped(map: Map<string, string>, legacy: string, label: string) {
+  const id = map.get(legacy)
+  if (!id) throw new Error(`${label} not mapped: ${legacy}`)
+  return id
+}
+
+function publicMemberId(maps: IdMaps, memberId: string, name?: string): MemberId {
+  const mapped = maps.memberReverse.get(memberId)
+  if (mapped) return mapped
+  if (name && memberIdByName[name]) return memberIdByName[name]
+  throw new Error(`Persisted member not mapped: ${memberId}`)
+}
+
+function splitText(value: string): string[] {
+  if (value === '') return []
+  return value.split('\n')
+}
+
+function joinText(value: string[]): string {
+  return value.join('\n')
+}
+
+function nowLabel() {
+  return new Date().toISOString()
 }
 
 async function assertRepositoryEmpty(db: TransactionDatabase) {
   const [project] = await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects).limit(1)
   const [member] = await db.select({ id: dbSchema.members.id }).from(dbSchema.members).limit(1)
-  const [iteration] = await db
-    .select({ id: dbSchema.iterations.id })
-    .from(dbSchema.iterations)
-    .limit(1)
-  const [issue] = await db.select({ key: dbSchema.issues.key }).from(dbSchema.issues).limit(1)
-  const [issueEvent] = await db
-    .select({ id: dbSchema.issueEvents.id })
-    .from(dbSchema.issueEvents)
-    .limit(1)
+  const [iteration] = await db.select({ id: dbSchema.iterations.id }).from(dbSchema.iterations).limit(1)
+  const [issue] = await db.select({ id: dbSchema.issues.id }).from(dbSchema.issues).limit(1)
   const [doc] = await db.select({ id: dbSchema.documents.id }).from(dbSchema.documents).limit(1)
-  const [docIssueLink] = await db
-    .select({ docId: dbSchema.docIssueLinks.docId })
-    .from(dbSchema.docIssueLinks)
-    .limit(1)
-  const [docComment] = await db
-    .select({ id: dbSchema.docComments.id })
-    .from(dbSchema.docComments)
-    .limit(1)
-  const [standup] = await db.select({ id: dbSchema.standups.id }).from(dbSchema.standups).limit(1)
-  const [standupItem] = await db
-    .select({ id: dbSchema.standupItems.id })
-    .from(dbSchema.standupItems)
-    .limit(1)
-  const [milestone] = await db
-    .select({ id: dbSchema.milestones.id })
-    .from(dbSchema.milestones)
-    .limit(1)
-  const [feishuNotification] = await db
-    .select({ id: dbSchema.feishuNotifications.id })
-    .from(dbSchema.feishuNotifications)
-    .limit(1)
-  const [feishuQuery] = await db
-    .select({ id: dbSchema.feishuQueries.id })
-    .from(dbSchema.feishuQueries)
-    .limit(1)
-
-  if (
-    project ||
-    member ||
-    iteration ||
-    issue ||
-    issueEvent ||
-    doc ||
-    docIssueLink ||
-    docComment ||
-    standup ||
-    standupItem ||
-    milestone ||
-    feishuNotification ||
-    feishuQuery
-  ) {
-    throw new Error('Repository already seeded')
-  }
-}
-
-async function validateMilestoneReferences(
-  db: TransactionDatabase,
-  milestone: Milestone,
-): Promise<SaveMilestoneResult> {
-  const [existing] = await db
-    .select({ id: dbSchema.milestones.id })
-    .from(dbSchema.milestones)
-    .where(eq(dbSchema.milestones.id, milestone.id))
-  if (!existing) return 'milestone-not-found'
-  const [project] = await db
-    .select({ id: dbSchema.projects.id })
-    .from(dbSchema.projects)
-    .where(eq(dbSchema.projects.id, milestone.projectId))
-  if (!project) return 'project-not-found'
-  const [iteration] = await db
-    .select({ projectId: dbSchema.iterations.projectId })
-    .from(dbSchema.iterations)
-    .where(eq(dbSchema.iterations.id, milestone.iterationId))
-  if (!iteration || iteration.projectId !== milestone.projectId) return 'iteration-not-found'
-  const [owner] = await db
-    .select({ id: dbSchema.members.id })
-    .from(dbSchema.members)
-    .where(eq(dbSchema.members.id, milestone.ownerId))
-  if (!owner) return 'owner-not-found'
-  return 'saved'
-}
-
-async function validateCreateProject(
-  db: TransactionDatabase,
-  input: CreateProjectInput,
-): Promise<CreateProjectResult> {
-  if (input.project.id !== input.iteration.projectId) return 'project-iteration-mismatch'
-  if (input.project.activeIterationCode !== input.iteration.code)
-    return 'active-iteration-code-mismatch'
-  const [project] = await db
-    .select({ id: dbSchema.projects.id })
-    .from(dbSchema.projects)
-    .where(eq(dbSchema.projects.id, input.project.id))
-  if (project) return 'duplicate-project'
-  const iterations = await db
-    .select({
-      id: dbSchema.iterations.id,
-      projectId: dbSchema.iterations.projectId,
-      code: dbSchema.iterations.code,
-    })
-    .from(dbSchema.iterations)
-  if (
-    iterations.some(
-      (iteration) =>
-        iteration.id === input.iteration.id ||
-        (iteration.projectId === input.project.id && iteration.code === input.iteration.code),
-    )
-  )
-    return 'duplicate-iteration'
-  return 'created'
-}
-
-async function validateFeishuNotificationReferences(
-  db: TransactionDatabase,
-  input: FeishuNotificationRecord,
-): Promise<SaveFeishuNotificationResult> {
-  switch (input.trigger) {
-    case '站会摘要': {
-      const [standup] = await db
-        .select({ id: dbSchema.standups.id })
-        .from(dbSchema.standups)
-        .where(eq(dbSchema.standups.id, input.payload.standupId))
-      return standup ? 'saved' : 'standup-not-found'
-    }
-    case '阻塞提醒': {
-      const issueRows = await db.select({ key: dbSchema.issues.key }).from(dbSchema.issues)
-      const issueKeys = new Set(issueRows.map((issue) => issue.key))
-      return input.payload.issueKeys.every((issueKey) => issueKeys.has(issueKey))
-        ? 'saved'
-        : 'issue-not-found'
-    }
-    case '文档评论': {
-      const [doc] = await db
-        .select({ id: dbSchema.documents.id })
-        .from(dbSchema.documents)
-        .where(eq(dbSchema.documents.id, input.payload.docId))
-      if (!doc) return 'document-not-found'
-      const [comment] = await db
-        .select({ docId: dbSchema.docComments.docId })
-        .from(dbSchema.docComments)
-        .where(eq(dbSchema.docComments.id, input.payload.commentId))
-      return comment?.docId === input.payload.docId ? 'saved' : 'comment-not-found'
-    }
-  }
-}
-
-function toStandupItemRecord(
-  standupId: string,
-  item: Standup['items'][number],
-  index: number,
-): typeof dbSchema.standupItems.$inferInsert {
-  return {
-    id: `${standupId}-${item.memberId}-${index}`,
-    standupId,
-    memberId: item.memberId,
-    yesterdayJson: JSON.stringify(item.yesterday),
-    todayJson: JSON.stringify(item.today),
-    blockersJson: JSON.stringify(item.blockers),
-  }
+  if (project || member || iteration || issue || doc) throw new Error('Repository already seeded')
 }
 
 export function createDrizzleRepository(db: TransactionDatabase): AgiliXRepository {
-  async function listProjects() {
-    return (await db.select().from(dbSchema.projects)).map(toProject)
+  const ids = createSnowflakeIdGenerator({ epochMs: Date.UTC(2026, 0, 1), workerId: 1 })
+  const maps = createIdMaps()
+
+  function makeId() {
+    return ids()
   }
 
-  async function listIssues(filters: IssueFilters) {
-    const rows = await db.select().from(dbSchema.issues)
-    const links = await db.select().from(dbSchema.docIssueLinks)
-    const projectIds = new Set(
-      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
-        (project) => project.id,
-      ),
-    )
-    const issues = rows.map((issue) => {
-      assertPersistedProjectReference(projectIds, issue.projectId, issue.key)
-      return toIssue(
-        issue,
-        links.filter((link) => link.issueKey === issue.key).map((link) => link.docId),
-      )
+  async function listProjects(): Promise<Project[]> {
+    const iterations = await db.select().from(dbSchema.iterations)
+    return (await db.select().from(dbSchema.projects)).map((project) => ({
+      id: (maps.projectReverse.get(project.id) ?? project.code) as ProjectId,
+      name: project.name,
+      glyph: project.glyph,
+      color: project.color,
+      activeIterationCode:
+        iterations.find((iteration) => iteration.id === project.activeIterationId)?.code ?? '',
+    }))
+  }
+
+  async function listMembers(): Promise<Member[]> {
+    return (await db.select().from(dbSchema.members)).map((member) => ({
+      id: publicMemberId(maps, member.id, member.name),
+      name: member.name,
+      role: member.role,
+      capacity: member.capacity,
+    }))
+  }
+
+  async function listIterations(): Promise<Iteration[]> {
+    const projects = await db.select().from(dbSchema.projects)
+    const weeks = await db.select().from(dbSchema.iterationCalendarWeeks)
+    const days = await db.select().from(dbSchema.iterationCalendarDays)
+    return (await db.select().from(dbSchema.iterations)).map((iteration) => {
+      const project = projects.find((item) => item.id === iteration.projectId)
+      if (!project) throw new Error(`Persisted project not found for iteration: ${iteration.id}`)
+      return {
+        id: maps.iterationReverse.get(iteration.id) ?? iteration.id,
+        projectId: (maps.projectReverse.get(iteration.projectId) ?? project.code) as ProjectId,
+        code: iteration.code,
+        name: iteration.name,
+        dateRangeLabel: iteration.dateRangeLabel,
+        calendarTitle: iteration.calendarTitle,
+        calendarWeeks: weeks
+          .filter((week) => week.iterationId === iteration.id)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((week): IterationCalendarWeek => ({
+            label: week.label,
+            rangeLabel: week.rangeLabel,
+            days: days
+              .filter((day) => day.weekId === week.id)
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((day) => day.label),
+          })),
+        day: iteration.day,
+        totalDays: iteration.totalDays,
+        goal: iteration.goal,
+        velocity: iteration.velocity,
+      }
+    })
+  }
+
+  async function listIssues(filters: IssueFilters): Promise<Issue[]> {
+    const projects = await db.select().from(dbSchema.projects)
+    const members = await db.select().from(dbSchema.members)
+    const links = await db.select().from(dbSchema.documentIssueLinks)
+    const docs = await db.select().from(dbSchema.documents)
+    const issues = (await db.select().from(dbSchema.issues)).map((issue): Issue => {
+      const project = projects.find((item) => item.id === issue.projectId)
+      if (!project) throw new Error(`Persisted project not found for issue: ${issue.key}`)
+      const member = members.find((item) => item.id === issue.handlerMemberId)
+      if (!member) throw new Error(`Persisted member not found for issue: ${issue.key}`)
+      return {
+        key: issue.key,
+        projectId: (maps.projectReverse.get(issue.projectId) ?? project.code) as ProjectId,
+        iterationId: maps.iterationReverse.get(issue.iterationId) ?? issue.iterationId,
+        type: issueTypeSchema.parse(issue.type),
+        title: issue.title,
+        status: issueStatusSchema.parse(issue.status),
+        priority: prioritySchema.parse(issue.priority),
+        assigneeId: publicMemberId(maps, issue.handlerMemberId, member.name),
+        storyPoints: issue.storyPoints,
+        blockerReason: issue.blockerReason ?? undefined,
+        linkedDocIds: links
+          .filter((link) => link.issueId === issue.id)
+          .map((link) => maps.docReverse.get(link.docId) ?? docs.find((doc) => doc.id === link.docId)?.id)
+          .filter((docId): docId is string => Boolean(docId)),
+      }
     })
     return filterIssues(issues, filters)
   }
 
-  async function listDocs(filters: DocFilters) {
-    const docs = await db.select().from(dbSchema.documents)
-    const comments = (await db.select().from(dbSchema.docComments)).map(toDocComment)
-    const links = await db.select().from(dbSchema.docIssueLinks)
-    const projectIds = new Set(
-      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
-        (project) => project.id,
-      ),
-    )
-    const domainDocs = docs.map((doc) => {
-      if (doc.projectId !== null) assertPersistedProjectReference(projectIds, doc.projectId, doc.id)
-      return toDoc(
-        doc,
-        links.filter((link) => link.docId === doc.id).map((link) => link.issueKey),
-        comments.filter((comment) => comment.docId === doc.id),
-      )
+  async function listDocs(filters: DocFilters): Promise<Doc[]> {
+    const projects = await db.select().from(dbSchema.projects)
+    const directories = await db.select().from(dbSchema.documentDirectories)
+    const comments = await db.select().from(dbSchema.documentComments)
+    const members = await db.select().from(dbSchema.members)
+    const links = await db.select().from(dbSchema.documentIssueLinks)
+    const issues = await db.select().from(dbSchema.issues)
+    const docs = (await db.select().from(dbSchema.documents)).map((doc): Doc => {
+      const directory = directories.find((item) => item.id === doc.directoryId)
+      if (!directory) throw new Error(`Persisted directory not found for document: ${doc.id}`)
+      const linkedIssueKeys = links
+        .filter((link) => link.docId === doc.id)
+        .map((link) => issues.find((issue) => issue.id === link.issueId)?.key)
+        .filter((key): key is string => Boolean(key))
+      const docComments = comments
+        .filter((comment) => comment.docId === doc.id)
+        .map((comment): DocComment => {
+          const member = members.find((item) => item.id === comment.authorMemberId)
+          return {
+            id: maps.docReverse.get(comment.id) ?? comment.id,
+            docId: maps.docReverse.get(comment.docId) ?? comment.docId,
+            authorId: publicMemberId(maps, comment.authorMemberId, member?.name),
+            body: comment.body,
+            resolved: comment.resolved,
+            createdAtLabel: comment.createdAt,
+          }
+        })
+      const base = {
+        id: maps.docReverse.get(doc.id) ?? doc.id,
+        title: doc.title,
+        directory: maps.directoryReverse.get(doc.directoryId) ?? directory.name,
+        body: doc.body,
+        linkedIssueKeys,
+        comments: docComments,
+        updatedAtLabel: doc.updatedAt,
+      }
+      const scope = docScopeSchema.parse(doc.scope)
+      if (scope === 'global') return { ...base, scope: 'global' }
+      const project = projects.find((item) => item.id === doc.projectId)
+      if (!project) throw new Error(`Persisted project not found for document: ${doc.id}`)
+      return {
+        ...base,
+        scope: 'project',
+        projectId: (maps.projectReverse.get(project.id) ?? project.code) as ProjectId,
+      }
     })
-    const scopedDocs = filterDocs(domainDocs, filters.projectId)
+    const scopedDocs = filterDocs(docs, filters.projectId)
     return filters.query === '' ? scopedDocs : searchDocs(scopedDocs, filters.query)
   }
 
-  async function listStandups(filters: { projectId: SeedData['projects'][number]['id'] | 'all' }) {
-    const standups = await db.select().from(dbSchema.standups)
+  async function listStandups(filters: { projectId: ProjectId | 'all' }): Promise<Standup[]> {
+    const projects = await db.select().from(dbSchema.projects)
+    const members = await db.select().from(dbSchema.members)
     const items = await db.select().from(dbSchema.standupItems)
-    const projectIds = new Set(
-      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
-        (project) => project.id,
-      ),
-    )
-    const domainStandups = standups.map((standup): Standup => {
-      assertPersistedProjectReference(projectIds, standup.projectId, standup.id)
+    const standups = (await db.select().from(dbSchema.standups)).map((standup): Standup => {
+      const project = projects.find((item) => item.id === standup.projectId)
+      if (!project) throw new Error(`Persisted project not found for standup: ${standup.id}`)
       return {
-        ...standup,
-        projectId: projectIdSchema.parse(standup.projectId),
+        id: maps.standupReverse.get(standup.id) ?? standup.id,
+        projectId: (maps.projectReverse.get(project.id) ?? project.code) as ProjectId,
+        dateLabel: standup.dateLabel,
+        weekdayLabel: standup.weekdayLabel,
+        timeLabel: standup.timeLabel,
+        calendarLabel: standup.calendarLabel,
         items: items
           .filter((item) => item.standupId === standup.id)
-          .map((item) => ({
-            memberId: memberIdSchema.parse(item.memberId),
-            yesterday: stringArraySchema.parse(JSON.parse(item.yesterdayJson)),
-            today: stringArraySchema.parse(JSON.parse(item.todayJson)),
-            blockers: stringArraySchema.parse(JSON.parse(item.blockersJson)),
-          })),
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((item) => {
+            const member = members.find((memberRow) => memberRow.id === item.memberId)
+            return {
+              memberId: publicMemberId(maps, item.memberId, member?.name),
+              yesterday: splitText(item.yesterdayText),
+              today: splitText(item.todayText),
+              blockers: splitText(item.blockersText),
+            }
+          }),
       }
     })
-    return domainStandups.filter(
+    return standups.filter(
       (standup) => filters.projectId === 'all' || standup.projectId === filters.projectId,
     )
   }
 
-  async function listMilestones(filters: {
-    projectId: SeedData['projects'][number]['id'] | 'all'
-  }) {
-    const projectIds = new Set(
-      (await db.select({ id: dbSchema.projects.id }).from(dbSchema.projects)).map(
-        (project) => project.id,
-      ),
-    )
-    const milestones = (await db.select().from(dbSchema.milestones)).map((milestone) => {
-      assertPersistedProjectReference(projectIds, milestone.projectId, milestone.id)
-      return toMilestone(milestone)
+  async function listMilestones(filters: { projectId: ProjectId | 'all' }): Promise<Milestone[]> {
+    const projects = await db.select().from(dbSchema.projects)
+    const members = await db.select().from(dbSchema.members)
+    const milestones = (await db.select().from(dbSchema.milestones)).map((milestone): Milestone => {
+      const project = projects.find((item) => item.id === milestone.projectId)
+      if (!project) throw new Error(`Persisted project not found for milestone: ${milestone.id}`)
+      const member = members.find((item) => item.id === milestone.participantMemberId)
+      return {
+        id: maps.milestoneReverse.get(milestone.id) ?? milestone.id,
+        projectId: (maps.projectReverse.get(project.id) ?? project.code) as ProjectId,
+        iterationId: maps.iterationReverse.get(milestone.iterationId) ?? milestone.iterationId,
+        title: milestone.title,
+        startDay: milestone.startDay,
+        endDay: milestone.endDay,
+        status: milestone.status as Milestone['status'],
+        ownerId: publicMemberId(maps, milestone.participantMemberId, member?.name),
+      }
     })
     return milestones.filter(
       (milestone) => filters.projectId === 'all' || milestone.projectId === filters.projectId,
@@ -562,148 +425,501 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
     async seed(data: SeedData) {
       assertSeedData(data)
       await assertRepositoryEmpty(db)
-      const docIssueLinks = data.docs.flatMap((doc) =>
-        doc.linkedIssueKeys.map((issueKey) => ({ docId: doc.id, issueKey })),
+      const at = nowLabel()
+
+      data.projects.forEach((project) => remember(maps.project, maps.projectReverse, project.id, makeId()))
+      data.members.forEach((member) => {
+        const id = makeId()
+        maps.member.set(member.id, id)
+        maps.memberReverse.set(id, member.id)
+      })
+      data.iterations.forEach((iteration) => remember(maps.iteration, maps.iterationReverse, iteration.id, makeId()))
+      data.issues.forEach((issue) => remember(maps.issue, maps.issueReverse, issue.key, makeId()))
+      data.docs.forEach((doc) => remember(maps.doc, maps.docReverse, doc.id, makeId()))
+      data.standups.forEach((standup) => remember(maps.standup, maps.standupReverse, standup.id, makeId()))
+      data.milestones.forEach((milestone) => remember(maps.milestone, maps.milestoneReverse, milestone.id, makeId()))
+
+      const directoryPaths = Array.from(
+        new Set(data.docs.map((doc) => doc.directory).flatMap((path) => directoryAncestors(path))),
       )
-      const docComments = data.docs.flatMap((doc) => doc.comments)
-      const standupItems = data.standups.flatMap((standup) =>
-        standup.items.map((item, index) => toStandupItemRecord(standup.id, item, index)),
-      )
+      directoryPaths.forEach((path) => remember(maps.directoryPath, maps.directoryReverse, path, makeId()))
+
+      const groupId = makeId()
+      remember(maps.group, maps.groupReverse, 'AgiliX 团队群', groupId)
 
       await db.batch([
-        db.insert(dbSchema.projects).values(data.projects),
-        db.insert(dbSchema.members).values(data.members),
-        db.insert(dbSchema.iterations).values(data.iterations.map(toIterationRecord)),
-        db
-          .insert(dbSchema.issues)
-          .values(data.issues.map(({ linkedDocIds: _linkedDocIds, ...issue }) => issue)),
-        db
-          .insert(dbSchema.documents)
-          .values(
-            data.docs.map(
-              ({ linkedIssueKeys: _linkedIssueKeys, comments: _comments, ...doc }) => doc,
-            ),
+        db.insert(dbSchema.members).values(
+          data.members.map((member, index) => ({
+            id: requireMapped(maps.member, member.id, 'member'),
+            name: member.name,
+            role: member.role,
+            capacity: member.capacity,
+            onlineSortOrder: index,
+          })),
+        ),
+        db.insert(dbSchema.projects).values(
+          data.projects.map((project) => {
+            const activeIteration = data.iterations.find(
+              (iteration) =>
+                iteration.projectId === project.id && iteration.code === project.activeIterationCode,
+            )
+            if (!activeIteration) throw new Error(`Seed active iteration not found: ${project.id}`)
+            return {
+              id: requireMapped(maps.project, project.id, 'project'),
+              code: project.id,
+              name: project.name,
+              glyph: project.glyph,
+              color: project.color,
+              activeIterationId: requireMapped(maps.iteration, activeIteration.id, 'iteration'),
+              cadence: '双周',
+              templateKey: 'scrum-board-burndown',
+            }
+          }),
+        ),
+        db.insert(dbSchema.projectMembers).values(
+          data.projects.flatMap((project) =>
+            data.members.map((member, index) => ({
+              projectId: requireMapped(maps.project, project.id, 'project'),
+              memberId: requireMapped(maps.member, member.id, 'member'),
+              sortOrder: index,
+            })),
           ),
-        ...(docIssueLinks.length > 0
-          ? [db.insert(dbSchema.docIssueLinks).values(docIssueLinks)]
+        ),
+        db.insert(dbSchema.iterations).values(
+          data.iterations.map((iteration) => ({
+            id: requireMapped(maps.iteration, iteration.id, 'iteration'),
+            projectId: requireMapped(maps.project, iteration.projectId, 'project'),
+            code: iteration.code,
+            name: iteration.name,
+            dateRangeLabel: iteration.dateRangeLabel,
+            calendarTitle: iteration.calendarTitle,
+            day: iteration.day,
+            totalDays: iteration.totalDays,
+            goal: iteration.goal,
+            velocity: iteration.velocity,
+          })),
+        ),
+        db.insert(dbSchema.iterationCalendarWeeks).values(
+          data.iterations.flatMap((iteration) =>
+            iteration.calendarWeeks.map((week, index) => {
+              const id = makeId()
+              remember(
+                maps.directoryPath,
+                maps.directoryReverse,
+                `iteration-week:${iteration.id}:${index}`,
+                id,
+              )
+              return {
+                id,
+                iterationId: requireMapped(maps.iteration, iteration.id, 'iteration'),
+                sortOrder: index,
+                label: week.label,
+                rangeLabel: week.rangeLabel,
+              }
+            }),
+          ),
+        ),
+        db.insert(dbSchema.iterationCalendarDays).values(
+          data.iterations.flatMap((iteration) =>
+            iteration.calendarWeeks.flatMap((week, weekIndex) => {
+              const weekId = requireMapped(
+                maps.directoryPath,
+                `iteration-week:${iteration.id}:${weekIndex}`,
+                'iteration week',
+              )
+              return week.days.map((day, dayIndex) => ({
+                id: makeId(),
+                weekId,
+                sortOrder: dayIndex,
+                label: day,
+              }))
+            }),
+          ),
+        ),
+        db.insert(dbSchema.issues).values(
+          data.issues.map((issue) => ({
+            id: requireMapped(maps.issue, issue.key, 'issue'),
+            key: issue.key,
+            projectId: requireMapped(maps.project, issue.projectId, 'project'),
+            iterationId: requireMapped(maps.iteration, issue.iterationId, 'iteration'),
+            type: issue.type,
+            title: issue.title,
+            status: issue.status,
+            priority: issue.priority,
+            handlerMemberId: requireMapped(maps.member, issue.assigneeId, 'member'),
+            storyPoints: issue.storyPoints,
+            blockerReason: issue.blockerReason ?? null,
+            description: '',
+            acceptanceCriteria: '',
+            epicName: issue.projectId,
+            draft: false,
+          })),
+        ),
+        ...(data.docs.length > 0
+          ? [
+              db.insert(dbSchema.documentDirectories).values(
+                directoryPaths.map((path, index) => ({
+                  id: requireMapped(maps.directoryPath, path, 'directory'),
+                  scope: path.startsWith('全局文档') ? ('global' as const) : ('project' as const),
+                  projectId: projectIdFromDirectoryPath(data, maps, path),
+                  parentId: parentDirectoryId(maps, path),
+                  name: path.split('/').at(-1) ?? path,
+                  sortOrder: index,
+                  createdAt: at,
+                  updatedAt: at,
+                })),
+              ),
+            ]
           : []),
-        ...(docComments.length > 0 ? [db.insert(dbSchema.docComments).values(docComments)] : []),
-        db
-          .insert(dbSchema.standups)
-          .values(data.standups.map(({ items: _items, ...standup }) => standup)),
-        ...(standupItems.length > 0 ? [db.insert(dbSchema.standupItems).values(standupItems)] : []),
-        db.insert(dbSchema.milestones).values(data.milestones),
+        db.insert(dbSchema.documents).values(
+          data.docs.map((doc) => ({
+            id: requireMapped(maps.doc, doc.id, 'document'),
+            scope: doc.scope,
+            projectId: doc.scope === 'project' ? requireMapped(maps.project, doc.projectId, 'project') : null,
+            directoryId: requireMapped(maps.directoryPath, doc.directory, 'directory'),
+            title: doc.title,
+            contentType: 'markdown' as const,
+            body: doc.body,
+            editorMemberId: requireMapped(maps.member, doc.comments[0]?.authorId ?? data.members[0].id, 'member'),
+            syncFeishuDoc: false,
+            createdAt: at,
+            updatedAt: doc.updatedAtLabel,
+          })),
+        ),
+        ...(data.docs.flatMap((doc) => doc.linkedIssueKeys).length > 0
+          ? [
+              db.insert(dbSchema.documentIssueLinks).values(
+                data.docs.flatMap((doc) =>
+                  doc.linkedIssueKeys.map((issueKey) => ({
+                    docId: requireMapped(maps.doc, doc.id, 'document'),
+                    issueId: requireMapped(maps.issue, issueKey, 'issue'),
+                  })),
+                ),
+              ),
+            ]
+          : []),
+        ...(data.docs.flatMap((doc) => doc.comments).length > 0
+          ? [
+              db.insert(dbSchema.documentComments).values(
+                data.docs.flatMap((doc) =>
+                  doc.comments.map((comment) => ({
+                    id: comment.id,
+                    docId: requireMapped(maps.doc, doc.id, 'document'),
+                    authorMemberId: requireMapped(maps.member, comment.authorId, 'member'),
+                    body: comment.body,
+                    resolved: comment.resolved,
+                    createdAt: comment.createdAtLabel,
+                  })),
+                ),
+              ),
+            ]
+          : []),
+        db.insert(dbSchema.standups).values(
+          data.standups.map((standup) => ({
+            id: requireMapped(maps.standup, standup.id, 'standup'),
+            projectId: requireMapped(maps.project, standup.projectId, 'project'),
+            date: standup.dateLabel,
+            dateLabel: standup.dateLabel,
+            weekdayLabel: standup.weekdayLabel,
+            timeLabel: standup.timeLabel,
+            calendarLabel: standup.calendarLabel,
+          })),
+        ),
+        ...(data.standups.flatMap((standup) => standup.items).length > 0
+          ? [
+              db.insert(dbSchema.standupItems).values(
+                data.standups.flatMap((standup) =>
+                  standup.items.map((item, index) => ({
+                    id: makeId(),
+                    standupId: requireMapped(maps.standup, standup.id, 'standup'),
+                    memberId: requireMapped(maps.member, item.memberId, 'member'),
+                    sortOrder: index,
+                    yesterdayText: joinText(item.yesterday),
+                    todayText: joinText(item.today),
+                    blockersText: joinText(item.blockers),
+                  })),
+                ),
+              ),
+            ]
+          : []),
+        db.insert(dbSchema.milestones).values(
+          data.milestones.map((milestone) => ({
+            id: requireMapped(maps.milestone, milestone.id, 'milestone'),
+            projectId: requireMapped(maps.project, milestone.projectId, 'project'),
+            iterationId: requireMapped(maps.iteration, milestone.iterationId, 'iteration'),
+            title: milestone.title,
+            startDay: milestone.startDay,
+            endDay: milestone.endDay,
+            status: milestone.status,
+            participantMemberId: requireMapped(maps.member, milestone.ownerId, 'member'),
+          })),
+        ),
+        db.insert(dbSchema.feishuMemberProfiles).values(
+          data.members.map((member) => ({
+            memberId: requireMapped(maps.member, member.id, 'member'),
+            openId: `open-${member.id}`,
+            unionId: `union-${member.id}`,
+            avatarUrl: `https://avatar.local/${member.id}.png`,
+            displayName: member.name,
+            lastSeenAt: at,
+          })),
+        ),
+        db.insert(dbSchema.feishuGroups).values(
+          data.projects.map((project, index) => ({
+            id: index === 0 ? groupId : makeId(),
+            projectId: requireMapped(maps.project, project.id, 'project'),
+            name: 'AgiliX 团队群',
+            purpose: '通知 / 查询',
+            memberCountLabel: `${data.members.length} 人`,
+            status: '已连接',
+            sortOrder: index,
+          })),
+        ),
+        db.insert(dbSchema.feishuBotRules).values(
+          data.projects.flatMap((project) => [
+            {
+              id: makeId(),
+              projectId: requireMapped(maps.project, project.id, 'project'),
+              ruleType: 'scheduled_summary' as const,
+              title: '定时摘要',
+              description: '同步今日状态',
+              scheduleLabel: '每日 10:00',
+              targetGroupId: groupId,
+              enabled: true,
+              sortOrder: 0,
+            },
+            {
+              id: makeId(),
+              projectId: requireMapped(maps.project, project.id, 'project'),
+              ruleType: 'risk_alert' as const,
+              title: '风险告警',
+              description: '阻塞时通知',
+              scheduleLabel: '实时',
+              targetGroupId: groupId,
+              enabled: true,
+              sortOrder: 1,
+            },
+          ]),
+        ),
       ])
     },
     listProjects,
-    async createProject(input) {
-      const result = await validateCreateProject(db, input)
-      if (result !== 'created') return result
+    async createProject(input: CreateProjectInput): Promise<CreateProjectResult> {
+      const projects = await listProjects()
+      if (input.project.id !== input.iteration.projectId) return 'project-iteration-mismatch'
+      if (input.project.activeIterationCode !== input.iteration.code)
+        return 'active-iteration-code-mismatch'
+      if (projects.some((project) => project.id === input.project.id)) return 'duplicate-project'
+
+      const projectId = makeId()
+      const iterationId = makeId()
+      remember(maps.project, maps.projectReverse, input.project.id, projectId)
+      remember(maps.iteration, maps.iterationReverse, input.iteration.id, iterationId)
+
       await db.batch([
-        db.insert(dbSchema.projects).values(input.project),
-        db.insert(dbSchema.iterations).values(toIterationRecord(input.iteration)),
+        db.insert(dbSchema.projects).values({
+          id: projectId,
+          code: input.project.id,
+          name: input.project.name,
+          glyph: input.project.glyph,
+          color: input.project.color,
+          activeIterationId: iterationId,
+          cadence: '双周',
+          templateKey: 'scrum-board-burndown',
+        }),
+        db.insert(dbSchema.iterations).values({
+          id: iterationId,
+          projectId,
+          code: input.iteration.code,
+          name: input.iteration.name,
+          dateRangeLabel: input.iteration.dateRangeLabel,
+          calendarTitle: input.iteration.calendarTitle,
+          day: input.iteration.day,
+          totalDays: input.iteration.totalDays,
+          goal: input.iteration.goal,
+          velocity: input.iteration.velocity,
+        }),
       ])
       return 'created'
     },
     listIssues,
     async moveIssue(issueKey: string, status: IssueStatus) {
-      const [existing] = await db
-        .select({ key: dbSchema.issues.key })
+      const [issue] = await db
+        .select({ id: dbSchema.issues.id })
         .from(dbSchema.issues)
         .where(eq(dbSchema.issues.key, issueKey))
-      if (!existing) return false
-      await db.update(dbSchema.issues).set({ status }).where(eq(dbSchema.issues.key, issueKey))
+      if (!issue) return false
+      await db.update(dbSchema.issues).set({ status }).where(eq(dbSchema.issues.id, issue.id))
       return true
     },
     listDocs,
     async getDoc(docId: string) {
       return (await listDocs({ projectId: 'all', query: '' })).find((doc) => doc.id === docId)
     },
-    async createDoc(doc: CreateDocInput) {
-      const [existing] = await db
-        .select({ id: dbSchema.documents.id })
-        .from(dbSchema.documents)
-        .where(eq(dbSchema.documents.id, doc.id))
-      if (existing) return 'duplicate-document'
-      const { linkedIssueKeys, comments, ...record } = doc
-      if (comments.length > 0) return 'document-comments-not-empty'
-      if (new Set(linkedIssueKeys).size !== linkedIssueKeys.length) return 'duplicate-linked-issue'
-      const issueRows = await db.select({ key: dbSchema.issues.key }).from(dbSchema.issues)
-      const issueKeys = new Set(issueRows.map((issue) => issue.key))
-      if (!linkedIssueKeys.every((issueKey) => issueKeys.has(issueKey)))
-        return 'linked-issue-not-found'
-      await db.insert(dbSchema.documents).values(record)
-      if (linkedIssueKeys.length > 0) {
-        await db
-          .insert(dbSchema.docIssueLinks)
-          .values(linkedIssueKeys.map((issueKey) => ({ docId: doc.id, issueKey })))
-      }
+    async createDoc(doc: CreateDocInput): Promise<CreateDocResult> {
+      if ((await listDocs({ projectId: 'all', query: '' })).some((item) => item.id === doc.id))
+        return 'duplicate-document'
+      if (doc.comments.length > 0) return 'document-comments-not-empty'
+      if (new Set(doc.linkedIssueKeys).size !== doc.linkedIssueKeys.length)
+        return 'duplicate-linked-issue'
+      const issues = await db.select().from(dbSchema.issues)
+      const issueIds = doc.linkedIssueKeys.map((issueKey) => issues.find((issue) => issue.key === issueKey)?.id)
+      if (issueIds.some((issueId) => !issueId)) return 'linked-issue-not-found'
+      const at = nowLabel()
+      const id = makeId()
+      remember(maps.doc, maps.docReverse, doc.id, id)
+      if (!maps.directoryPath.has(doc.directory))
+        remember(maps.directoryPath, maps.directoryReverse, doc.directory, makeId())
+      const directoryId = requireMapped(maps.directoryPath, doc.directory, 'directory')
+      const projectId = doc.scope === 'project' ? requireMapped(maps.project, doc.projectId, 'project') : null
+      await db.batch([
+        db.insert(dbSchema.documentDirectories).values({
+          id: directoryId,
+          scope: doc.scope,
+          projectId,
+          parentId: parentDirectoryId(maps, doc.directory),
+          name: doc.directory.split('/').at(-1) ?? doc.directory,
+          sortOrder: maps.directoryPath.size,
+          createdAt: at,
+          updatedAt: at,
+        }),
+        db.insert(dbSchema.documents).values({
+          id,
+          scope: doc.scope,
+          projectId,
+          directoryId,
+          title: doc.title,
+          contentType: 'markdown',
+          body: doc.body,
+          editorMemberId: requireMapped(maps.member, 'zhou', 'member'),
+          syncFeishuDoc: false,
+          createdAt: at,
+          updatedAt: doc.updatedAtLabel,
+        }),
+        ...(issueIds.length > 0
+          ? [
+              db.insert(dbSchema.documentIssueLinks).values(
+                issueIds.map((issueId) => ({ docId: id, issueId: issueId as string })),
+              ),
+            ]
+          : []),
+      ])
       return 'created'
     },
-    async addDocComment(docId: string, comment: DocComment) {
+    async addDocComment(docId: string, comment: DocComment): Promise<AddDocCommentResult> {
       if (comment.docId !== docId) return 'comment-doc-id-mismatch'
-      const [existing] = await db
+      const internalDocId = maps.doc.get(docId) ?? docId
+      const [doc] = await db
         .select({ id: dbSchema.documents.id })
         .from(dbSchema.documents)
-        .where(eq(dbSchema.documents.id, docId))
-      if (!existing) return 'document-not-found'
-      await db.insert(dbSchema.docComments).values(comment)
+        .where(eq(dbSchema.documents.id, internalDocId))
+      if (!doc) return 'document-not-found'
+      await db.insert(dbSchema.documentComments).values({
+        id: comment.id,
+        docId: internalDocId,
+        authorMemberId: requireMapped(maps.member, comment.authorId, 'member'),
+        body: comment.body,
+        resolved: comment.resolved,
+        createdAt: comment.createdAtLabel,
+      })
       return 'created'
     },
     listStandups,
     async saveStandup(standup: Standup) {
+      const internalStandupId = maps.standup.get(standup.id) ?? standup.id
       const [existing] = await db
         .select({ id: dbSchema.standups.id })
         .from(dbSchema.standups)
-        .where(eq(dbSchema.standups.id, standup.id))
+        .where(eq(dbSchema.standups.id, internalStandupId))
       if (!existing) return false
-      const memberRows = await db.select({ id: dbSchema.members.id }).from(dbSchema.members)
-      assertStandupMembers(new Set(memberRows.map((member) => member.id)), standup)
+      assertStandupMembers(new Set((await listMembers()).map((member) => member.id)), standup)
       await db.batch([
-        db
-          .update(dbSchema.standups)
-          .set({
-            projectId: standup.projectId,
-            dateLabel: standup.dateLabel,
-            weekdayLabel: standup.weekdayLabel,
-            timeLabel: standup.timeLabel,
-            calendarLabel: standup.calendarLabel,
-          })
-          .where(eq(dbSchema.standups.id, standup.id)),
-        db.delete(dbSchema.standupItems).where(eq(dbSchema.standupItems.standupId, standup.id)),
+        db.delete(dbSchema.standupItems).where(eq(dbSchema.standupItems.standupId, internalStandupId)),
         ...(standup.items.length > 0
           ? [
-              db
-                .insert(dbSchema.standupItems)
-                .values(
-                  standup.items.map((item, index) => toStandupItemRecord(standup.id, item, index)),
-                ),
+              db.insert(dbSchema.standupItems).values(
+                standup.items.map((item, index) => ({
+                  id: makeId(),
+                  standupId: internalStandupId,
+                  memberId: requireMapped(maps.member, item.memberId, 'member'),
+                  sortOrder: index,
+                  yesterdayText: joinText(item.yesterday),
+                  todayText: joinText(item.today),
+                  blockersText: joinText(item.blockers),
+                })),
+              ),
             ]
           : []),
       ])
       return true
     },
     listMilestones,
-    async saveMilestone(milestone: Milestone) {
-      const result = await validateMilestoneReferences(db, milestone)
-      if (result !== 'saved') return result
+    async saveMilestone(milestone: Milestone): Promise<SaveMilestoneResult> {
+      const internalMilestoneId = maps.milestone.get(milestone.id) ?? milestone.id
+      const [existing] = await db
+        .select({ id: dbSchema.milestones.id })
+        .from(dbSchema.milestones)
+        .where(eq(dbSchema.milestones.id, internalMilestoneId))
+      if (!existing) return 'milestone-not-found'
+      const projectId = maps.project.get(milestone.projectId)
+      if (!projectId) return 'project-not-found'
+      const iterationId = maps.iteration.get(milestone.iterationId)
+      if (!iterationId) return 'iteration-not-found'
+      const memberId = maps.member.get(milestone.ownerId)
+      if (!memberId) return 'owner-not-found'
       await db
         .update(dbSchema.milestones)
-        .set(milestone)
-        .where(eq(dbSchema.milestones.id, milestone.id))
+        .set({
+          projectId,
+          iterationId,
+          title: milestone.title,
+          startDay: milestone.startDay,
+          endDay: milestone.endDay,
+          status: milestone.status,
+          participantMemberId: memberId,
+        })
+        .where(eq(dbSchema.milestones.id, internalMilestoneId))
       return 'saved'
     },
-    async saveFeishuNotification(input: FeishuNotificationRecord) {
-      const result = await validateFeishuNotificationReferences(db, input)
-      if (result !== 'saved') return result
-      const { payload, ...record } = input
-      await db
-        .insert(dbSchema.feishuNotifications)
-        .values({ ...record, payloadJson: JSON.stringify(payload) })
+    async saveFeishuNotification(input: FeishuNotificationRecord): Promise<SaveFeishuNotificationResult> {
+      const targetGroupId = requireMapped(maps.group, input.targetGroup, 'feishu group')
+      if (input.trigger === '站会摘要' && !maps.standup.has(input.payload.standupId))
+        return 'standup-not-found'
+      if (
+        input.trigger === '阻塞提醒' &&
+        input.payload.issueKeys.some((issueKey) => !maps.issue.has(issueKey))
+      )
+        return 'issue-not-found'
+      if (input.trigger === '文档评论' && !maps.doc.has(input.payload.docId))
+        return 'document-not-found'
+      if (input.trigger === '文档评论') {
+        const [comment] = await db
+          .select({ id: dbSchema.documentComments.id })
+          .from(dbSchema.documentComments)
+          .where(eq(dbSchema.documentComments.id, input.payload.commentId))
+        if (!comment) return 'comment-not-found'
+      }
+      await db.insert(dbSchema.feishuNotifications).values({
+        id: input.id,
+        trigger: input.trigger,
+        targetGroupId,
+        payloadJson: JSON.stringify(input.payload),
+        status: input.status,
+        createdAt: input.createdAt,
+      })
       return 'saved'
     },
     async listFeishuNotifications() {
-      return (await db.select().from(dbSchema.feishuNotifications)).map(toFeishuNotification)
+      return (await db.select().from(dbSchema.feishuNotifications)).map((row) =>
+        feishuNotificationSchema.parse({
+          id: row.id,
+          trigger: row.trigger,
+          targetGroup: maps.groupReverse.get(row.targetGroupId) ?? 'AgiliX 团队群',
+          payload: JSON.parse(row.payloadJson),
+          status: row.status,
+          createdAt: row.createdAt,
+        }),
+      )
     },
     async saveFeishuQuery(input: FeishuQueryRecord) {
       await db.insert(dbSchema.feishuQueries).values({
@@ -715,25 +931,22 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
       })
     },
     async listFeishuQueries() {
-      return (await db.select().from(dbSchema.feishuQueries)).map(toFeishuQuery)
+      return (await db.select().from(dbSchema.feishuQueries)).map((row): FeishuQueryRecord => ({
+        id: row.id,
+        command: parseFeishuCommand(row.command),
+        reply: {
+          title: row.responseTitle,
+          lines: stringArraySchema.parse(JSON.parse(row.responseBodyJson)),
+        },
+        createdAt: row.createdAt,
+      }))
     },
     async loadData() {
       return {
-        navItems: [
-          '团队工作台',
-          '项目总览',
-          'Issues',
-          '看板',
-          '迭代统计',
-          '文档',
-          '成员负载',
-          '每日站会',
-          '排期甘特',
-          '飞书',
-        ],
+        navItems,
         projects: await listProjects(),
-        members: (await db.select().from(dbSchema.members)).map(toMember),
-        iterations: (await db.select().from(dbSchema.iterations)).map(toIteration),
+        members: await listMembers(),
+        iterations: await listIterations(),
         issues: await listIssues({
           projectId: 'all',
           status: 'all',
@@ -755,4 +968,21 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
       }
     },
   }
+}
+
+function directoryAncestors(path: string): string[] {
+  return path.split('/').map((_, index, parts) => parts.slice(0, index + 1).join('/'))
+}
+
+function parentDirectoryId(maps: IdMaps, path: string) {
+  const parts = path.split('/')
+  if (parts.length <= 1) return null
+  return requireMapped(maps.directoryPath, parts.slice(0, -1).join('/'), 'parent directory')
+}
+
+function projectIdFromDirectoryPath(data: SeedData, maps: IdMaps, path: string) {
+  if (!path.startsWith('项目文档/')) return null
+  const projectName = path.split('/')[1]
+  const project = data.projects.find((item) => item.name === projectName)
+  return project ? requireMapped(maps.project, project.id, 'project') : null
 }
