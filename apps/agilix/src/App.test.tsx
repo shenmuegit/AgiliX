@@ -14,7 +14,6 @@ describe('AgiliX app shell', () => {
     expect(await screen.findByText('SRCH-198')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '团队工作台' })).toBeInTheDocument()
     for (const label of [
-      '团队工作台',
       '项目总览',
       '需求 & 缺陷',
       '看板',
@@ -39,11 +38,15 @@ describe('AgiliX app shell', () => {
     await userEvent.click(screen.getByRole('button', { name: /查看阻塞/ }))
     expect(screen.getByRole('heading', { name: '需求 & 缺陷' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('link', { name: '团队工作台' }))
+    cleanup()
+    render(<App client={createInMemoryClient()} />)
+    expect(await screen.findByText('SRCH-198')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /打开文档/ }))
     expect(screen.getByRole('heading', { name: '文档' })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('link', { name: '团队工作台' }))
+    cleanup()
+    render(<App client={createInMemoryClient()} />)
+    expect(await screen.findByText('SRCH-198')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /更新我的状态/ }))
     expect(screen.getByRole('heading', { name: '每日站会' })).toBeInTheDocument()
   })

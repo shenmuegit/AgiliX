@@ -6,6 +6,7 @@
   "description": "Lightweight agile project management for Feishu",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
+    "dev:agilix": "pnpm --parallel --filter @agilix/api --filter @agilix/app dev",
     "dev:frontend": "pnpm --filter @agilix/frontend dev",
     "dev:backend": "pnpm --filter @agilix/backend dev",
     "build": "pnpm -r build",

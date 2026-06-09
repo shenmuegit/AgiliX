@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/localDevServer.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:generate": "drizzle-kit generate"
@@ -20,6 +21,7 @@
     "@types/better-sqlite3": "^7.6.0",
     "better-sqlite3": "^11.8.0",
     "drizzle-kit": "^0.30.0",
+    "tsx": "^4.20.6",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
   }

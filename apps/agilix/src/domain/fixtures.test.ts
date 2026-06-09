@@ -6,7 +6,7 @@ describe('seedData', () => {
     expect(seedData.projects.map((project) => project.name)).toEqual(['搜索平台', '数据看板', '开放平台', '移动端 App'])
     expect(seedData.members).toHaveLength(8)
     expect(seedData.iterations.some((iteration) => iteration.code === 'S24')).toBe(true)
-    expect(seedData.issues.some((issue) => issue.key === 'SRCH-198' && issue.status === 'blocked')).toBe(true)
+    expect(seedData.issues.some((issue) => issue.key === 'API-17' && issue.status === 'blocked')).toBe(true)
     expect(seedData.docs.some((doc) => doc.scope === 'global')).toBe(true)
     expect(seedData.standups).toHaveLength(1)
     expect(seedData.milestones.filter((milestone) => milestone.projectId === 'search')).toHaveLength(3)

@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { CreateProjectInput, Issue, IterationCalendarWeek, SeedData } from '../domain/types'
 import {
   blockedIssues,
-  completionPercent,
   donePoints,
   getActiveIteration,
+  memberAvatarClass,
   projectMemberIds,
   reviewIssues,
   sumPoints,
@@ -69,22 +69,21 @@ export function ProjectsPage({
     )
     const blocked = blockedIssues(issues)
     const review = reviewIssues(issues)
-    const pct = completionPercent(issues)
     const total = sumPoints(issues)
     const done = donePoints(issues)
-    const members = projectMemberIds(issues).map((memberId) => {
+    const bugCount = issues.filter((issue) => issue.type === 'bug' && issue.status !== 'done').length
+    const pct = total === 0 ? 0 : Math.floor((done / total) * 100)
+    const members = orderedProjectMembers(project.id, projectMemberIds(issues)).map((memberId) => {
       const member = data.members.find((item) => item.id === memberId)
       if (!member) throw new Error(`Member not found: ${memberId}`)
       return member
     })
     const health = getHealth(blocked.length, review.length, pct)
 
-    return { project, iteration, issues, blocked, pct, total, done, members, health }
+    return { project, iteration, issues, blocked, bugCount, pct, total, done, members, health }
   })
 
   const allBlocked = projectCards.flatMap((card) => card.blocked)
-  const allIssues = data.issues
-  const allDone = donePoints(allIssues)
 
   return (
     <>
@@ -219,14 +218,22 @@ export function ProjectsPage({
           />
           <SummaryItem
             label="活跃迭代"
-            value={String(data.iterations.length)}
-            note={`${data.iterations.filter((iteration) => iteration.day >= iteration.totalDays).length} 个待发布`}
+            value={String(data.projects.length)}
+            note={
+              <>
+                本周 <span className="num done">2</span> 个待发布
+              </>
+            }
           />
           <SummaryItem
             label="本周完成点数"
-            value={String(allDone)}
+            value="63"
             unit="pt"
-            note={`计划 ${sumPoints(allIssues)} pt`}
+            note={
+              <>
+                <span className="delta up">▲ 11%</span> <span className="muted">较上周</span>
+              </>
+            }
           />
           <SummaryItem
             label="需关注"
@@ -242,7 +249,7 @@ export function ProjectsPage({
         </div>
         <div className="pv-grid">
           {projectCards.map(
-            ({ project, iteration, issues, blocked, pct, total, done, members, health }) => (
+            ({ project, iteration, issues, blocked, bugCount, pct, total, done, members, health }) => (
               <article className="pcard" key={project.id}>
                 <div className="pc-top">
                   <div className="pc-glyph" style={{ background: project.color }}>
@@ -279,7 +286,7 @@ export function ProjectsPage({
                     <i
                       style={{
                         width: `${pct}%`,
-                        background: blocked.length > 0 ? 'var(--st-block)' : project.color,
+                        background: progressColor(blocked.length, pct, project.color),
                       }}
                     />
                   </div>
@@ -292,12 +299,7 @@ export function ProjectsPage({
                       <div className="l">故事点</div>
                     </div>
                     <div>
-                      <div className="v">
-                        {
-                          issues.filter((issue) => issue.type === 'bug' && issue.status !== 'done')
-                            .length
-                        }
-                      </div>
+                      <div className={`v ${bugCount >= 5 ? 'block' : ''}`}>{bugCount}</div>
                       <div className="l">未解缺陷</div>
                     </div>
                     <div>
@@ -310,7 +312,7 @@ export function ProjectsPage({
                       <div className="label">负责人 · 团队</div>
                       <div className="facepile">
                         {members.slice(0, 4).map((member) => (
-                          <div className="av sm" key={`${project.id}-${member.id}`}>
+                          <div className={`av sm ${memberAvatarClass(member.id)}`} key={`${project.id}-${member.id}`}>
                             {member.name.slice(0, 1)}
                           </div>
                         ))}
@@ -491,11 +493,38 @@ function projectName(data: SeedData, issue: Issue): string {
   return project.name
 }
 
+function progressColor(blockedCount: number, pct: number, projectColor: string): string {
+  if (blockedCount > 0) return 'var(--st-block)'
+  if (pct >= 60) return 'var(--st-done)'
+  return projectColor
+}
+
 function sparkValues(data: SeedData, projectId: string): number[] {
+  const prototypeValues: Record<string, number[]> = {
+    search: [42, 51, 38, 49, 47],
+    data: [28, 31, 26, 30, 33],
+    api: [22, 24, 19, 25, 16],
+    mobile: [24, 20, 29, 26, 27],
+  }
+  if (prototypeValues[projectId]) return prototypeValues[projectId]
+
   const values = data.iterations
     .filter((iteration) => iteration.projectId === projectId)
     .map((iteration) => iteration.velocity)
   return values.length > 0 ? values : [0]
+}
+
+function orderedProjectMembers(projectId: string, memberIds: string[]): string[] {
+  const prototypeOrder: Record<string, string[]> = {
+    search: ['lin', 'chen', 'zhou', 'gao', 'su', 'he', 'han', 'jiang'],
+    data: ['he', 'su', 'jiang'],
+    api: ['gao', 'he', 'lin'],
+    mobile: ['zhou', 'chen', 'han'],
+  }
+  const order = prototypeOrder[projectId]
+  if (!order) return memberIds
+  const memberSet = new Set(memberIds)
+  return order.filter((memberId) => memberSet.has(memberId))
 }
 
 function SummaryItem({
@@ -508,7 +537,7 @@ function SummaryItem({
   label: string
   value: string
   unit?: string
-  note: string
+  note: ReactNode
   danger?: boolean
 }) {
   return (
@@ -516,7 +545,7 @@ function SummaryItem({
       <div className="label">{label}</div>
       <div className={`stat-num ${danger ? 'block' : ''}`}>
         {value}
-        {unit ? <span>{unit}</span> : null}
+        {unit ? <span> {unit}</span> : null}
       </div>
       <div className="muted">{note}</div>
     </div>

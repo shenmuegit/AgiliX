@@ -12,8 +12,8 @@ describe('workbench and project overview routes', () => {
     render(<TeamPage data={seedData} />)
 
     expect(screen.getByRole('heading', { name: '团队工作台' })).toBeInTheDocument()
-    expect(screen.getByText('今天要盯住 3 件事')).toBeInTheDocument()
-    expect(screen.getByText('21%')).toBeInTheDocument()
+    expect(screen.getByText('今天要盯住 2 件事')).toBeInTheDocument()
+    expect(screen.getByText('69%')).toBeInTheDocument()
     expect(screen.getByText('迭代完成')).toBeInTheDocument()
     expect(screen.getByText('SRCH-198 向量召回 beta 开关接入')).toBeInTheDocument()
     expect(screen.getByText('结果卡片重设计方案')).toBeInTheDocument()
@@ -30,6 +30,32 @@ describe('workbench and project overview routes', () => {
     expect(screen.getByText('共 8 名成员协作')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '新建项目' })).toBeEnabled()
     expect(screen.queryByText('审批流')).not.toBeInTheDocument()
+  })
+
+  it('matches the prototype project overview metrics', () => {
+    const { container } = render(<ProjectsPage data={seedData} />)
+
+    expect(screen.getByText('63')).toBeInTheDocument()
+    expect(screen.getByText('开放平台 · 鉴权依赖')).toBeInTheDocument()
+    expect(screen.getByText('47')).toBeInTheDocument()
+    expect(screen.getByText('/68')).toBeInTheDocument()
+    expect(screen.getByText('18')).toBeInTheDocument()
+    expect(screen.getByText('/33')).toBeInTheDocument()
+    expect(screen.getByText('14')).toBeInTheDocument()
+    expect(screen.getByText('/31')).toBeInTheDocument()
+    expect(screen.getByText('27')).toBeInTheDocument()
+    expect(screen.getByText('/30')).toBeInTheDocument()
+    expect(screen.getByText('54')).toBeInTheDocument()
+    expect(screen.queryByText('55')).not.toBeInTheDocument()
+
+    const cards = Array.from(container.querySelectorAll('.pcard'))
+    expect(cards).toHaveLength(4)
+    for (const card of cards) {
+      expect(card.querySelectorAll('.spark i')).toHaveLength(5)
+    }
+    expect(cards[0].querySelector('.av-lin')).toBeInTheDocument()
+    expect(cards[0].querySelector('.av-chen')).toBeInTheDocument()
+    expect(cards[0].querySelector('.av-gao')).toBeInTheDocument()
   })
 
   it('submits explicit project and initial iteration fields', async () => {

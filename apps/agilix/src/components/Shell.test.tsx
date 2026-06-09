@@ -1,8 +1,10 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { seedData } from '../domain/fixtures'
 import { Shell } from './Shell'
+
+afterEach(() => cleanup())
 
 describe('Shell', () => {
   it('renders flat navigation and sends navigation changes upward', async () => {
@@ -33,6 +35,8 @@ describe('Shell', () => {
 
     expect(screen.getByText('4 个项目 · 8 人')).toBeInTheDocument()
     expect(screen.getByText('搜索平台 · S24')).toBeInTheDocument()
-    expect(screen.getByText('在线 · 8')).toBeInTheDocument()
+    expect(screen.getByText('在线 · 6')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '成员负载' })).not.toHaveTextContent('8')
+    expect(screen.queryByText('查询命令')).not.toBeInTheDocument()
   })
 })

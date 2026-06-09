@@ -83,7 +83,7 @@ describe('issues ledger and board routes', () => {
     expect(screen.getByRole('list', { name: '看板状态时间线' })).toBeInTheDocument()
     expect(screen.getByText('阻塞 · 1 项 · 8pt')).toBeInTheDocument()
     expect(screen.getByText('评审 · 2 项 · 8pt')).toBeInTheDocument()
-    expect(screen.getByText('已完成 · 1 项 · 5pt')).toBeInTheDocument()
+    expect(screen.getByText('已完成 · 4 项 · 47pt')).toBeInTheDocument()
     expect(screen.getByText('SRCH-198 · 向量召回 beta 开关接入')).toBeInTheDocument()
     expect(screen.getByText('等待检索资源配额确认')).toBeInTheDocument()
     expect(screen.queryByText('高远')).not.toBeInTheDocument()

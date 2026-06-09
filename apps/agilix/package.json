@@ -20,7 +20,8 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "e2e": "playwright test",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "visual:audit": "playwright test -c playwright.visual.config.ts"
   },
   "dependencies": {
     "zod": "^3.24.0",

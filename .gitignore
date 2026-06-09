@@ -19,6 +19,7 @@ Thumbs.db
 
 # Testing
 coverage/
+apps/agilix/test-results/
 
 # Worktrees
 .worktrees/

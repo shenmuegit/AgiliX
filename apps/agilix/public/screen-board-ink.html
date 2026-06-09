@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>看板 · Sprint 24</title>
+<style>
+/* ============================================================
+   EDITORIAL LEDGER · 飞书敏捷项目管理 设计系统
+   一份精装工程台账的质感：牛皮纸底、发丝分割线、衬线数字、
+   小型大写标签、右对齐表格数字、克制的赤陶橙。
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600&display=swap');
+
+:root{
+  /* —— 纸与墨 —— */
+  --paper:        #faf7f1;
+  --paper-2:      #f4efe6;   /* 凹陷区 / 列底 */
+  --paper-raised: #fffdf9;   /* 卡片 */
+  --ink:          #211d18;
+  --ink-2:        #6c6357;   /* 次要文字 */
+  --ink-3:        #9a9082;   /* 元信息 / 脚注 */
+  --ink-4:        #c0b8a8;   /* 占位 */
+
+  /* —— 发丝线 —— */
+  --rule:         #e7e0d3;
+  --rule-2:       #ddd5c5;   /* 略强 */
+  --rule-ink:     #cabf ;    /* 不用 */
+
+  /* —— 主色：赤陶橙 —— */
+  --accent:       #c5562c;
+  --accent-2:     #a8451f;   /* hover / 深 */
+  --accent-soft:  #f3e2d8;   /* 浅底 */
+  --accent-line:  #e6c3b1;
+
+  /* —— 状态色（去饱和，编辑气质）—— */
+  --st-todo:      #9a9082;
+  --st-todo-bg:   #efeadf;
+  --st-doing:     #b4832a;   /* 赭黄 进行中 */
+  --st-doing-bg:  #f4ead3;
+  --st-review:    #5d748f;   /* 灰蓝 评审 */
+  --st-review-bg: #e3e7ec;
+  --st-done:      #5a7355;   /* 墨绿 完成 */
+  --st-done-bg:   #e3ebe0;
+  --st-block:     #aa4a3a;   /* 砖红 阻塞 */
+  --st-block-bg:  #f1ddd8;
+
+  /* —— 优先级 —— */
+  --p-high:  #aa4a3a;
+  --p-mid:   #b4832a;
+  --p-low:   #8a8576;
+
+  /* —— 圆角（Tweak 可调）—— */
+  --r-card: 5px;
+  --r-chip: 4px;
+  --r-pill: 999px;
+
+  /* —— 阴影（极克制）—— */
+  --shadow-card: 0 1px 0 rgba(33,29,24,.02), 0 1px 2px rgba(33,29,24,.04);
+  --shadow-pop:  0 8px 28px rgba(33,29,24,.14), 0 1px 0 rgba(33,29,24,.04);
+
+  --serif: 'Newsreader','Noto Serif SC',Georgia,serif;
+  --sans:  'Noto Sans SC',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  --mono:  'Spline Sans Mono','SF Mono',ui-monospace,monospace;
+}
+
+/* ========== 配色主题变体（?theme= 切换）========== */
+/* 冷墨黑白 · 工程师审美 */
+.theme-ink{
+  --paper:#f6f6f4; --paper-2:#eeeeeb; --paper-raised:#fff;
+  --ink:#1b1c1e; --ink-2:#5c5f63; --ink-3:#9498a0; --ink-4:#c2c6cc;
+  --rule:#e6e7e9; --rule-2:#d8dadd;
+  --accent:#1b1c1e; --accent-2:#000; --accent-soft:#e7e8ea; --accent-line:#d2d4d7;
+  --st-doing:#7a7d82; --st-doing-bg:#e7e8ea;
+  --st-review:#5d748f; --st-review-bg:#e2e6eb;
+  --st-done:#4f6b4a; --st-done-bg:#e3ebe0;
+  --st-block:#9a4030; --st-block-bg:#f0ddd8;
+  --serif:'Newsreader','Noto Serif SC',Georgia,serif;
+}
+/* 牛皮纸暖棕 */
+.theme-kraft{
+  --paper:#f1e9da; --paper-2:#e8ddc8; --paper-raised:#faf4e8;
+  --ink:#33281a; --ink-2:#6e5d44; --ink-3:#9c8a6e; --ink-4:#bfb091;
+  --rule:#ded0b6; --rule-2:#cdbb9a;
+  --accent:#9c5a2a; --accent-2:#7d451d; --accent-soft:#ecdcc2; --accent-line:#d8be94;
+  --st-doing:#a37722; --st-doing-bg:#ecdcbc;
+  --st-done:#5c6b3f; --st-done-bg:#e0e4c8;
+  --st-review:#5e6f86; --st-review-bg:#dde2ea;
+  --st-block:#a24a32; --st-block-bg:#eed8cd;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--sans);
+  color:var(--ink);
+  background:var(--paper);
+  font-size:13px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  font-feature-settings:"tnum" 1,"cv01" 1;
+}
+
+/* —— 通用排印 —— */
+.serif{font-family:var(--serif)}
+.mono{font-family:var(--mono);font-feature-settings:"tnum" 1}
+.num{font-family:var(--serif);font-feature-settings:"tnum" 1;letter-spacing:-.01em}
+
+/* 小型大写 · 字距标签 —— 编辑台账的招牌 */
+.label{
+  font-size:10px;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+  font-weight:600;
+}
+.kicker{
+  font-size:10.5px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--accent);
+  font-weight:600;
+}
+
+.hairline{height:1px;background:var(--rule);border:0}
+.hairline-2{height:1px;background:var(--rule-2);border:0}
+
+/* ============================================================
+   APP 外壳：侧栏 + 主区
+   ============================================================ */
+.app{
+  display:grid;
+  grid-template-columns:var(--side-w,232px) 1fr;
+  height:100vh;
+  width:100%;
+  overflow:hidden;
+  background:var(--paper);
+}
+.app.collapsed{ --side-w:60px; }
+
+/* —— 侧栏 —— */
+.side{
+  border-right:1px solid var(--rule);
+  background:var(--paper);
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.side-head{
+  padding:18px 18px 16px;
+  display:flex;
+  align-items:center;
+  gap:11px;
+  border-bottom:1px solid var(--rule);
+}
+.brandmark{
+  width:30px;height:30px;flex:0 0 auto;
+  border-radius:7px;
+  background:var(--ink);
+  color:var(--paper);
+  display:grid;place-items:center;
+  font-family:var(--serif);
+  font-size:18px;font-weight:600;
+  font-style:italic;
+}
+.brand-tt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.brand-tt b{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.brand-tt span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.collapsed .brand-tt,.collapsed .side-sec-t,.collapsed .nav-i span,
+.collapsed .side-team,.collapsed .nav-count{display:none}
+.collapsed .side-head{padding:16px 0;justify-content:center}
+.collapsed .nav-i{justify-content:center;padding:9px 0}
+
+/* —— 项目切换器 —— */
+.proj-switch{
+  margin:12px 12px 2px;
+  display:flex;align-items:center;gap:10px;
+  padding:9px 11px;border:1px solid var(--rule-2);border-radius:var(--r-card);
+  background:var(--paper-raised);cursor:pointer;box-shadow:var(--shadow-card);
+}
+.proj-switch:hover{border-color:var(--ink-3)}
+.proj-glyph{
+  width:30px;height:30px;flex:0 0 auto;border-radius:7px;
+  display:grid;place-items:center;color:#fff;
+  font-family:var(--serif);font-size:16px;font-weight:600;
+}
+.proj-tt{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.proj-tt .label{font-size:9px;letter-spacing:.13em}
+.proj-tt b{font-size:13.5px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.collapsed .proj-tt,.collapsed .proj-switch .chev{display:none}
+.collapsed .proj-switch{justify-content:center;padding:9px 0;margin:12px 8px 2px}
+
+/* —— 项目筛选条（各视图头部:数据已按项目关联过滤）—— */
+.proj-filter{
+  display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;white-space:nowrap;
+  padding:6px 11px 6px 10px;border-radius:var(--r-chip);
+  background:var(--accent-soft);border:1px solid var(--accent-line);
+  color:var(--accent-2);cursor:pointer;font-family:var(--sans);
+}
+.proj-filter > *{flex:0 0 auto}
+.proj-filter:hover{border-color:var(--accent)}
+.proj-filter .pf-label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;opacity:.85}
+.proj-filter .pf-glyph{
+  width:18px;height:18px;border-radius:4px;flex:0 0 auto;
+  display:grid;place-items:center;color:#fff;
+  font-family:var(--serif);font-size:11px;font-weight:600;
+}
+.proj-filter b{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+
+.side-scroll{flex:1;overflow:hidden;padding:14px 12px}
+.side-sec{margin-bottom:18px}
+.side-sec-t{padding:0 8px 8px;font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.nav-i{
+  display:flex;align-items:center;gap:11px;
+  padding:7px 10px;border-radius:var(--r-chip);
+  color:var(--ink-2);font-size:13px;font-weight:500;
+  cursor:pointer;position:relative;
+}
+.nav-i svg{width:17px;height:17px;flex:0 0 auto;stroke-width:1.6}
+.nav-i span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-count{font-family:var(--serif);font-size:13px;color:var(--ink-3)}
+.nav-i:hover{background:var(--paper-2);color:var(--ink)}
+.nav-i.on{background:var(--ink);color:var(--paper)}
+.nav-i.on .nav-count{color:rgba(250,247,241,.6)}
+.nav-i.on::before{content:"";position:absolute;left:-12px;top:6px;bottom:6px;width:3px;border-radius:0 2px 2px 0;background:var(--accent)}
+
+.side-team{padding:14px 14px 16px;border-top:1px solid var(--rule)}
+.side-team-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px}
+.facepile{display:flex}
+.facepile .av{margin-left:-7px;border:2px solid var(--paper)}
+.facepile .av:first-child{margin-left:0}
+.facepile .more{
+  margin-left:-7px;width:26px;height:26px;border-radius:50%;
+  background:var(--paper-2);border:2px solid var(--paper);
+  display:grid;place-items:center;font-size:10px;color:var(--ink-2);font-weight:600;
+}
+
+/* —— 头像 —— */
+.av{
+  width:26px;height:26px;border-radius:50%;
+  display:grid;place-items:center;
+  font-size:10.5px;font-weight:600;color:#fff;
+  flex:0 0 auto;letter-spacing:.02em;
+  font-family:var(--sans);
+}
+.av.sm{width:22px;height:22px;font-size:9.5px}
+.av.lg{width:34px;height:34px;font-size:13px}
+.av.xl{width:44px;height:44px;font-size:16px}
+.av-lin{background:#7d6a8f}.av-chen{background:#3f6f6a}.av-zhou{background:#9a6a4a}
+.av-gao{background:#5d748f}.av-su{background:#8a6b3f}.av-he{background:#566b52}
+.av-han{background:#a8584a}.av-jiang{background:#6a6f86}.av-bot{background:var(--ink)}
+
+/* ============================================================
+   顶栏
+   ============================================================ */
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--paper)}
+.top{
+  display:flex;align-items:center;gap:18px;
+  padding:0 26px;height:62px;flex:0 0 auto;
+  border-bottom:1px solid var(--rule);
+  background:var(--paper);
+}
+.top-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.top-title h1{font-size:19px;font-weight:600;letter-spacing:-.015em;font-family:var(--serif)}
+.top-title .sub{font-size:11px;color:var(--ink-3);display:flex;align-items:center;gap:8px}
+.top-sp{flex:1}
+
+/* Sprint 切换器 */
+.sprint-chip{
+  display:flex;align-items:center;gap:12px;
+  padding:7px 14px;border:1px solid var(--rule-2);border-radius:var(--r-card);
+  background:var(--paper-raised);cursor:pointer;
+}
+.sprint-chip .sp-no{font-family:var(--serif);font-size:20px;line-height:1;font-weight:600}
+.sprint-chip .sp-tt{display:flex;flex-direction:column;gap:1px;line-height:1.2}
+.sprint-chip .sp-tt b{font-size:12.5px;font-weight:600}
+.sprint-chip .sp-tt span{font-size:10px;color:var(--ink-3)}
+
+.icon-btn{
+  width:34px;height:34px;border-radius:var(--r-chip);
+  border:1px solid var(--rule-2);background:var(--paper-raised);
+  display:grid;place-items:center;color:var(--ink-2);cursor:pointer;
+}
+.icon-btn svg{width:17px;height:17px;stroke-width:1.6}
+.icon-btn:hover{color:var(--ink);border-color:var(--ink-3)}
+
+.btn{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:8px 15px;border-radius:var(--r-chip);
+  font-size:12.5px;font-weight:600;font-family:var(--sans);
+  cursor:pointer;border:1px solid transparent;white-space:nowrap;
+}
+.btn svg{width:15px;height:15px;stroke-width:2}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-2)}
+.btn-ghost{background:var(--paper-raised);border-color:var(--rule-2);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--ink-3)}
+
+/* 飞书集成徽记 */
+.feishu-dot{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 9px;border-radius:var(--r-pill);
+  background:var(--accent-soft);border:1px solid var(--accent-line);
+  font-size:10.5px;font-weight:600;color:var(--accent-2);
+  letter-spacing:.02em;
+}
+.feishu-dot svg{width:12px;height:12px}
+
+/* ============================================================
+   徽章 / 标签
+   ============================================================ */
+.badge{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:2px 8px;border-radius:var(--r-pill);
+  font-size:10.5px;font-weight:600;letter-spacing:.01em;
+  white-space:nowrap;
+}
+.badge .dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+.b-todo  {background:var(--st-todo-bg);color:#6f675b}.b-todo .dot{background:var(--st-todo)}
+.b-doing {background:var(--st-doing-bg);color:#8a6418}.b-doing .dot{background:var(--st-doing)}
+.b-review{background:var(--st-review-bg);color:#46586c}.b-review .dot{background:var(--st-review)}
+.b-done  {background:var(--st-done-bg);color:#42583e}.b-done .dot{background:var(--st-done)}
+.b-block {background:var(--st-block-bg);color:#883a2d}.b-block .dot{background:var(--st-block)}
+
+/* 类型记号：需求/缺陷/任务 */
+.type-tag{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:var(--r-chip);
+  font-size:10px;font-weight:700;flex:0 0 auto;font-family:var(--mono);
+}
+.t-story{background:#e3ebe0;color:#4d6647}      /* 需求 S */
+.t-bug  {background:#f1ddd8;color:#9a4030}       /* 缺陷 B */
+.t-task {background:#e3e7ec;color:#4d5e72}       /* 任务 T */
+.t-tech {background:#efe7d4;color:#7d6320}       /* 技术 D */
+
+/* 优先级旗标 */
+.pri{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600}
+.pri svg{width:11px;height:11px}
+.pri.p1{color:var(--p-high)}.pri.p2{color:var(--p-mid)}.pri.p3{color:var(--p-low)}
+
+/* 工单号 */
+.wid{font-family:var(--mono);font-size:11px;color:var(--ink-3);letter-spacing:.02em;font-weight:500}
+
+/* 故事点 */
+.pts{
+  font-family:var(--serif);font-size:14px;font-weight:600;line-height:1;
+  display:inline-flex;align-items:baseline;gap:2px;
+}
+.pts small{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-family:var(--sans);font-weight:600}
+
+/* ============================================================
+   看板
+   ============================================================ */
+.board{display:flex;gap:0;height:100%;overflow:hidden}
+.col{
+  flex:1;min-width:0;display:flex;flex-direction:column;
+  border-right:1px solid var(--rule);min-height:0;
+}
+.col:last-child{border-right:0}
+.col-h{
+  display:flex;align-items:center;gap:9px;
+  padding:14px 16px 12px;flex:0 0 auto;
+}
+.col-h .col-t{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink)}
+.col-h .col-n{font-family:var(--serif);font-size:14px;color:var(--ink-3);font-weight:500}
+.col-h .col-bar{flex:1;height:2px;border-radius:1px}
+.col-body{flex:1;overflow-y:auto;padding:0 12px 16px;display:flex;flex-direction:column;gap:9px;min-height:0}
+
+.card{
+  background:var(--paper-raised);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  padding:12px 13px;
+  box-shadow:var(--shadow-card);
+  cursor:pointer;position:relative;
+}
+.card:hover{border-color:var(--rule-2)}
+.card-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.card-top-l{display:flex;align-items:center;gap:7px;min-width:0}
+.card-title{
+  font-size:13.5px;line-height:1.4;font-weight:500;color:var(--ink);
+  margin-bottom:11px;letter-spacing:-.005em;text-wrap:pretty;
+}
+.card-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card-meta-l{display:flex;align-items:center;gap:9px;min-width:0}
+.card-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px}
+.tag{
+  font-size:10px;padding:1px 7px;border-radius:var(--r-pill);
+  background:var(--paper-2);color:var(--ink-2);font-weight:500;
+  border:1px solid var(--rule);white-space:nowrap;
+}
+.card-accent{position:absolute;left:0;top:11px;bottom:11px;width:2.5px;border-radius:0 2px 2px 0}
+
+/* 看板进度条小记 */
+.subbar{height:3px;border-radius:2px;background:var(--paper-2);overflow:hidden;margin-bottom:10px}
+.subbar i{display:block;height:100%;background:var(--st-done);border-radius:2px}
+
+/* ============================================================
+   台账 / 表格流水
+   ============================================================ */
+.ledger{width:100%;border-collapse:collapse;font-size:12.5px}
+.ledger thead th{
+  text-align:left;padding:11px 16px;font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--ink-3);font-weight:600;
+  border-bottom:1.5px solid var(--rule-2);white-space:nowrap;
+  background:var(--paper);position:sticky;top:0;z-index:1;
+}
+.ledger thead th.r{text-align:right}
+.ledger tbody td{padding:13px 16px;border-bottom:1px solid var(--rule);vertical-align:middle}
+.ledger tbody tr:hover{background:var(--paper-raised)}
+.ledger td.r{text-align:right;font-family:var(--serif);font-feature-settings:"tnum" 1}
+.ledger .row-title{font-size:13px;font-weight:500;color:var(--ink);letter-spacing:-.005em}
+.ledger .row-sub{font-size:11px;color:var(--ink-3);margin-top:2px}
+
+/* ============================================================
+   统计 / 图表
+   ============================================================ */
+.stat-num{font-family:var(--serif);font-weight:600;line-height:.95;letter-spacing:-.02em}
+.metric{display:flex;flex-direction:column;gap:5px}
+.metric .stat-num{font-size:42px}
+.metric .label{font-size:10px}
+.metric .delta{font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
+.delta.up{color:var(--st-done)}.delta.down{color:var(--st-block)}
+
+.panel{
+  background:var(--paper-raised);border:1px solid var(--rule);
+  border-radius:var(--r-card);padding:20px 22px;
+}
+.panel-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.panel-h h3{font-size:14px;font-weight:600;font-family:var(--serif)}
+
+/* 滚动条 */
+.col-body::-webkit-scrollbar,.side-scroll::-webkit-scrollbar,.tbl-wrap::-webkit-scrollbar{width:8px;height:8px}
+.col-body::-webkit-scrollbar-thumb,.tbl-wrap::-webkit-scrollbar-thumb{background:var(--rule-2);border-radius:4px}
+.col-body::-webkit-scrollbar-track,.tbl-wrap::-webkit-scrollbar-track{background:transparent}
+
+/* 工具行 */
+.toolbar{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 26px;border-bottom:1px solid var(--rule);flex:0 0 auto;
+}
+.seg{display:flex;border:1px solid var(--rule-2);border-radius:var(--r-chip);overflow:hidden;background:var(--paper-raised)}
+.seg button{
+  padding:6px 13px;font-size:12px;font-weight:500;color:var(--ink-2);
+  background:transparent;border:0;cursor:pointer;border-right:1px solid var(--rule);font-family:var(--sans);white-space:nowrap;
+}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--paper);font-weight:600}
+.chip-flat{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 11px;
+  border:1px solid var(--rule-2);border-radius:var(--r-chip);
+  background:var(--paper-raised);font-size:12px;color:var(--ink-2);font-weight:500;cursor:pointer;
+}
+.chip-flat svg{width:13px;height:13px;stroke-width:1.8}
+.chip-flat:hover{border-color:var(--ink-3);color:var(--ink)}
+
+/* 杂项 */
+.muted{color:var(--ink-3)}
+.dim{color:var(--ink-2)}
+.flex{display:flex}.items-center{align-items:center}.gap8{gap:8px}.gap12{gap:12px}
+.tnum{font-feature-settings:"tnum" 1}
+
+</style>
+<style>
+  .board-wrap{flex:1;min-height:0;display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<script>window.__forceCfg="theme=ink";</script>
+<script>
+/* 读取 URL 参数应用主题/布局/质感 —— 用于画布里同一文件演示多变体 */
+(function(){
+  const q = new URLSearchParams(window.__forceCfg || location.search);
+  const root = document.documentElement;
+  const theme = q.get('theme');
+  if(theme==='ink' || theme==='kraft') document.body.classList.add('theme-'+theme);
+  const r = q.get('r');                       // 圆角档位 sharp / soft
+  if(r==='sharp'){root.style.setProperty('--r-card','0px');root.style.setProperty('--r-chip','0px');}
+  if(r==='soft'){root.style.setProperty('--r-card','10px');root.style.setProperty('--r-chip','8px');}
+  // 质感（阴影强弱）
+  const tex = q.get('tex');
+  if(tex==='flat'){root.style.setProperty('--shadow-card','none');}
+  if(tex==='raised'){root.style.setProperty('--shadow-card','0 1px 2px rgba(33,29,24,.06),0 4px 12px rgba(33,29,24,.06)');}
+  // 侧栏收起
+  if(q.get('side')==='collapsed'){const a=document.querySelector('.app');if(a)a.classList.add('collapsed');}
+  document.addEventListener('DOMContentLoaded',()=>{if(q.get('side')==='collapsed'){const a=document.querySelector('.app');if(a)a.classList.add('collapsed');}});
+})();
+
+</script>
+<div class="app" id="app">
+
+  <!-- 侧栏由 shell.js 注入 -->
+  <div id="side" data-active="board"></div>
+
+  <!-- ===================== 主区 ===================== -->
+  <div class="main">
+    <!-- 顶栏 -->
+    <header class="top">
+      <div class="sprint-chip">
+        <span class="sp-no">24</span>
+        <div class="sp-tt">
+          <b>搜索体验重构</b>
+          <span>06/02 – 06/13 · 第 7 天</span>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" style="width:15px;height:15px"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div class="top-title">
+        <div class="sub">
+          <span class="num" style="font-size:13px;color:var(--ink-2)">还剩 6 天</span>
+          <span>·</span>
+          <span><b class="num" style="color:var(--st-done)">68%</b> 故事点完成</span>
+        </div>
+      </div>
+      <div class="top-sp"></div>
+      <div class="feishu-dot">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        机器人已同步
+      </div>
+      <button class="icon-btn" title="搜索">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      </button>
+      <button class="icon-btn" title="通知">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新建
+      </button>
+    </header>
+
+    <!-- 工具行 -->
+    <div class="toolbar">
+      <div class="seg">
+        <button class="on">看板</button>
+        <button>表格</button>
+        <button>时间线</button>
+      </div>
+      <div class="chip-flat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+        筛选
+      </div>
+      <div class="chip-flat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="7" r="3"/><path d="M3 19c0-2.8 2.7-4.5 6-4.5"/><circle cx="17" cy="9" r="3"/></svg>
+        经办人
+      </div>
+      <div class="chip-flat">分组:状态</div>
+      <div style="flex:1"></div>
+      <span class="label">共 32 个工单 · 故事点 <b class="num" style="color:var(--ink)">47</b>/68</span>
+      <div class="facepile" style="margin-left:4px">
+        <div class="av sm av-chen">陈</div>
+        <div class="av sm av-zhou">周</div>
+        <div class="av sm av-gao">高</div>
+        <div class="av sm av-han">韩</div>
+      </div>
+    </div>
+
+    <!-- 看板 -->
+    <div class="board-wrap">
+      <div class="board" id="board"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 共享侧栏注入 —— 各界面只需 <div id="side" data-active="board"></div> */
+(function(){
+  // 当前团队的项目组合（小团队常并行 3–4 个）
+  const PROJECTS = [
+    {k:'search', name:'搜索平台', glyph:'搜', color:'var(--accent)', sprint:'S24 · 搜索体验重构', cur:true},
+    {k:'data',   name:'数据看板', glyph:'数', color:'#3f6f6a', sprint:'S12 · 指标自助配置'},
+    {k:'api',    name:'开放平台', glyph:'开', color:'#7d6a8f', sprint:'S07 · 鉴权重构'},
+    {k:'mobile', name:'移动端 App', glyph:'移', color:'#9a6a4a', sprint:'S19 · 离线缓存'},
+  ];
+  const NAV = [
+    {sec:'', items:[
+      {k:'overview', t:'项目总览', n:'4', svg:'<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'},
+    ]},
+    {sec:'搜索平台 · S24', items:[
+      {k:'board',  t:'看板',      n:'32', svg:'<rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="14" rx="1"/>'},
+      {k:'ledger', t:'需求 & 缺陷', n:'58', svg:'<path d="M4 6h16M4 12h16M4 18h10"/>'},
+      {k:'stats',  t:'迭代统计',   n:'',  svg:'<path d="M4 19V5M4 19h16M8 16V9M13 16V6M18 16v-4"/>'},
+      {k:'standup',t:'每日站会',   n:'',  svg:'<circle cx="12" cy="8" r="3"/><path d="M5 20c0-3.3 3.1-5 7-5s7 1.7 7 5"/>'},
+      {k:'docs',   t:'文档',       n:'24', svg:'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>'},
+    ]},
+    {sec:'团队', items:[
+      {k:'load',  t:'成员负载', n:'', svg:'<path d="M3 6h18M3 12h18M3 18h18"/><circle cx="7" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="14" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="10" cy="18" r="1.4" fill="currentColor" stroke="none"/>'},
+      {k:'gantt', t:'排期甘特', n:'', svg:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/>'},
+    ]},
+    {sec:'飞书', items:[
+      {k:'bot',     t:'群机器人', n:'',  svg:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>'},
+    ]},
+  ];
+  function render(el){
+    const active = el.dataset.active||'board';
+    const cur = PROJECTS.find(p=>p.cur);
+    const secs = NAV.map(s=>`
+      <div class="side-sec">
+        ${s.sec?`<div class="side-sec-t">${s.sec}</div>`:''}
+        ${s.items.map(i=>`
+          <div class="nav-i ${i.k===active?'on':''}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">${i.svg}</svg>
+            <span>${i.t}</span>${i.n?`<span class="nav-count">${i.n}</span>`:''}
+          </div>`).join('')}
+      </div>`).join('');
+    el.outerHTML = `
+    <aside class="side">
+      <div class="side-head">
+        <div class="brandmark">汇</div>
+        <div class="brand-tt"><b>研发台账</b><span>4 个项目 · 8 人</span></div>
+      </div>
+      <div class="proj-switch" title="切换项目">
+        <div class="proj-glyph" style="background:${cur.color}">${cur.glyph}</div>
+        <div class="proj-tt"><span class="label">当前项目</span><b>${cur.name}</b></div>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:15px;height:15px"><path d="M8 9l4 4 4-4M8 15l4-4 4 4" opacity=".55"/></svg>
+      </div>
+      <div class="side-scroll">${secs}</div>
+      <div class="side-team">
+        <div class="side-team-h"><div class="side-sec-t" style="padding:0">在线 · 6</div></div>
+        <div class="facepile">
+          <div class="av av-lin">林</div><div class="av av-chen">陈</div>
+          <div class="av av-gao">高</div><div class="av av-su">苏</div>
+          <div class="av av-han">韩</div><div class="more">+3</div>
+        </div>
+      </div>
+    </aside>`;
+  }
+  document.querySelectorAll('#side,[data-side]').forEach(render);
+
+  /* —— 项目筛选条:注入 [data-projfilter] —— 表明该视图已按当前项目关联过滤 —— */
+  const cur = PROJECTS.find(p=>p.cur);
+  const funnel = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" style="width:13px;height:13px;opacity:.7"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>';
+  const chev = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" style="width:14px;height:14px;opacity:.55"><path d="M6 9l6 6 6-6"/></svg>';
+  document.querySelectorAll('[data-projfilter]').forEach(el=>{
+    el.classList.add('proj-filter');
+    el.innerHTML = `${funnel}<span class="pf-label">项目</span>`+
+      `<span class="pf-glyph" style="background:${cur.color}">${cur.glyph}</span>`+
+      `<b>${cur.name}</b>${chev}`;
+  });
+})();
+
+</script>
+<script>
+const COLS = [
+  {key:'todo',   t:'待办',   bar:'var(--st-todo)'},
+  {key:'doing',  t:'进行中', bar:'var(--st-doing)'},
+  {key:'review', t:'评审',   bar:'var(--st-review)'},
+  {key:'test',   t:'测试',   bar:'#8a6b9a'},
+  {key:'done',   t:'已完成', bar:'var(--st-done)'},
+];
+const CARDS = {
+  todo:[
+    {wid:'SRCH-218',type:'story',title:'搜索结果页支持「按团队/项目」二级聚合',pts:5,pri:1,who:['chen'],tags:['前端','埋点'],accent:'var(--st-todo)'},
+    {wid:'SRCH-224',type:'tech',title:'统一检索网关的超时与降级策略',pts:8,pri:2,who:['he'],tags:['架构'],accent:'var(--st-todo)'},
+    {wid:'SRCH-231',type:'task',title:'整理近 30 天高频空结果 query 清单',pts:2,pri:3,who:['lin'],tags:['数据'],accent:'var(--st-todo)'},
+    {wid:'SRCH-205',type:'story',title:'移动端搜索框联想词支持键盘上下选择',pts:3,pri:2,who:['zhou'],tags:['前端','无障碍'],accent:'var(--st-todo)'},
+  ],
+  doing:[
+    {wid:'SRCH-198',type:'story',title:'召回阶段引入语义向量检索(beta 开关)',pts:8,pri:1,who:['gao','su'],tags:['后端','算法'],prog:55,accent:'var(--st-doing)'},
+    {wid:'SRCH-209',type:'bug',title:'空格开头的 query 命中率骤降',pts:3,pri:1,who:['su'],tags:['后端'],prog:70,accent:'var(--st-block)'},
+    {wid:'SRCH-212',type:'story',title:'结果卡片重设计 · 摘要高亮与来源标',pts:5,pri:2,who:['chen','jiang'],tags:['前端','设计'],prog:40,accent:'var(--st-doing)'},
+  ],
+  review:[
+    {wid:'SRCH-186',type:'story',title:'搜索历史与「我的收藏」打通',pts:5,pri:2,who:['zhou'],tags:['前端'],accent:'var(--st-review)',rev:'高远'},
+    {wid:'SRCH-201',type:'tech',title:'检索日志接入多维表格做留存分析',pts:3,pri:3,who:['lin'],tags:['飞书','数据'],accent:'var(--st-review)',rev:'何川',feishu:1},
+  ],
+  test:[
+    {wid:'SRCH-177',type:'story',title:'联想词接口缓存与防抖',pts:3,pri:2,who:['gao'],tags:['后端'],accent:'#8a6b9a',qa:'韩雪',prog:80},
+    {wid:'SRCH-190',type:'bug',title:'高亮在中英混排下偶发错位',pts:2,pri:2,who:['chen'],tags:['前端'],accent:'#8a6b9a',qa:'韩雪',prog:60},
+  ],
+  done:[
+    {wid:'SRCH-164',type:'story',title:'搜索入口信息架构调整',pts:5,pri:2,who:['chen'],tags:['前端'],accent:'var(--st-done)'},
+    {wid:'SRCH-170',type:'tech',title:'检索指标看板上线(P95 / 空结果率)',pts:5,pri:1,who:['he'],tags:['架构'],accent:'var(--st-done)'},
+    {wid:'SRCH-159',type:'task',title:'竞品搜索体验调研纪要',pts:2,pri:3,who:['jiang'],tags:['设计'],accent:'var(--st-done)'},
+  ],
+};
+const AVN = {lin:['林','av-lin'],chen:['陈','av-chen'],zhou:['周','av-zhou'],gao:['高','av-gao'],su:['苏','av-su'],he:['何','av-he'],han:['韩','av-han'],jiang:['江','av-jiang']};
+const TYPE = {story:['S','t-story'],bug:['B','t-bug'],task:['T','t-task'],tech:['D','t-tech']};
+const flag = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 21V4M5 4h11l-2 3 2 3H5"/></svg>';
+
+function avs(who){return who.map(w=>`<div class="av sm ${AVN[w][1]}">${AVN[w][0]}</div>`).join('');}
+function card(c){
+  const pri = c.pri===1?`<span class="pri p1">${flag}高</span>`:c.pri===2?`<span class="pri p2">${flag}中</span>`:`<span class="pri p3">${flag}低</span>`;
+  const tags = c.tags.map(t=>`<span class="tag">${t}</span>`).join('');
+  const note = c.rev?`<span class="label" style="letter-spacing:.04em">评审 · ${c.rev}</span>`
+              : c.qa?`<span class="label" style="letter-spacing:.04em">测试 · ${c.qa}</span>`:'';
+  const bar = c.prog!=null?`<div class="subbar"><i style="width:${c.prog}%"></i></div>`:'';
+  const fs = c.feishu?`<span class="feishu-dot" style="padding:1px 7px;font-size:9.5px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>飞书</span>`:'';
+  return `<div class="card">
+    <div class="card-accent" style="background:${c.accent}"></div>
+    <div class="card-top">
+      <div class="card-top-l">
+        <span class="type-tag ${TYPE[c.type][1]}">${TYPE[c.type][0]}</span>
+        <span class="wid">${c.wid}</span>
+      </div>
+      ${pri}
+    </div>
+    <div class="card-title">${c.title}</div>
+    <div class="card-tags">${tags}${fs}</div>
+    ${bar}
+    <div class="card-meta">
+      <div class="card-meta-l">${note}</div>
+      <div class="card-meta-l" style="gap:8px">
+        <span class="pts">${c.pts}<small>pt</small></span>
+        <div class="facepile">${avs(c.who)}</div>
+      </div>
+    </div>
+  </div>`;
+}
+document.getElementById('board').innerHTML = COLS.map(col=>{
+  const list = CARDS[col.key]||[];
+  const pts = list.reduce((s,c)=>s+c.pts,0);
+  return `<div class="col">
+    <div class="col-h">
+      <span class="col-bar" style="background:${col.bar};max-width:18px"></span>
+      <span class="col-t">${col.t}</span>
+      <span class="col-n">${list.length}</span>
+      <span style="flex:1"></span>
+      <span class="label">${pts}pt</span>
+    </div>
+    <div class="col-body">${list.map(card).join('')}</div>
+  </div>`;
+}).join('');
+</script>
+</body>
+</html>

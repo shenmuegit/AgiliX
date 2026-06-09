@@ -11,22 +11,39 @@ afterEach(() => cleanup())
 
 describe('planning statistics and workload routes', () => {
   it('renders iteration statistics from shared data', () => {
-    render(<StatsPage data={seedData} projectId="search" iterationCode="S24" />)
+    const { container } = render(<StatsPage data={seedData} projectId="search" iterationCode="S24" />)
 
     expect(screen.getByRole('heading', { name: '迭代统计' })).toBeInTheDocument()
     expect(screen.getByText(/搜索体验重构/)).toBeInTheDocument()
     expect(screen.getByText('已完成 / 计划')).toBeInTheDocument()
-    expect(screen.getByText('故事点燃尽')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '故事点燃尽' })).toBeInTheDocument()
     expect(screen.getByText('近五迭代速度')).toBeInTheDocument()
+    expect(
+      Array.from(container.querySelectorAll('.burn-svg path')).map((path) => path.getAttribute('fill')),
+    ).toEqual(['none', 'var(--accent)'])
+    expect(container.querySelectorAll('.burn-svg line')).toHaveLength(5)
+    expect(container.querySelectorAll('.burn-svg polyline')).toHaveLength(2)
+    expect(container.querySelectorAll('.burn-svg circle')).toHaveLength(6)
+  })
+
+  it('matches the prototype statistics side charts', () => {
+    const { container } = render(<StatsPage data={seedData} projectId="search" iterationCode="S24" />)
+
+    expect(Array.from(container.querySelectorAll('.vbar .v')).map((item) => item.textContent)).toEqual(['42', '51', '38', '49', '47'])
+    expect(Array.from(container.querySelectorAll('.vlbl')).map((item) => item.textContent)).toEqual(['S20', 'S21', 'S22', 'S23', 'S24'])
+    expect(screen.getByText(/平均速度/).textContent).toContain('45.4')
+    expect(screen.getByText(/平均速度/).textContent).toContain('68')
+    expect(Array.from(container.querySelectorAll('.dist-row .badge')).map((item) => item.textContent)).toEqual(['已完成', '进行中', '评审/测试', '待办'])
+    expect(Array.from(container.querySelectorAll('.dist-row .num')).map((item) => item.textContent)).toEqual(['14', '8', '6', '4'])
   })
 
   it('renders member workload and current assignments', () => {
     render(<WorkloadPage data={seedData} />)
 
     expect(screen.getByRole('heading', { name: '成员负载' })).toBeInTheDocument()
-    expect(screen.getByText('全部项目 · 当前迭代')).toBeInTheDocument()
+    expect(screen.getByText('Sprint 24 · 搜索体验重构')).toBeInTheDocument()
     expect(screen.getByText('高远')).toBeInTheDocument()
-    expect(screen.getByText('Backend')).toBeInTheDocument()
+    expect(screen.getByText('后端 · 检索召回')).toBeInTheDocument()
   })
 
   it('renders daily standup content and exposes a save callback', async () => {

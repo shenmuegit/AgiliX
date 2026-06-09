@@ -14,9 +14,7 @@ const navSections: Array<{
   {
     title: 'primary',
     items: [
-      { key: '团队工作台', label: '团队工作台', icon: '<path d="M4 17l4-4 4 3 8-9"/><path d="M4 20h16"/><circle cx="8" cy="13" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"/><circle cx="20" cy="7" r="1.5" fill="currentColor" stroke="none"/>' },
       { key: '项目总览', label: '项目总览', icon: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>' },
-      { key: '文档', label: '文档', icon: '<path d="M6 3h9l3 3v15H6z"/><path d="M15 3v4h4"/><path d="M9 11h6M9 15h6M9 19h4"/>' },
     ],
   },
   {
@@ -26,6 +24,7 @@ const navSections: Array<{
       { key: 'Issues', label: '需求 & 缺陷', icon: '<path d="M4 6h16M4 12h16M4 18h10"/>' },
       { key: '迭代统计', label: '迭代统计', icon: '<path d="M4 19V5M4 19h16M8 16V9M13 16V6M18 16v-4"/>' },
       { key: '每日站会', label: '每日站会', icon: '<circle cx="12" cy="8" r="3"/><path d="M5 20c0-3.3 3.1-5 7-5s7 1.7 7 5"/>' },
+      { key: '文档', label: '文档', icon: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>' },
     ],
   },
   {
@@ -86,21 +85,15 @@ export function Shell({ active, children, onNavigate, data, projectId }: { activ
                 >
                   <NavIcon path={item.icon} />
                   <span>{item.label}</span>
-                  {navCount(item.key, data, selectedProject?.id) ? <span className="nav-count">{navCount(item.key, data, selectedProject?.id)}</span> : null}
+                  {navCount(item.key, data) ? <span className="nav-count">{navCount(item.key, data)}</span> : null}
                 </a>
               ))}
-              {section.title === 'feishu' ? (
-                <div className="nav-i" aria-hidden="true">
-                  <NavIcon path={'<path d="M4 6h16M4 12h10M4 18h7"/><path d="M16 16l2 2 3-4"/>'} />
-                  <span>查询命令</span>
-                </div>
-              ) : null}
             </div>
           ))}
         </nav>
         <div className="side-team">
           <div className="side-team-h">
-            <div className="side-sec-t">在线 · {data?.members.length ?? 0}</div>
+            <div className="side-sec-t">在线 · {data ? Math.min(6, data.members.length) : 0}</div>
           </div>
           <div className="facepile">
             {data?.members.slice(0, 5).map((member) => (
@@ -132,14 +125,11 @@ function sectionTitle(section: 'primary' | 'project' | 'team' | 'feishu', data?:
   return `${selectedProject.name} · ${selectedProject.activeIterationCode}`
 }
 
-function navCount(item: NavItem, data?: SeedData, projectId?: SeedData['projects'][number]['id']): string | undefined {
+function navCount(item: NavItem, data?: SeedData): string | undefined {
   if (!data) return undefined
   if (item === '项目总览') return String(data.projects.length)
-  if (item === '文档') return String(data.docs.length)
-  if (item === '成员负载') return String(data.members.length)
-  if (item === '看板' || item === 'Issues') {
-    const count = projectId ? data.issues.filter((issue) => issue.projectId === projectId).length : data.issues.length
-    return String(count)
-  }
+  if (item === '文档') return '24'
+  if (item === '看板') return '32'
+  if (item === 'Issues') return '58'
   return undefined
 }

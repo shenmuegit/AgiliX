@@ -43,7 +43,7 @@ export function BoardPage({
   const issues =
     statusFilter === 'all'
       ? searchedIssues
-      : searchedIssues.filter((issue) => issue.status === statusFilter)
+      : searchedIssues.filter((issue) => boardStatusForIssue(issue) === statusFilter)
   const selectedProject = projectId === 'all' ? null : getProject(data, projectId)
   const selectedIteration = selectedProject ? getActiveIteration(data, selectedProject) : null
   const totalPoints = sumPoints(issues)
@@ -199,7 +199,7 @@ function BoardColumns({
   return (
     <div className="board">
       {statusOrder.map((status) => {
-        const list = issues.filter((issue) => issue.status === status)
+        const list = issues.filter((issue) => boardStatusForIssue(issue) === status)
         const points = sumPoints(list)
         return (
           <section className="col" key={status}>
@@ -271,9 +271,9 @@ function BoardTable({ data, issues }: { data: SeedData; issues: Issue[] }) {
                     </span>
                   </td>
                   <td>
-                    <span className={`badge ${statusMeta[issue.status].badgeClass}`}>
+                    <span className={`badge ${statusMeta[boardStatusForIssue(issue)].badgeClass}`}>
                       <span className="dot" />
-                      {statusMeta[issue.status].label}
+                      {statusMeta[boardStatusForIssue(issue)].label}
                     </span>
                   </td>
                   <td>
@@ -336,8 +336,12 @@ function BoardTimeline({ data, issues }: { data: SeedData; issues: Issue[] }) {
 
 function groupIssuesByStatus(issues: Issue[]) {
   return statusOrder
-    .map((status) => ({ status, issues: issues.filter((issue) => issue.status === status) }))
+    .map((status) => ({ status, issues: issues.filter((issue) => boardStatusForIssue(issue) === status) }))
     .filter((group) => group.issues.length > 0)
+}
+
+function boardStatusForIssue(issue: Issue): IssueStatus {
+  return issue.blockerReason ? 'blocked' : issue.status
 }
 
 function IssueCard({
@@ -350,20 +354,21 @@ function IssueCard({
   onMoveIssue: (issueKey: string, status: IssueStatus) => void
 }) {
   const project = getProject(data, issue.projectId)
+  const boardStatus = boardStatusForIssue(issue)
   const progress =
-    issue.status === 'todo'
+    boardStatus === 'todo'
       ? 0
-      : issue.status === 'doing'
+      : boardStatus === 'doing'
         ? 55
-        : issue.status === 'blocked'
+        : boardStatus === 'blocked'
           ? 45
-          : issue.status === 'review'
+          : boardStatus === 'review'
             ? 85
             : 100
 
   return (
     <article className="card">
-      <div className="card-accent" style={{ background: statusMeta[issue.status].color }} />
+      <div className="card-accent" style={{ background: statusMeta[boardStatus].color }} />
       <div className="card-top">
         <div className="card-top-l">
           <span className="type-tag">{issueTypeLabel[issue.type]}</span>
@@ -376,10 +381,10 @@ function IssueCard({
       <div className="card-title">{issue.title}</div>
       <div className="card-tags">
         <span className="tag">{project.name}</span>
-        <span className="tag">{statusMeta[issue.status].label}</span>
+        <span className="tag">{statusMeta[boardStatus].label}</span>
         {issue.linkedDocIds.length > 0 ? <span className="feishu-dot">文档</span> : null}
       </div>
-      {issue.status !== 'done' ? (
+      {boardStatus !== 'done' ? (
         <div className="subbar">
           <i style={{ width: `${progress}%` }} />
         </div>
@@ -391,7 +396,7 @@ function IssueCard({
             {issue.storyPoints}
             <small>pt</small>
           </span>
-          {issue.status !== 'done' ? (
+          {boardStatus !== 'done' ? (
             <button
               className="sr-only-action"
               aria-label={`${issue.key} 完成`}
