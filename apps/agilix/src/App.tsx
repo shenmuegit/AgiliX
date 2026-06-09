@@ -3,7 +3,6 @@ import {
   createAgiliXClient,
   type AgiliXClient,
   type CreateDocInput,
-  type FeishuNotificationInput,
   type ContractIssueStatus,
 } from './api/client'
 import { toDisplaySeedData } from './api/appStateAdapter'
@@ -99,33 +98,37 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   const loadedData = data
 
   async function recordFeishuNotification(trigger: FeishuNotificationTrigger) {
-    const base = {
-      id: crypto.randomUUID(),
-      targetGroup: 'AgiliX 团队群' as const,
-      status: 'queued' as const,
-      createdAt: new Date().toISOString(),
-    }
+    const target_group_id = requireFeishuGroupId(loadedData)
 
-    let input: FeishuNotificationInput
     switch (trigger) {
       case '站会摘要':
-        input = { ...base, trigger, payload: { standupId: 'standup-search-today' } }
-        break
+        await client.recordContractFeishuNotification({
+          trigger,
+          target_group_id,
+          payload_json: { standup_id: requireFirstStandupId(loadedData) },
+        })
+        return
       case '阻塞提醒': {
-        const issueKeys = loadedData.issues
+        const issueIds = loadedData.issues
           .filter((issue) => issue.status === 'blocked')
-          .map((issue) => issue.key)
-        if (issueKeys.length === 0)
+          .map((issue) => requireValue(issue.id, `Issue contract id not found: ${issue.key}`))
+        if (issueIds.length === 0)
           throw new Error('Cannot record blocker notification without blocked issues')
-        input = { ...base, trigger, payload: { issueKeys: issueKeys as [string, ...string[]] } }
-        break
+        await client.recordContractFeishuNotification({
+          trigger,
+          target_group_id,
+          payload_json: { issue_ids: issueIds },
+        })
+        return
       }
       case '文档评论':
-        input = { ...base, trigger, payload: { docId: 'doc-result-card', commentId: 'comment-a' } }
-        break
+        await client.recordContractFeishuNotification({
+          trigger,
+          target_group_id,
+          payload_json: requireFirstDocumentCommentPayload(loadedData),
+        })
+        return
     }
-
-    await client.recordFeishuNotification(input)
   }
 
   const selectedProject =
@@ -251,6 +254,25 @@ function requireMemberContractId(data: SeedData, memberId: string) {
   const member = data.members.find((item) => item.id === memberId)
   if (!member?.contractId) throw new Error(`Member contract id not found: ${memberId}`)
   return member.contractId
+}
+
+function requireFeishuGroupId(data: SeedData) {
+  return requireValue(data.feishu.groupIds?.[0], 'Feishu group contract id not found')
+}
+
+function requireFirstStandupId(data: SeedData) {
+  return requireValue(data.standups[0]?.id, 'Standup contract id not found')
+}
+
+function requireFirstDocumentCommentPayload(data: SeedData) {
+  const doc = requireValue(data.docs.find((item) => item.comments.length > 0), 'Document comment not found')
+  const comment = requireValue(doc.comments[0], `Document comment not found: ${doc.id}`)
+  return { document_id: doc.id, comment_id: comment.id }
+}
+
+function requireValue<T>(value: T | undefined | null, message: string): T {
+  if (value === undefined || value === null) throw new Error(message)
+  return value
 }
 
 function initialNavItemFromPath(pathname: string): NavItem {

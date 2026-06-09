@@ -134,6 +134,7 @@ export interface Milestone {
 
 export interface FeishuConfig {
   groups: string[]
+  groupIds?: string[]
   queryCommands: FeishuQueryCommand[]
   notificationTriggers: FeishuNotificationTrigger[]
 }

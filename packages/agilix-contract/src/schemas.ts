@@ -7,6 +7,7 @@ export const docScopeValues = ['global', 'project'] as const
 export const docContentTypeValues = ['markdown', 'mermaid', 'diagram', 'mindmap'] as const
 export const botRuleTypeValues = ['scheduled_summary', 'iteration_weekly', 'risk_alert'] as const
 export const milestoneStatusValues = ['done', 'doing', 'risk', 'planned'] as const
+export const feishuNotificationTriggerValues = ['站会摘要', '阻塞提醒', '文档评论'] as const
 
 const idSchema = z.string().min(1)
 const nullableIdSchema = idSchema.nullable()
@@ -401,8 +402,20 @@ export const feishuQueryResponseSchema = z.object({
   response_body_json: jsonObjectSchema,
 }).strict()
 
-export const recordFeishuNotificationRequestSchema = z.object({
-  trigger: z.string().min(1),
-  target_group_id: idSchema,
-  payload_json: jsonObjectSchema,
-}).strict()
+export const recordFeishuNotificationRequestSchema = z.discriminatedUnion('trigger', [
+  z.object({
+    trigger: z.literal('站会摘要'),
+    target_group_id: idSchema,
+    payload_json: z.object({ standup_id: idSchema }).strict(),
+  }).strict(),
+  z.object({
+    trigger: z.literal('阻塞提醒'),
+    target_group_id: idSchema,
+    payload_json: z.object({ issue_ids: z.array(idSchema).min(1) }).strict(),
+  }).strict(),
+  z.object({
+    trigger: z.literal('文档评论'),
+    target_group_id: idSchema,
+    payload_json: z.object({ document_id: idSchema, comment_id: idSchema }).strict(),
+  }).strict(),
+])

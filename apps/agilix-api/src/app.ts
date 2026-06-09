@@ -4,14 +4,24 @@ import {
   createProjectRequestSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
+  feishuNotificationRowSchema,
+  recordFeishuNotificationRequestSchema,
   saveMilestoneRequestSchema,
   saveStandupRequestSchema,
   updateIssueStatusRequestSchema,
 } from '@agilix/contract'
+import type { RecordFeishuNotificationRequest } from '@agilix/contract'
 import { Hono, type Context } from 'hono'
 import type { z } from 'zod'
-import type { MemberId, MilestoneStatus, SeedData, Standup } from '@agilix/app/domain/types'
+import type {
+  FeishuNotificationPayload,
+  MemberId,
+  MilestoneStatus,
+  SeedData,
+  Standup,
+} from '@agilix/app/domain/types'
 import { contractId, legacyIssueKeyFromContractId, toAppStateResponse } from './appStateAdapter'
+import { createSnowflakeIdGenerator } from './snowflake'
 import type {
   AddDocCommentResult,
   AgiliXRepository,
@@ -134,6 +144,61 @@ function legacyMilestoneFromContractId(data: SeedData, milestoneId: string) {
   return data.milestones.find((milestone) => contractId('milestone', milestone.id) === milestoneId)
 }
 
+function legacyStandupIdFromContractId(data: SeedData, standupId: string) {
+  return data.standups.find((standup) => contractId('standup', standup.id) === standupId)?.id
+}
+
+function legacyDocumentFromContractId(data: SeedData, documentId: string) {
+  return data.docs.find((doc) => contractId('document', doc.id) === documentId)
+}
+
+function legacyCommentIdFromContractId(data: SeedData, commentId: string) {
+  for (const doc of data.docs) {
+    const comment = doc.comments.find((item) => contractId('document-comment', item.id) === commentId)
+    if (comment) return comment.id
+  }
+  return undefined
+}
+
+function feishuGroupExists(data: SeedData, groupId: string) {
+  return data.projects.some((project) => contractId('feishu-group', project.id) === groupId)
+}
+
+function legacyFeishuNotificationPayload(
+  data: SeedData,
+  input: RecordFeishuNotificationRequest,
+): FeishuNotificationPayload {
+  switch (input.trigger) {
+    case '站会摘要':
+      return {
+        trigger: input.trigger,
+        payload: {
+          standupId:
+            legacyStandupIdFromContractId(data, input.payload_json.standup_id) ??
+            input.payload_json.standup_id,
+        },
+      }
+    case '阻塞提醒': {
+      const issueKeys = input.payload_json.issue_ids.map(
+        (issueId) => legacyIssueKeyFromContractId(data, issueId) ?? issueId,
+      ) as [string, ...string[]]
+      return { trigger: input.trigger, payload: { issueKeys } }
+    }
+    case '文档评论': {
+      const doc = legacyDocumentFromContractId(data, input.payload_json.document_id)
+      return {
+        trigger: input.trigger,
+        payload: {
+          docId: doc?.id ?? input.payload_json.document_id,
+          commentId:
+            legacyCommentIdFromContractId(data, input.payload_json.comment_id) ??
+            input.payload_json.comment_id,
+        },
+      }
+    }
+  }
+}
+
 async function validateProjectFilter(
   context: Context,
   repository: AgiliXRepository,
@@ -146,6 +211,7 @@ async function validateProjectFilter(
 
 export function createApp(repository: AgiliXRepository) {
   const app = new Hono()
+  const nextId = createSnowflakeIdGenerator({ epochMs: 1700000000000, workerId: 1 })
 
   async function contractAppState() {
     return appStateResponseSchema.parse(toAppStateResponse(await repository.loadData()))
@@ -335,7 +401,7 @@ export function createApp(repository: AgiliXRepository) {
     const command = parseFeishuCommand(contractParsed.value.command)
     const reply = buildFeishuReply(command, await repository.loadData())
     await repository.saveFeishuQuery({
-      id: crypto.randomUUID(),
+      id: nextId(),
       command,
       reply,
       createdAt: new Date().toISOString(),
@@ -347,14 +413,34 @@ export function createApp(repository: AgiliXRepository) {
   })
 
   app.post('/api/feishu/notifications', async (context) => {
-    const parsed = await parseJson(context, feishuNotificationSchema)
+    const parsed = await parseJson(context, recordFeishuNotificationRequestSchema)
     if ('response' in parsed) return parsed.response
-    const result = await repository.saveFeishuNotification(parsed.value)
+    const loadedData = await repository.loadData()
+    if (!feishuGroupExists(loadedData, parsed.value.target_group_id))
+      return context.json({ message: 'Feishu group not found' }, 400)
+
+    const id = nextId()
+    const createdAt = new Date().toISOString()
+    const notification = {
+      id,
+      targetGroup: 'AgiliX 团队群' as const,
+      status: 'queued' as const,
+      createdAt,
+      ...legacyFeishuNotificationPayload(loadedData, parsed.value),
+    }
+    const result = await repository.saveFeishuNotification(notification)
     if (result !== 'saved') {
       const failure = saveFeishuNotificationFailures[result]
       return context.json({ message: failure.message }, failure.status)
     }
-    return context.json(parsed.value, 201)
+    return context.json(feishuNotificationRowSchema.parse({
+      id,
+      trigger: parsed.value.trigger,
+      target_group_id: parsed.value.target_group_id,
+      payload_json: parsed.value.payload_json,
+      status: 'queued',
+      created_at: createdAt,
+    }), 201)
   })
 
   return app

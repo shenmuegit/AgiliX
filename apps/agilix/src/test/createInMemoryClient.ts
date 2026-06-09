@@ -1,4 +1,4 @@
-import type { AppStateResponse, CreateProjectRequest } from '@agilix/contract'
+import type { AppStateResponse, CreateProjectRequest, RecordFeishuNotificationRequest } from '@agilix/contract'
 import type {
   AgiliXClient,
   CreateDocInput,
@@ -38,6 +38,7 @@ export function createInMemoryClient() {
   const standupSaves: string[] = []
   const milestoneSaves: string[] = []
   const feishuNotifications: FeishuNotificationInput[] = []
+  const contractFeishuNotifications: RecordFeishuNotificationRequest[] = []
   const feishuQueries: string[] = []
 
   function validateFeishuNotification(input: FeishuNotificationInput) {
@@ -64,6 +65,31 @@ export function createInMemoryClient() {
     }
   }
 
+  function validateContractFeishuNotification(input: RecordFeishuNotificationRequest) {
+    const state = seedDataToAppState(data)
+    if (!state.feishu_groups.some((group) => group.id === input.target_group_id))
+      throw new Error(`Feishu group not found: ${input.target_group_id}`)
+    switch (input.trigger) {
+      case '站会摘要':
+        if (!state.standups.some((standup) => standup.id === input.payload_json.standup_id))
+          throw new Error(`Standup not found: ${input.payload_json.standup_id}`)
+        return
+      case '阻塞提醒': {
+        const missingIssueId = input.payload_json.issue_ids.find(
+          (issueId) => !state.issues.some((issue) => issue.id === issueId),
+        )
+        if (missingIssueId) throw new Error(`Issue not found: ${missingIssueId}`)
+        return
+      }
+      case '文档评论': {
+        if (!state.documents.some((doc) => doc.id === input.payload_json.document_id))
+          throw new Error(`Document not found: ${input.payload_json.document_id}`)
+        if (!state.document_comments.some((comment) => comment.id === input.payload_json.comment_id))
+          throw new Error(`Comment not found: ${input.payload_json.comment_id}`)
+      }
+    }
+  }
+
   const client: AgiliXClient & {
     loadCount(): number
     recordedStandupSaves(): string[]
@@ -75,6 +101,7 @@ export function createInMemoryClient() {
     recordedContractProjectCreates(): CreateProjectRequest[]
     recordedContractStandupSaves(): string[]
     recordedContractMilestoneSaves(): string[]
+    recordedContractFeishuNotifications(): string[]
   } = {
     async loadAppState() {
       loadAppStateCalls += 1
@@ -266,6 +293,10 @@ export function createInMemoryClient() {
       validateFeishuNotification(input)
       feishuNotifications.push(clone(input))
     },
+    async recordContractFeishuNotification(input) {
+      validateContractFeishuNotification(input)
+      contractFeishuNotifications.push(clone(input))
+    },
     async queryFeishu(command: FeishuQueryCommand): Promise<FeishuReply> {
       feishuQueries.push(formatFeishuCommand(command))
       return buildFeishuReply(command, data)
@@ -275,6 +306,9 @@ export function createInMemoryClient() {
     },
     recordedFeishuNotifications() {
       return feishuNotifications.map((notification) => notification.trigger)
+    },
+    recordedContractFeishuNotifications() {
+      return contractFeishuNotifications.map((notification) => notification.trigger)
     },
     recordedStandupSaves() {
       return [...standupSaves]

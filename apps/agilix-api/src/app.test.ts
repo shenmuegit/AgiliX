@@ -349,22 +349,24 @@ describe('AgiliX API app', () => {
       { type: 'team' },
     ])
 
-    expect(
-      (
-        await app.request('/api/feishu/notifications', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            id: 'notification-standup',
-            trigger: '站会摘要',
-            targetGroup: 'AgiliX 团队群',
-            payload: { standupId: 'standup-search-today' },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
-          }),
-        })
-      ).status,
-    ).toBe(201)
+    const notificationResponse = await app.request('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        trigger: '站会摘要',
+        target_group_id: contractState.feishu_groups[0]?.id,
+        payload_json: { standup_id: contractState.standups[0]?.id },
+      }),
+    })
+    const notification = await notificationResponse.json()
+    expect(notificationResponse.status).toBe(201)
+    expect(notification).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      trigger: '站会摘要',
+      target_group_id: contractState.feishu_groups[0]?.id,
+      payload_json: { standup_id: contractState.standups[0]?.id },
+      status: 'queued',
+    }))
     expect(
       (await repository.listFeishuNotifications()).map((notification) => notification.trigger),
     ).toEqual(['站会摘要'])
@@ -681,10 +683,8 @@ describe('AgiliX API app', () => {
           body: JSON.stringify({
             id: 'notification-invalid',
             trigger: '站会摘要',
-            targetGroup: 'AgiliX 团队群',
-            payload: { trigger: '站会摘要' },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
+            target_group_id: contractState.feishu_groups[0]?.id,
+            payload_json: { standup_id: contractState.standups[0]?.id },
           }),
         })
       ).status,
@@ -696,12 +696,9 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'notification-extra',
             trigger: '站会摘要',
-            targetGroup: 'AgiliX 团队群',
-            payload: { standupId: 'standup-search-today' },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
+            target_group_id: contractState.feishu_groups[0]?.id,
+            payload_json: { standup_id: contractState.standups[0]?.id },
             extra: true,
           }),
         })
@@ -714,12 +711,9 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'notification-missing-standup',
             trigger: '站会摘要',
-            targetGroup: 'AgiliX 团队群',
-            payload: { standupId: 'missing-standup' },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
+            target_group_id: contractState.feishu_groups[0]?.id,
+            payload_json: { standup_id: 'missing-standup' },
           }),
         })
       ).status,
@@ -731,12 +725,9 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'notification-empty-blockers',
             trigger: '阻塞提醒',
-            targetGroup: 'AgiliX 团队群',
-            payload: { issueKeys: [] },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
+            target_group_id: contractState.feishu_groups[0]?.id,
+            payload_json: { issue_ids: [] },
           }),
         })
       ).status,
@@ -748,12 +739,9 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'notification-missing-issue',
             trigger: '阻塞提醒',
-            targetGroup: 'AgiliX 团队群',
-            payload: { issueKeys: ['MISSING-1'] },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
+            target_group_id: contractState.feishu_groups[0]?.id,
+            payload_json: { issue_ids: ['missing-issue'] },
           }),
         })
       ).status,
@@ -765,12 +753,12 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'notification-missing-comment',
             trigger: '文档评论',
-            targetGroup: 'AgiliX 团队群',
-            payload: { docId: 'doc-result-card', commentId: 'missing-comment' },
-            status: 'queued',
-            createdAt: '2026-06-06T10:00:00.000Z',
+            target_group_id: contractState.feishu_groups[0]?.id,
+            payload_json: {
+              document_id: contractState.documents[0]?.id,
+              comment_id: 'missing-comment',
+            },
           }),
         })
       ).status,

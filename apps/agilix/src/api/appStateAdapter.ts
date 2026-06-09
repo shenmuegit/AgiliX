@@ -173,6 +173,7 @@ export function toDisplaySeedData(state: AppStateResponse): SeedData {
     })),
     feishu: {
       groups: uniqueOrderedValues(state.feishu_groups.map((group) => group.name)),
+      groupIds: state.feishu_groups.map((group) => group.id),
       queryCommands: state.feishu_queries.map((query) => parseFeishuCommand(query.command)),
       notificationTriggers: ['站会摘要', '阻塞提醒', '文档评论'],
     },

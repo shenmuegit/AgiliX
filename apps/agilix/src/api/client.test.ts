@@ -35,6 +35,15 @@ describe('AgiliX API client', () => {
       if (String(input) === '/api/projects') return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/issues/730000000000000401/status')
         return Response.json(emptyAppStateResponse)
+      if (String(input) === '/api/feishu/notifications')
+        return Response.json({
+          id: '730000000000000901',
+          trigger: '站会摘要',
+          target_group_id: '730000000000000501',
+          payload_json: { standup_id: '730000000000000701' },
+          status: 'queued',
+          created_at: '2026-06-09T00:00:00.000Z',
+        }, { status: 201 })
       throw new Error(`Unexpected path: ${String(input)}`)
     })
     const client = createAgiliXClient(fetcher)
@@ -63,6 +72,11 @@ describe('AgiliX API client', () => {
       },
     })
     await client.moveIssueById('730000000000000401', 'done')
+    await client.recordContractFeishuNotification({
+      trigger: '站会摘要',
+      target_group_id: '730000000000000501',
+      payload_json: { standup_id: '730000000000000701' },
+    })
 
     expect(fetcher).toHaveBeenCalledWith('/api/app-state', {
       headers: { 'content-type': 'application/json' },
@@ -97,6 +111,15 @@ describe('AgiliX API client', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'done' }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/feishu/notifications', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        trigger: '站会摘要',
+        target_group_id: '730000000000000501',
+        payload_json: { standup_id: '730000000000000701' },
+      }),
     })
   })
 

@@ -292,6 +292,7 @@ function createClient(data: SeedData): AgiliXClient {
     }),
     saveStandup: vi.fn(async () => undefined),
     saveMilestone: vi.fn(async () => undefined),
+    recordContractFeishuNotification: vi.fn(async () => undefined),
     recordFeishuNotification: vi.fn(async () => undefined),
     queryFeishu: vi.fn(async (command: FeishuQueryCommand) => ({
       title: `查询 ${command.type}`,

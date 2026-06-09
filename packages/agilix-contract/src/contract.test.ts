@@ -192,12 +192,22 @@ describe('AgiliX shared contract', () => {
       body: '需要补验收标准',
     }).success).toBe(false)
     expect(recordFeishuNotificationRequestSchema.safeParse({
-      trigger: 'issue_created',
+      trigger: '站会摘要',
       target_group_id: '730000000000000501',
-      payload_json: { issue_id: '730000000000000401' },
+      payload_json: { standup_id: '730000000000000701' },
+    }).success).toBe(true)
+    expect(recordFeishuNotificationRequestSchema.safeParse({
+      trigger: '阻塞提醒',
+      target_group_id: '730000000000000501',
+      payload_json: { issue_ids: ['730000000000000401'] },
     }).success).toBe(true)
     expect(recordFeishuNotificationRequestSchema.safeParse({
       id: 'client-id',
+      trigger: '站会摘要',
+      target_group_id: '730000000000000501',
+      payload_json: { standup_id: '730000000000000701' },
+    }).success).toBe(false)
+    expect(recordFeishuNotificationRequestSchema.safeParse({
       trigger: 'issue_created',
       target_group_id: '730000000000000501',
       payload_json: { issue_id: '730000000000000401' },

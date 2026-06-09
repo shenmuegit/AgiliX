@@ -3,6 +3,8 @@ import {
   createProjectRequestSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
+  feishuNotificationRowSchema,
+  recordFeishuNotificationRequestSchema,
   saveMilestoneRequestSchema,
   saveStandupRequestSchema,
   updateIssueStatusRequestSchema,
@@ -10,6 +12,7 @@ import {
   type CreateProjectRequest,
   type FeishuQueryResponse,
   type IssueStatus as ContractIssueStatus,
+  type RecordFeishuNotificationRequest,
   type SaveMilestoneRequest,
   type SaveStandupRequest,
 } from '@agilix/contract'
@@ -61,6 +64,7 @@ export interface AgiliXClient {
   createDoc(doc: CreateDocInput): Promise<void>
   saveStandup(standup: Standup): Promise<void>
   saveMilestone(milestone: Milestone): Promise<void>
+  recordContractFeishuNotification(input: RecordFeishuNotificationRequest): Promise<void>
   recordFeishuNotification(input: FeishuNotificationInput): Promise<void>
   queryFeishu(command: FeishuQueryCommand): Promise<FeishuReply>
 }
@@ -451,6 +455,13 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
       await requestJson(fetcher, '/api/feishu/notifications', 201, feishuNotificationSchema, {
         method: 'POST',
         body: JSON.stringify(input),
+      })
+    },
+    async recordContractFeishuNotification(input) {
+      const parsed = recordFeishuNotificationRequestSchema.parse(input)
+      await requestJson(fetcher, '/api/feishu/notifications', 201, feishuNotificationRowSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
       })
     },
     async queryFeishu(command) {
