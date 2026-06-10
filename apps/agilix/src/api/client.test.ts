@@ -36,6 +36,8 @@ describe('AgiliX API client', () => {
       if (String(input) === '/api/issues') return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/issues/730000000000000401/status')
         return Response.json(emptyAppStateResponse)
+      if (String(input) === '/api/issues/730000000000000401/assignment')
+        return Response.json(emptyAppStateResponse)
       if (String(input) === '/api/docs')
         return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/docs/730000000000000601/comments')
@@ -50,6 +52,46 @@ describe('AgiliX API client', () => {
           payload_json: { standup_id: '730000000000000701' },
           status: 'queued',
           created_at: '2026-06-09T00:00:00.000Z',
+        }, { status: 201 })
+      if (String(input) === '/api/bot-config')
+        return Response.json({
+          project_id: '730000000000000001',
+          groups: [
+            {
+              id: '730000000000000501',
+              project_id: '730000000000000001',
+              name: 'AgiliX 团队群',
+              purpose: '通知 / 查询',
+              member_count_label: '8 人',
+              status: '已连接',
+              sort_order: 0,
+            },
+          ],
+          rules: [
+            {
+              id: '730000000000000502',
+              project_id: '730000000000000001',
+              rule_type: 'risk_alert',
+              title: '风险告警',
+              description: '阻塞时通知',
+              schedule_label: '实时',
+              target_group_id: '730000000000000501',
+              enabled: true,
+              sort_order: 0,
+            },
+          ],
+        })
+      if (String(input) === '/api/feishu/test-message')
+        return Response.json({
+          notification: {
+            id: '730000000000000903',
+            trigger: '测试消息',
+            target_group_id: '730000000000000501',
+            payload_json: { card_title: '测试卡片' },
+            status: 'queued',
+            created_at: '2026-06-09T00:00:00.000Z',
+          },
+          card: { title: '测试卡片', body: { source: 'AgiliX' } },
         }, { status: 201 })
       throw new Error(`Unexpected path: ${String(input)}`)
     })
@@ -79,6 +121,10 @@ describe('AgiliX API client', () => {
       },
     })
     await client.moveIssueById('730000000000000401', 'done')
+    await client.saveContractAssignment('730000000000000401', {
+      handler_member_id: '730000000000000202',
+      collaborator_member_ids: ['730000000000000203'],
+    })
     await client.createContractIssue({
       project_id: '730000000000000001',
       iteration_id: '730000000000000101',
@@ -117,6 +163,34 @@ describe('AgiliX API client', () => {
       target_group_id: '730000000000000501',
       payload_json: { standup_id: '730000000000000701' },
     })
+    await client.saveContractBotConfig({
+      project_id: '730000000000000001',
+      groups: [
+        {
+          id: '730000000000000501',
+          name: 'AgiliX 团队群',
+          purpose: '通知 / 查询',
+          member_count_label: '8 人',
+          status: '已连接',
+          sort_order: 0,
+        },
+      ],
+      rules: [
+        {
+          rule_type: 'risk_alert',
+          title: '风险告警',
+          description: '阻塞时通知',
+          schedule_label: '实时',
+          target_group_id: '730000000000000501',
+          enabled: true,
+          sort_order: 0,
+        },
+      ],
+    })
+    await client.sendContractFeishuTestMessage({
+      target_group_id: '730000000000000501',
+      card_title: '测试卡片',
+    })
 
     expect(fetcher).toHaveBeenCalledWith('/api/app-state', {
       headers: { 'content-type': 'application/json' },
@@ -151,6 +225,14 @@ describe('AgiliX API client', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'done' }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/issues/730000000000000401/assignment', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        handler_member_id: '730000000000000202',
+        collaborator_member_ids: ['730000000000000203'],
+      }),
     })
     expect(fetcher).toHaveBeenCalledWith('/api/issues', {
       method: 'POST',
@@ -208,6 +290,42 @@ describe('AgiliX API client', () => {
         trigger: '站会摘要',
         target_group_id: '730000000000000501',
         payload_json: { standup_id: '730000000000000701' },
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/bot-config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        project_id: '730000000000000001',
+        groups: [
+          {
+            id: '730000000000000501',
+            name: 'AgiliX 团队群',
+            purpose: '通知 / 查询',
+            member_count_label: '8 人',
+            status: '已连接',
+            sort_order: 0,
+          },
+        ],
+        rules: [
+          {
+            rule_type: 'risk_alert',
+            title: '风险告警',
+            description: '阻塞时通知',
+            schedule_label: '实时',
+            target_group_id: '730000000000000501',
+            enabled: true,
+            sort_order: 0,
+          },
+        ],
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/feishu/test-message', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        target_group_id: '730000000000000501',
+        card_title: '测试卡片',
       }),
     })
   })

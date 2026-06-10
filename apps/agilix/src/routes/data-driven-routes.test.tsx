@@ -307,6 +307,15 @@ function createClient(data: SeedData): AgiliXClient {
     }),
     saveStandup: vi.fn(async () => undefined),
     saveMilestone: vi.fn(async () => undefined),
+    saveContractAssignment: vi.fn(async () => {
+      throw new Error('Contract assignment saves are not used in this route test')
+    }),
+    saveContractBotConfig: vi.fn(async () => {
+      throw new Error('Contract bot config saves are not used in this route test')
+    }),
+    sendContractFeishuTestMessage: vi.fn(async () => {
+      throw new Error('Contract Feishu test messages are not used in this route test')
+    }),
     recordContractFeishuNotification: vi.fn(async () => undefined),
     recordFeishuNotification: vi.fn(async () => undefined),
     queryFeishu: vi.fn(async (command: FeishuQueryCommand) => ({

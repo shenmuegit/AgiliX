@@ -5,25 +5,35 @@ import {
   createDocumentRequestSchema,
   createIssueRequestSchema,
   createProjectRequestSchema,
+  botConfigResponseSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
+  feishuTestMessageResponseSchema,
   feishuNotificationRowSchema,
   recordFeishuNotificationRequestSchema,
+  saveAssignmentRequestSchema,
+  saveBotConfigRequestSchema,
   saveMilestoneRequestSchema,
   saveStandupRequestSchema,
+  sendFeishuTestMessageRequestSchema,
   updateDocumentDirectoryRequestSchema,
   updateIssueStatusRequestSchema,
   type AppStateResponse,
+  type BotConfigResponse,
   type CreateDocumentCommentRequest,
   type CreateDocumentDirectoryRequest,
   type CreateDocumentRequest,
   type CreateIssueRequest,
   type CreateProjectRequest,
+  type FeishuTestMessageResponse,
   type FeishuQueryResponse,
   type IssueStatus as ContractIssueStatus,
   type RecordFeishuNotificationRequest,
+  type SaveAssignmentRequest,
+  type SaveBotConfigRequest,
   type SaveMilestoneRequest,
   type SaveStandupRequest,
+  type SendFeishuTestMessageRequest,
   type UpdateDocumentDirectoryRequest,
 } from '@agilix/contract'
 import { z } from 'zod'
@@ -72,6 +82,7 @@ export interface AgiliXClient {
   createContractProject(input: CreateProjectRequest): Promise<AppStateResponse>
   createProject(input: CreateProjectInput): Promise<void>
   createContractIssue(input: CreateIssueRequest): Promise<AppStateResponse>
+  saveContractAssignment(issueId: string, input: SaveAssignmentRequest): Promise<AppStateResponse>
   moveIssueById(issueId: string, status: ContractIssueStatus): Promise<AppStateResponse>
   moveIssue(issueKey: string, status: IssueStatus): Promise<void>
   createContractDoc(input: CreateDocumentRequest): Promise<AppStateResponse>
@@ -84,6 +95,8 @@ export interface AgiliXClient {
   createDoc(doc: LegacyCreateDocInput): Promise<void>
   saveStandup(standup: Standup): Promise<void>
   saveMilestone(milestone: Milestone): Promise<void>
+  saveContractBotConfig(input: SaveBotConfigRequest): Promise<BotConfigResponse>
+  sendContractFeishuTestMessage(input: SendFeishuTestMessageRequest): Promise<FeishuTestMessageResponse>
   recordContractFeishuNotification(input: RecordFeishuNotificationRequest): Promise<void>
   recordFeishuNotification(input: FeishuNotificationInput): Promise<void>
   queryFeishu(command: FeishuQueryCommand): Promise<FeishuReply>
@@ -438,6 +451,13 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
         body: JSON.stringify(parsed),
       })
     },
+    saveContractAssignment(issueId, input) {
+      const parsed = saveAssignmentRequestSchema.parse(input)
+      return requestJson(fetcher, `/api/issues/${issueId}/assignment`, 200, appStateResponseSchema, {
+        method: 'PATCH',
+        body: JSON.stringify(parsed),
+      })
+    },
     moveIssueById(issueId, status) {
       const parsed = updateIssueStatusRequestSchema.parse({ status })
       return requestJson(fetcher, `/api/issues/${issueId}/status`, 200, appStateResponseSchema, {
@@ -516,6 +536,20 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
       return requestNoContent(fetcher, `/api/milestones/${milestone.id}`, {
         method: 'PUT',
         body: JSON.stringify(milestone),
+      })
+    },
+    saveContractBotConfig(input) {
+      const parsed = saveBotConfigRequestSchema.parse(input)
+      return requestJson(fetcher, '/api/bot-config', 200, botConfigResponseSchema, {
+        method: 'PUT',
+        body: JSON.stringify(parsed),
+      })
+    },
+    sendContractFeishuTestMessage(input) {
+      const parsed = sendFeishuTestMessageRequestSchema.parse(input)
+      return requestJson(fetcher, '/api/feishu/test-message', 201, feishuTestMessageResponseSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
       })
     },
     async recordFeishuNotification(input) {

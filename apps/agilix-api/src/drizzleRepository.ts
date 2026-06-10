@@ -6,6 +6,10 @@ import {
 } from '@agilix/app/domain/feishu'
 import { filterIssues } from '@agilix/app/domain/issues'
 import type {
+  BotConfigResponse,
+  FeishuTestMessageResponse,
+} from '@agilix/contract'
+import type {
   CreateProjectInput,
   Doc,
   DocComment,
@@ -38,8 +42,14 @@ import type {
   FeishuNotificationRecord,
   FeishuQueryRecord,
   IssueFilters,
+  SaveAssignmentInput,
+  SaveAssignmentResult,
+  SaveBotConfigInput,
+  SaveBotConfigResult,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
+  SendFeishuTestMessageInput,
+  SendFeishuTestMessageResult,
   UpdateDocDirectoryInput,
   UpdateDocDirectoryResult,
 } from './repository'
@@ -820,6 +830,45 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
       return 'created'
     },
     listIssues,
+    async saveAssignment(input: SaveAssignmentInput): Promise<SaveAssignmentResult> {
+      const internalIssueId = maps.issue.get(input.issueKey) ?? input.issueKey
+      const [issue] = await db
+        .select({ id: dbSchema.issues.id })
+        .from(dbSchema.issues)
+        .where(eq(dbSchema.issues.id, internalIssueId))
+      if (!issue) return 'issue-not-found'
+      const handlerMemberId = maps.member.get(input.handlerId)
+      if (!handlerMemberId) return 'handler-not-found'
+      const collaboratorMemberIds: string[] = []
+      for (const memberId of input.collaboratorIds) {
+        const mappedMemberId = maps.member.get(memberId)
+        if (!mappedMemberId) return 'collaborator-not-found'
+        collaboratorMemberIds.push(mappedMemberId)
+      }
+      if (new Set(input.collaboratorIds).size !== input.collaboratorIds.length)
+        return 'duplicate-collaborator'
+      await db.batch([
+        db
+          .update(dbSchema.issues)
+          .set({ handlerMemberId })
+          .where(eq(dbSchema.issues.id, internalIssueId)),
+        db
+          .delete(dbSchema.issueCollaborators)
+          .where(eq(dbSchema.issueCollaborators.issueId, internalIssueId)),
+        ...(collaboratorMemberIds.length > 0
+          ? [
+              db.insert(dbSchema.issueCollaborators).values(
+                collaboratorMemberIds.map((memberId, index) => ({
+                  issueId: internalIssueId,
+                  memberId,
+                  sortOrder: index,
+                })),
+              ),
+            ]
+          : []),
+      ])
+      return 'saved'
+    },
     async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
       const [duplicateById] = await db
         .select({ id: dbSchema.issues.id })
@@ -1151,6 +1200,120 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
           createdAt: row.createdAt,
         }),
       )
+    },
+    async getBotConfig(projectId: ProjectId) {
+      const projectInternalId = maps.project.get(projectId)
+      if (!projectInternalId) return { status: 'project-not-found' as const }
+      const groups = (await db.select().from(dbSchema.feishuGroups))
+        .filter((group) => group.projectId === projectInternalId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((group) => ({
+          id: group.id,
+          project_id: projectInternalId,
+          name: group.name,
+          purpose: group.purpose,
+          member_count_label: group.memberCountLabel,
+          status: group.status,
+          sort_order: group.sortOrder,
+        }))
+      const rules = (await db.select().from(dbSchema.feishuBotRules))
+        .filter((rule) => rule.projectId === projectInternalId)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((rule) => ({
+          id: rule.id,
+          project_id: projectInternalId,
+          rule_type: rule.ruleType,
+          title: rule.title,
+          description: rule.description,
+          schedule_label: rule.scheduleLabel,
+          target_group_id: rule.targetGroupId,
+          enabled: rule.enabled,
+          sort_order: rule.sortOrder,
+        }))
+      const config: BotConfigResponse = { project_id: projectInternalId, groups, rules }
+      return { status: 'found' as const, config }
+    },
+    async saveBotConfig(input: SaveBotConfigInput): Promise<SaveBotConfigResult> {
+      const projectInternalId = maps.project.get(input.projectId)
+      if (!projectInternalId) return { status: 'project-not-found' }
+      const groups = input.request.groups.map((group) => ({
+        id: group.id ?? makeId(),
+        projectId: projectInternalId,
+        name: group.name,
+        purpose: group.purpose,
+        memberCountLabel: group.member_count_label,
+        status: group.status,
+        sortOrder: group.sort_order,
+      }))
+      const groupIds = new Set(groups.map((group) => group.id))
+      if (input.request.rules.some((rule) => !groupIds.has(rule.target_group_id)))
+        return { status: 'target-group-not-found' }
+      const rules = input.request.rules.map((rule) => ({
+        id: rule.id ?? makeId(),
+        projectId: projectInternalId,
+        ruleType: rule.rule_type,
+        title: rule.title,
+        description: rule.description,
+        scheduleLabel: rule.schedule_label,
+        targetGroupId: rule.target_group_id,
+        enabled: rule.enabled,
+        sortOrder: rule.sort_order,
+      }))
+      const existingGroups = (await db.select().from(dbSchema.feishuGroups)).filter(
+        (group) => group.projectId === projectInternalId,
+      )
+      const existingRules = (await db.select().from(dbSchema.feishuBotRules)).filter(
+        (rule) => rule.projectId === projectInternalId,
+      )
+      for (const rule of existingRules)
+        await db.delete(dbSchema.feishuBotRules).where(eq(dbSchema.feishuBotRules.id, rule.id))
+      for (const group of existingGroups)
+        await db.delete(dbSchema.feishuGroups).where(eq(dbSchema.feishuGroups.id, group.id))
+      if (groups.length > 0) await db.insert(dbSchema.feishuGroups).values(groups)
+      if (rules.length > 0) await db.insert(dbSchema.feishuBotRules).values(rules)
+      const config: BotConfigResponse = {
+        project_id: projectInternalId,
+        groups: groups.map((group) => ({
+          id: group.id,
+          project_id: group.projectId,
+          name: group.name,
+          purpose: group.purpose,
+          member_count_label: group.memberCountLabel,
+          status: group.status,
+          sort_order: group.sortOrder,
+        })),
+        rules: rules.map((rule) => ({
+          id: rule.id,
+          project_id: rule.projectId,
+          rule_type: rule.ruleType,
+          title: rule.title,
+          description: rule.description,
+          schedule_label: rule.scheduleLabel,
+          target_group_id: rule.targetGroupId,
+          enabled: rule.enabled,
+          sort_order: rule.sortOrder,
+        })),
+      }
+      return { status: 'saved', config }
+    },
+    async sendFeishuTestMessage(input: SendFeishuTestMessageInput): Promise<SendFeishuTestMessageResult> {
+      const [group] = await db
+        .select({ id: dbSchema.feishuGroups.id })
+        .from(dbSchema.feishuGroups)
+        .where(eq(dbSchema.feishuGroups.id, input.target_group_id))
+      if (!group) return { status: 'target-group-not-found' }
+      const message: FeishuTestMessageResponse = {
+        notification: {
+          id: input.id,
+          trigger: '测试消息',
+          target_group_id: input.target_group_id,
+          payload_json: { card_title: input.card_title },
+          status: 'queued',
+          created_at: input.createdAt,
+        },
+        card: { title: input.card_title, body: { source: 'AgiliX' } },
+      }
+      return { status: 'sent', message }
     },
     async saveFeishuQuery(input: FeishuQueryRecord) {
       await db.insert(dbSchema.feishuQueries).values({

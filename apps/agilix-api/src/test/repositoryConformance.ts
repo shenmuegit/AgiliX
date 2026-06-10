@@ -83,6 +83,57 @@ export function describeRepositoryConformance(
         }),
       ).toBe('created')
       expect(
+        await repository.saveAssignment({
+          issueKey: 'SRCH-186',
+          handlerId: 'chen',
+          collaboratorIds: ['zhou'],
+        }),
+      ).toBe('saved')
+      const initialBotConfig = await repository.getBotConfig('search')
+      if (initialBotConfig.status !== 'found') throw new Error('Expected search bot config')
+      const targetGroupId = initialBotConfig.config.groups[0]?.id
+      if (!targetGroupId) throw new Error('Expected search bot group')
+      const savedBotConfig = await repository.saveBotConfig({
+        projectId: 'search',
+        request: {
+          project_id: initialBotConfig.config.project_id,
+          groups: [
+            {
+              id: targetGroupId,
+              name: 'AgiliX 团队群',
+              purpose: '通知 / 查询',
+              member_count_label: '8 人',
+              status: '已连接',
+              sort_order: 0,
+            },
+          ],
+          rules: [
+            {
+              rule_type: 'risk_alert',
+              title: '风险告警',
+              description: '阻塞时通知',
+              schedule_label: '实时',
+              target_group_id: targetGroupId,
+              enabled: true,
+              sort_order: 0,
+            },
+          ],
+        },
+      })
+      expect(savedBotConfig.status).toBe('saved')
+      const testMessage = await repository.sendFeishuTestMessage({
+        target_group_id: targetGroupId,
+        card_title: 'Repository 测试卡片',
+        id: 'test-message-conformance',
+        createdAt: '2026-06-06T10:02:00.000Z',
+      })
+      expect(testMessage).toEqual({
+        status: 'sent',
+        message: expect.objectContaining({
+          card: { title: 'Repository 测试卡片', body: { source: 'AgiliX' } },
+        }),
+      })
+      expect(
         await repository.saveStandup({
           ...seedData.standups[0],
           items: seedData.standups[0].items.map((item) =>
@@ -122,6 +173,12 @@ export function describeRepositoryConformance(
           })
         ).find((issue) => issue.key === 'SRCH-186')?.status,
       ).toBe('done')
+      expect(
+        (await repository.loadData()).issues.find((issue) => issue.key === 'SRCH-186'),
+      ).toEqual(expect.objectContaining({
+        assigneeId: 'chen',
+        collaboratorIds: ['zhou'],
+      }))
       expect(
         (await repository.listProjects()).find((project) => project.id === 'growth')?.name,
       ).toBe('增长实验')

@@ -1,11 +1,16 @@
 import type {
   AppStateResponse,
+  BotConfigResponse,
   CreateDocumentCommentRequest,
   CreateDocumentDirectoryRequest,
   CreateDocumentRequest,
   CreateIssueRequest,
   CreateProjectRequest,
+  FeishuTestMessageResponse,
   RecordFeishuNotificationRequest,
+  SaveAssignmentRequest,
+  SaveBotConfigRequest,
+  SendFeishuTestMessageRequest,
 } from '@agilix/contract'
 import type {
   AgiliXClient,
@@ -207,6 +212,27 @@ export function createInMemoryClient() {
             draft: input.draft,
           },
         ],
+      }
+      return seedDataToAppState(data)
+    },
+    async saveContractAssignment(issueId: string, input: SaveAssignmentRequest) {
+      const issueKey = data.issues.find((issue) => issue.id === issueId)?.key ?? legacyScopedId(issueId, 'issue')
+      const handler = data.members.find((item) => scopedId('member', item.id) === input.handler_member_id)
+      if (!handler) throw new Error(`Issue handler member not found: ${input.handler_member_id}`)
+      const collaboratorIds = input.collaborator_member_ids.map((memberId) => {
+        const member = data.members.find((item) => scopedId('member', item.id) === memberId)
+        if (!member) throw new Error(`Issue collaborator member not found: ${memberId}`)
+        return member.id
+      })
+      if (!data.issues.some((issue) => issue.key === issueKey))
+        throw new Error(`Issue not found: ${issueId}`)
+      data = {
+        ...data,
+        issues: data.issues.map((issue) =>
+          issue.key === issueKey
+            ? { ...issue, assigneeId: handler.id, collaboratorIds }
+            : issue,
+        ),
       }
       return seedDataToAppState(data)
     },
@@ -474,6 +500,53 @@ export function createInMemoryClient() {
         ],
       }
       return seedDataToAppState(data)
+    },
+    async saveContractBotConfig(input: SaveBotConfigRequest): Promise<BotConfigResponse> {
+      const state = seedDataToAppState(data)
+      if (!state.projects.some((project) => project.id === input.project_id))
+        throw new Error(`Project not found: ${input.project_id}`)
+      const groups = input.groups.map((group, index) => ({
+        id: group.id ?? `feishu-group-contract-${index + 1}`,
+        project_id: input.project_id,
+        name: group.name,
+        purpose: group.purpose,
+        member_count_label: group.member_count_label,
+        status: group.status,
+        sort_order: group.sort_order,
+      }))
+      const groupIds = new Set(groups.map((group) => group.id))
+      const rules = input.rules.map((rule, index) => {
+        if (!groupIds.has(rule.target_group_id))
+          throw new Error(`Target Feishu group not found: ${rule.target_group_id}`)
+        return {
+          id: rule.id ?? `feishu-rule-contract-${index + 1}`,
+          project_id: input.project_id,
+          rule_type: rule.rule_type,
+          title: rule.title,
+          description: rule.description,
+          schedule_label: rule.schedule_label,
+          target_group_id: rule.target_group_id,
+          enabled: rule.enabled,
+          sort_order: rule.sort_order,
+        }
+      })
+      return { project_id: input.project_id, groups, rules }
+    },
+    async sendContractFeishuTestMessage(input: SendFeishuTestMessageRequest): Promise<FeishuTestMessageResponse> {
+      const state = seedDataToAppState(data)
+      if (!state.feishu_groups.some((group) => group.id === input.target_group_id))
+        throw new Error(`Target Feishu group not found: ${input.target_group_id}`)
+      return {
+        notification: {
+          id: 'feishu-test-message-contract-1',
+          trigger: '测试消息',
+          target_group_id: input.target_group_id,
+          payload_json: { card_title: input.card_title },
+          status: 'queued',
+          created_at: '刚刚',
+        },
+        card: { title: input.card_title, body: { source: 'AgiliX' } },
+      }
     },
     async recordFeishuNotification(input: FeishuNotificationInput) {
       validateFeishuNotification(input)

@@ -1,6 +1,12 @@
 import { filterDocs, searchDocs } from '@agilix/app/domain/docs'
 import { filterIssues, moveIssue } from '@agilix/app/domain/issues'
 import type {
+  BotConfigResponse,
+  FeishuTestMessageResponse,
+  SaveBotConfigRequest,
+  SendFeishuTestMessageRequest,
+} from '@agilix/contract'
+import type {
   CreateProjectInput,
   Doc,
   DocComment,
@@ -23,12 +29,18 @@ import type {
   FeishuNotificationRecord,
   FeishuQueryRecord,
   IssueFilters,
+  SaveAssignmentInput,
+  SaveAssignmentResult,
+  SaveBotConfigInput,
+  SaveBotConfigResult,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
+  SendFeishuTestMessageInput,
+  SendFeishuTestMessageResult,
   UpdateDocDirectoryInput,
   UpdateDocDirectoryResult,
 } from '../repository'
-import { contractId } from '../appStateAdapter'
+import { contractId, toAppStateResponse } from '../appStateAdapter'
 
 function clone<T>(value: T): T {
   if (value === undefined) return undefined as T
@@ -77,6 +89,17 @@ function directoryRows(data: SeedData): DocDirectory[] {
 
 function replacePathPrefix(path: string, from: string, to: string) {
   return path === from ? to : path.startsWith(`${from}/`) ? `${to}${path.slice(from.length)}` : path
+}
+
+function initialBotConfig(data: SeedData, projectId: string): BotConfigResponse | undefined {
+  const state = toAppStateResponse(data)
+  const contractProjectId = contractId('project', projectId)
+  if (!state.projects.some((project) => project.id === contractProjectId)) return undefined
+  return {
+    project_id: contractProjectId,
+    groups: state.feishu_groups.filter((group) => group.project_id === contractProjectId),
+    rules: state.feishu_bot_rules.filter((rule) => rule.project_id === contractProjectId),
+  }
 }
 
 function assertSeedData(data: SeedData) {
@@ -188,6 +211,8 @@ function assertSeedData(data: SeedData) {
 export function createMemoryRepository(seed: SeedData): AgiliXRepository {
   assertSeedData(seed)
   const data = clone(seed)
+  const botConfigByProjectId = new Map<string, BotConfigResponse>()
+  let generatedBotConfigId = 0
   let seeded =
     seed.projects.length > 0 ||
     seed.members.length > 0 ||
@@ -198,6 +223,11 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
     seed.milestones.length > 0
   const feishuNotifications: FeishuNotificationRecord[] = []
   const feishuQueries: FeishuQueryRecord[] = []
+
+  function nextBotConfigId(prefix: string) {
+    generatedBotConfigId += 1
+    return `${prefix}-${generatedBotConfigId}`
+  }
 
   function validateMilestoneReferences(milestone: Milestone): SaveMilestoneResult {
     if (!data.milestones.some((item) => item.id === milestone.id)) return 'milestone-not-found'
@@ -274,6 +304,38 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
     }
   }
 
+  function saveBotConfigRows(input: SaveBotConfigInput): SaveBotConfigResult {
+    const project = data.projects.find((item) => item.id === input.projectId)
+    if (!project) return { status: 'project-not-found' }
+    const contractProjectId = contractId('project', project.id)
+    const groups = input.request.groups.map((group) => ({
+      id: group.id ?? nextBotConfigId('feishu-group'),
+      project_id: contractProjectId,
+      name: group.name,
+      purpose: group.purpose,
+      member_count_label: group.member_count_label,
+      status: group.status,
+      sort_order: group.sort_order,
+    }))
+    const groupIds = new Set(groups.map((group) => group.id))
+    if (input.request.rules.some((rule) => !groupIds.has(rule.target_group_id)))
+      return { status: 'target-group-not-found' }
+    const rules = input.request.rules.map((rule) => ({
+      id: rule.id ?? nextBotConfigId('feishu-rule'),
+      project_id: contractProjectId,
+      rule_type: rule.rule_type,
+      title: rule.title,
+      description: rule.description,
+      schedule_label: rule.schedule_label,
+      target_group_id: rule.target_group_id,
+      enabled: rule.enabled,
+      sort_order: rule.sort_order,
+    }))
+    const config = { project_id: contractProjectId, groups, rules }
+    botConfigByProjectId.set(project.id, clone(config))
+    return { status: 'saved', config }
+  }
+
   return {
     async seed(nextData) {
       if (seeded) throw new Error('Repository already seeded')
@@ -293,6 +355,20 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
     },
     async listIssues(filters: IssueFilters) {
       return clone(filterIssues(data.issues, filters))
+    },
+    async saveAssignment(input: SaveAssignmentInput): Promise<SaveAssignmentResult> {
+      if (!data.issues.some((issue) => issue.key === input.issueKey)) return 'issue-not-found'
+      if (!data.members.some((member) => member.id === input.handlerId)) return 'handler-not-found'
+      if (!input.collaboratorIds.every((memberId) => data.members.some((member) => member.id === memberId)))
+        return 'collaborator-not-found'
+      if (new Set(input.collaboratorIds).size !== input.collaboratorIds.length)
+        return 'duplicate-collaborator'
+      data.issues = data.issues.map((issue) =>
+        issue.key === input.issueKey
+          ? { ...issue, assigneeId: input.handlerId, collaboratorIds: input.collaboratorIds }
+          : issue,
+      )
+      return 'saved'
     },
     async createIssue(input) {
       const result = validateCreateIssue(input)
@@ -433,6 +509,36 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
     },
     async listFeishuNotifications() {
       return clone(feishuNotifications)
+    },
+    async getBotConfig(projectId) {
+      if (!data.projects.some((project) => project.id === projectId))
+        return { status: 'project-not-found' }
+      const config = botConfigByProjectId.get(projectId) ?? initialBotConfig(data, projectId)
+      if (!config) return { status: 'project-not-found' }
+      return { status: 'found', config: clone(config) }
+    },
+    async saveBotConfig(input) {
+      return saveBotConfigRows(input)
+    },
+    async sendFeishuTestMessage(input: SendFeishuTestMessageInput): Promise<SendFeishuTestMessageResult> {
+      const state = toAppStateResponse(data)
+      const savedGroups = Array.from(botConfigByProjectId.values()).flatMap((config) => config.groups)
+      const groupExists =
+        state.feishu_groups.some((group) => group.id === input.target_group_id) ||
+        savedGroups.some((group) => group.id === input.target_group_id)
+      if (!groupExists) return { status: 'target-group-not-found' }
+      const message: FeishuTestMessageResponse = {
+        notification: {
+          id: input.id,
+          trigger: '测试消息',
+          target_group_id: input.target_group_id,
+          payload_json: { card_title: input.card_title },
+          status: 'queued',
+          created_at: input.createdAt,
+        },
+        card: { title: input.card_title, body: { source: 'AgiliX' } },
+      }
+      return { status: 'sent', message }
     },
     async listFeishuQueries() {
       return clone(feishuQueries)

@@ -6,12 +6,17 @@ import {
   createDocumentRequestSchema,
   createIssueRequestSchema,
   createProjectRequestSchema,
+  botConfigResponseSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
+  feishuTestMessageResponseSchema,
   feishuNotificationRowSchema,
   recordFeishuNotificationRequestSchema,
+  saveAssignmentRequestSchema,
+  saveBotConfigRequestSchema,
   saveMilestoneRequestSchema,
   saveStandupRequestSchema,
+  sendFeishuTestMessageRequestSchema,
   updateDocumentDirectoryRequestSchema,
   updateIssueStatusRequestSchema,
 } from '@agilix/contract'
@@ -34,8 +39,11 @@ import type {
   CreateDocDirectoryResult,
   CreateIssueResult,
   CreateProjectResult,
+  SaveAssignmentResult,
+  SaveBotConfigResult,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
+  SendFeishuTestMessageResult,
   UpdateDocDirectoryResult,
 } from './repository'
 import {
@@ -97,6 +105,13 @@ const createIssueFailures = {
   'duplicate-collaborator': { message: 'Duplicate issue collaborator', status: 400 },
 } satisfies Record<Exclude<CreateIssueResult, 'created'>, JsonFailure>
 
+const saveAssignmentFailures = {
+  'issue-not-found': { message: 'Issue not found', status: 404 },
+  'handler-not-found': { message: 'Issue handler member not found', status: 400 },
+  'collaborator-not-found': { message: 'Issue collaborator member not found', status: 400 },
+  'duplicate-collaborator': { message: 'Duplicate issue collaborator', status: 400 },
+} satisfies Record<Exclude<SaveAssignmentResult, 'saved'>, JsonFailure>
+
 const addDocCommentFailures = {
   'document-not-found': { message: 'Document not found', status: 404 },
   'comment-doc-id-mismatch': { message: 'Comment docId must match route id', status: 400 },
@@ -115,6 +130,15 @@ const saveFeishuNotificationFailures = {
   'document-not-found': { message: 'Document not found', status: 400 },
   'comment-not-found': { message: 'Comment not found', status: 400 },
 } satisfies Record<Exclude<SaveFeishuNotificationResult, 'saved'>, JsonFailure>
+
+const saveBotConfigFailures = {
+  'project-not-found': { message: 'Project not found', status: 400 },
+  'target-group-not-found': { message: 'Target Feishu group not found', status: 400 },
+} satisfies Record<Exclude<SaveBotConfigResult['status'], 'saved'>, JsonFailure>
+
+const sendFeishuTestMessageFailures = {
+  'target-group-not-found': { message: 'Target Feishu group not found', status: 400 },
+} satisfies Record<Exclude<SendFeishuTestMessageResult['status'], 'sent'>, JsonFailure>
 
 async function parseJson<T>(
   context: Context,
@@ -403,6 +427,26 @@ export function createApp(repository: AgiliXRepository) {
     return context.json({ message: failure.message }, failure.status)
   })
 
+  app.patch('/api/issues/:id/assignment', async (context) => {
+    const parsed = await parseJson(context, saveAssignmentRequestSchema)
+    if ('response' in parsed) return parsed.response
+    const loadedData = await repository.loadData()
+    const issueKey =
+      legacyIssueKeyFromContractId(loadedData, context.req.param('id')) ?? context.req.param('id')
+    const handlerId = legacyMemberIdFromContractId(loadedData, parsed.value.handler_member_id)
+    if (!handlerId) return context.json({ message: 'Issue handler member not found' }, 400)
+    const collaboratorIds: MemberId[] = []
+    for (const memberId of parsed.value.collaborator_member_ids) {
+      const legacyMemberId = legacyMemberIdFromContractId(loadedData, memberId)
+      if (!legacyMemberId) return context.json({ message: 'Issue collaborator member not found' }, 400)
+      collaboratorIds.push(legacyMemberId)
+    }
+    const result = await repository.saveAssignment({ issueKey, handlerId, collaboratorIds })
+    if (result === 'saved') return context.json(await contractAppState(), 200)
+    const failure = saveAssignmentFailures[result]
+    return context.json({ message: failure.message }, failure.status)
+  })
+
   app.patch('/api/issues/:key/status', async (context) => {
     const parsed = await parseJson(context, updateIssueStatusRequestSchema)
     if ('response' in parsed) return parsed.response
@@ -607,6 +651,29 @@ export function createApp(repository: AgiliXRepository) {
     return context.json({ message: failure.message }, failure.status)
   })
 
+  app.get('/api/bot-config', async (context) => {
+    const loadedData = await repository.loadData()
+    const projectId = context.req.query('project_id')
+    if (!projectId) return context.json({ message: 'project_id is required' }, 400)
+    const project = legacyProjectFromContractId(loadedData, projectId)
+    if (!project) return context.json({ message: 'Project not found' }, 400)
+    const result = await repository.getBotConfig(project.id)
+    if (result.status === 'found') return context.json(botConfigResponseSchema.parse(result.config))
+    return context.json({ message: 'Project not found' }, 400)
+  })
+
+  app.put('/api/bot-config', async (context) => {
+    const parsed = await parseJson(context, saveBotConfigRequestSchema)
+    if ('response' in parsed) return parsed.response
+    const loadedData = await repository.loadData()
+    const project = legacyProjectFromContractId(loadedData, parsed.value.project_id)
+    if (!project) return context.json({ message: 'Project not found' }, 400)
+    const result = await repository.saveBotConfig({ projectId: project.id, request: parsed.value })
+    if (result.status === 'saved') return context.json(botConfigResponseSchema.parse(result.config), 200)
+    const failure = saveBotConfigFailures[result.status]
+    return context.json({ message: failure.message }, failure.status)
+  })
+
   app.post('/api/feishu/query', async (context) => {
     const contractParsed = await parseJson(context, feishuQueryRequestSchema)
     if ('response' in contractParsed) return contractParsed.response
@@ -622,6 +689,20 @@ export function createApp(repository: AgiliXRepository) {
       response_title: reply.title,
       response_body_json: { lines: reply.lines },
     }))
+  })
+
+  app.post('/api/feishu/test-message', async (context) => {
+    const parsed = await parseJson(context, sendFeishuTestMessageRequestSchema)
+    if ('response' in parsed) return parsed.response
+    const result = await repository.sendFeishuTestMessage({
+      ...parsed.value,
+      id: nextId(),
+      createdAt: new Date().toISOString(),
+    })
+    if (result.status === 'sent')
+      return context.json(feishuTestMessageResponseSchema.parse(result.message), 201)
+    const failure = sendFeishuTestMessageFailures[result.status]
+    return context.json({ message: failure.message }, failure.status)
   })
 
   app.post('/api/feishu/notifications', async (context) => {

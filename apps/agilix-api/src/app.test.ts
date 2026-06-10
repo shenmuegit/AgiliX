@@ -110,6 +110,46 @@ describe('AgiliX API app', () => {
     expect(next.issues.find((item) => item.id === issue?.id)?.status).toBe('done')
   })
 
+  it('saves issue assignments through the shared contract by app-state id', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+    const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
+    const issue = state.issues.find((item) => item.key === 'SRCH-186')
+    const handler = state.members.find((item) => item.name === '陈牧')
+    const collaborator = state.members.find((item) => item.name === '周然')
+    expect(issue).toBeDefined()
+    expect(handler).toBeDefined()
+    expect(collaborator).toBeDefined()
+
+    const rejected = await app.request(`/api/issues/${issue?.id}/assignment`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-assignment-id',
+        handler_member_id: handler?.id,
+        collaborator_member_ids: [collaborator?.id],
+      }),
+    })
+    expect(rejected.status).toBe(400)
+
+    const response = await app.request(`/api/issues/${issue?.id}/assignment`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        handler_member_id: handler?.id,
+        collaborator_member_ids: [collaborator?.id],
+      }),
+    })
+
+    const next = appStateResponseSchema.parse(await response.json())
+    expect(response.status).toBe(200)
+    expect(next.issues.find((item) => item.id === issue?.id)?.handler_member_id).toBe(handler?.id)
+    expect(next.issue_collaborators).toContainEqual({
+      issue_id: issue?.id,
+      member_id: collaborator?.id,
+      sort_order: 0,
+    })
+  })
+
   it('creates issues through the shared contract without accepting client ids or keys', async () => {
     const app = createApp(createMemoryRepository(seedData))
     const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
@@ -365,6 +405,95 @@ describe('AgiliX API app', () => {
       name: '契约目录重命名',
       parent_id: rootDirectory?.id,
     }))
+  })
+
+  it('saves bot config and sends Feishu test messages through shared contracts', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+    const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
+    const project = state.projects[0]
+    const group = state.feishu_groups[0]
+    expect(project).toBeDefined()
+    expect(group).toBeDefined()
+
+    const rejectedConfig = await app.request('/api/bot-config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-config-id',
+        project_id: project?.id,
+        groups: [],
+        rules: [],
+      }),
+    })
+    expect(rejectedConfig.status).toBe(400)
+
+    const configResponse = await app.request('/api/bot-config', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        project_id: project?.id,
+        groups: [
+          {
+            id: group?.id,
+            name: 'AgiliX 团队群',
+            purpose: '通知 / 查询',
+            member_count_label: '8 人',
+            status: '已连接',
+            sort_order: 0,
+          },
+        ],
+        rules: [
+          {
+            rule_type: 'risk_alert',
+            title: '风险告警',
+            description: '阻塞时通知',
+            schedule_label: '实时',
+            target_group_id: group?.id,
+            enabled: true,
+            sort_order: 0,
+          },
+        ],
+      }),
+    })
+    const config = await configResponse.json()
+    expect(configResponse.status).toBe(200)
+    expect(config).toEqual(expect.objectContaining({
+      project_id: project?.id,
+      groups: [expect.objectContaining({ id: group?.id, name: 'AgiliX 团队群' })],
+      rules: [expect.objectContaining({ target_group_id: group?.id, title: '风险告警' })],
+    }))
+
+    const rejectedMessage = await app.request('/api/feishu/test-message', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-message-id',
+        target_group_id: group?.id,
+        card_title: '测试卡片',
+      }),
+    })
+    expect(rejectedMessage.status).toBe(400)
+
+    const messageResponse = await app.request('/api/feishu/test-message', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        target_group_id: group?.id,
+        card_title: '测试卡片',
+      }),
+    })
+    const message = await messageResponse.json()
+    expect(messageResponse.status).toBe(201)
+    expect(message).toEqual({
+      notification: expect.objectContaining({
+        id: expect.any(String),
+        trigger: '测试消息',
+        target_group_id: group?.id,
+        payload_json: { card_title: '测试卡片' },
+        status: 'queued',
+      }),
+      card: { title: '测试卡片', body: { source: 'AgiliX' } },
+    })
   })
 
   it('serves every full product module', async () => {

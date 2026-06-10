@@ -1,4 +1,10 @@
 import type {
+  BotConfigResponse,
+  FeishuTestMessageResponse,
+  SaveBotConfigRequest,
+  SendFeishuTestMessageRequest,
+} from '@agilix/contract'
+import type {
   Doc,
   DocComment,
   FeishuNotificationPayload,
@@ -113,6 +119,35 @@ export type SaveFeishuNotificationResult =
   | 'issue-not-found'
   | 'document-not-found'
   | 'comment-not-found'
+export interface SaveAssignmentInput {
+  issueKey: string
+  handlerId: MemberId
+  collaboratorIds: MemberId[]
+}
+export type SaveAssignmentResult =
+  | 'saved'
+  | 'issue-not-found'
+  | 'handler-not-found'
+  | 'collaborator-not-found'
+  | 'duplicate-collaborator'
+export interface SaveBotConfigInput {
+  projectId: ProjectId
+  request: SaveBotConfigRequest
+}
+export type SaveBotConfigResult =
+  | { status: 'saved'; config: BotConfigResponse }
+  | { status: 'project-not-found' }
+  | { status: 'target-group-not-found' }
+export type GetBotConfigResult =
+  | { status: 'found'; config: BotConfigResponse }
+  | { status: 'project-not-found' }
+export interface SendFeishuTestMessageInput extends SendFeishuTestMessageRequest {
+  id: string
+  createdAt: string
+}
+export type SendFeishuTestMessageResult =
+  | { status: 'sent'; message: FeishuTestMessageResponse }
+  | { status: 'target-group-not-found' }
 
 export interface AgiliXRepository {
   seed(data: SeedData): Promise<void>
@@ -120,6 +155,7 @@ export interface AgiliXRepository {
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
   listIssues(filters: IssueFilters): Promise<Issue[]>
   createIssue(input: CreateIssueInput): Promise<CreateIssueResult>
+  saveAssignment(input: SaveAssignmentInput): Promise<SaveAssignmentResult>
   moveIssue(issueKey: string, status: IssueStatus): Promise<boolean>
   listDocs(filters: DocFilters): Promise<Doc[]>
   getDoc(docId: string): Promise<Doc | undefined>
@@ -133,6 +169,9 @@ export interface AgiliXRepository {
   saveMilestone(milestone: Milestone): Promise<SaveMilestoneResult>
   saveFeishuNotification(input: FeishuNotificationRecord): Promise<SaveFeishuNotificationResult>
   listFeishuNotifications(): Promise<FeishuNotificationRecord[]>
+  getBotConfig(projectId: ProjectId): Promise<GetBotConfigResult>
+  saveBotConfig(input: SaveBotConfigInput): Promise<SaveBotConfigResult>
+  sendFeishuTestMessage(input: SendFeishuTestMessageInput): Promise<SendFeishuTestMessageResult>
   saveFeishuQuery(input: FeishuQueryRecord): Promise<void>
   listFeishuQueries(): Promise<FeishuQueryRecord[]>
   loadData(): Promise<SeedData>
