@@ -4,6 +4,7 @@ import {
   createDocumentCommentRequestSchema,
   createDocumentDirectoryRequestSchema,
   createDocumentRequestSchema,
+  createIssueRequestSchema,
   createProjectRequestSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
@@ -11,6 +12,7 @@ import {
   recordFeishuNotificationRequestSchema,
   saveMilestoneRequestSchema,
   saveStandupRequestSchema,
+  updateDocumentDirectoryRequestSchema,
   updateIssueStatusRequestSchema,
 } from '@agilix/contract'
 import type { RecordFeishuNotificationRequest } from '@agilix/contract'
@@ -30,9 +32,11 @@ import type {
   AgiliXRepository,
   CreateDocResult,
   CreateDocDirectoryResult,
+  CreateIssueResult,
   CreateProjectResult,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
+  UpdateDocDirectoryResult,
 } from './repository'
 import {
   createProjectSchema,
@@ -63,6 +67,13 @@ const createDocDirectoryFailures = {
   'directory-scope-mismatch': { message: 'Directory scope mismatch', status: 400 },
 } satisfies Record<Exclude<CreateDocDirectoryResult, 'created'>, JsonFailure>
 
+const updateDocDirectoryFailures = {
+  'directory-not-found': { message: 'Document directory not found', status: 404 },
+  'parent-directory-not-found': { message: 'Parent directory not found', status: 400 },
+  'duplicate-directory': { message: 'Document directory already exists', status: 409 },
+  'directory-scope-mismatch': { message: 'Directory scope mismatch', status: 400 },
+} satisfies Record<Exclude<UpdateDocDirectoryResult, 'updated'>, JsonFailure>
+
 const createProjectFailures = {
   'duplicate-project': { message: 'Project already exists', status: 409 },
   'duplicate-iteration': { message: 'Iteration already exists', status: 409 },
@@ -75,6 +86,16 @@ const createProjectFailures = {
     status: 400,
   },
 } satisfies Record<Exclude<CreateProjectResult, 'created'>, JsonFailure>
+
+const createIssueFailures = {
+  'duplicate-issue': { message: 'Issue already exists', status: 409 },
+  'project-not-found': { message: 'Project not found', status: 400 },
+  'iteration-not-found': { message: 'Iteration not found', status: 400 },
+  'handler-not-found': { message: 'Issue handler member not found', status: 400 },
+  'collaborator-not-found': { message: 'Issue collaborator member not found', status: 400 },
+  'duplicate-label': { message: 'Duplicate issue label', status: 400 },
+  'duplicate-collaborator': { message: 'Duplicate issue collaborator', status: 400 },
+} satisfies Record<Exclude<CreateIssueResult, 'created'>, JsonFailure>
 
 const addDocCommentFailures = {
   'document-not-found': { message: 'Document not found', status: 404 },
@@ -146,6 +167,14 @@ function legacyMemberIdFromContractId(data: SeedData, memberId: string) {
   return data.members.find((member) => contractId('member', member.id) === memberId)?.id
 }
 
+function legacyProjectFromContractId(data: SeedData, projectId: string) {
+  return data.projects.find((project) => contractId('project', project.id) === projectId)
+}
+
+function legacyIterationFromContractId(data: SeedData, iterationId: string) {
+  return data.iterations.find((iteration) => contractId('iteration', iteration.id) === iterationId)
+}
+
 function legacyStandupFromContractId(data: SeedData, standupId: string) {
   return data.standups.find((standup) => contractId('standup', standup.id) === standupId)
 }
@@ -189,6 +218,18 @@ function legacyCommentIdFromContractId(data: SeedData, commentId: string) {
     if (comment) return comment.id
   }
   return undefined
+}
+
+function nextIssueKey(data: SeedData, projectId: string) {
+  const prefix = projectId.toUpperCase()
+  let sequence = data.issues.filter((issue) => issue.projectId === projectId).length + 1
+  let key = `${prefix}-${sequence}`
+  const existingKeys = new Set(data.issues.map((issue) => issue.key))
+  while (existingKeys.has(key)) {
+    sequence += 1
+    key = `${prefix}-${sequence}`
+  }
+  return key
 }
 
 function feishuGroupExists(data: SeedData, groupId: string) {
@@ -320,6 +361,48 @@ export function createApp(repository: AgiliXRepository) {
     return context.json(await repository.listIssues(parsed.value))
   })
 
+  app.post('/api/issues', async (context) => {
+    const parsed = await parseJson(context, createIssueRequestSchema)
+    if ('response' in parsed) return parsed.response
+    const loadedData = await repository.loadData()
+    const project = legacyProjectFromContractId(loadedData, parsed.value.project_id)
+    if (!project) return context.json({ message: 'Project not found' }, 400)
+    const iteration = legacyIterationFromContractId(loadedData, parsed.value.iteration_id)
+    if (!iteration || iteration.projectId !== project.id)
+      return context.json({ message: 'Iteration not found' }, 400)
+    const handlerId = legacyMemberIdFromContractId(loadedData, parsed.value.handler_member_id)
+    if (!handlerId) return context.json({ message: 'Issue handler member not found' }, 400)
+    const collaboratorIds: MemberId[] = []
+    for (const memberId of parsed.value.collaborator_member_ids) {
+      const legacyMemberId = legacyMemberIdFromContractId(loadedData, memberId)
+      if (!legacyMemberId) return context.json({ message: 'Issue collaborator member not found' }, 400)
+      collaboratorIds.push(legacyMemberId)
+    }
+
+    const result = await repository.createIssue({
+      id: nextId(),
+      key: nextIssueKey(loadedData, project.id),
+      projectId: project.id,
+      iterationId: iteration.id,
+      type: parsed.value.type,
+      title: parsed.value.title,
+      status: 'todo',
+      priority: parsed.value.priority,
+      assigneeId: handlerId,
+      storyPoints: parsed.value.story_points,
+      linkedDocIds: [],
+      description: parsed.value.description,
+      acceptanceCriteria: parsed.value.acceptance_criteria,
+      epicName: parsed.value.epic_name,
+      labels: parsed.value.labels,
+      collaboratorIds,
+      draft: parsed.value.draft,
+    })
+    if (result === 'created') return context.json(await contractAppState(), 201)
+    const failure = createIssueFailures[result]
+    return context.json({ message: failure.message }, failure.status)
+  })
+
   app.patch('/api/issues/:key/status', async (context) => {
     const parsed = await parseJson(context, updateIssueStatusRequestSchema)
     if ('response' in parsed) return parsed.response
@@ -421,6 +504,19 @@ export function createApp(repository: AgiliXRepository) {
     })
     if (result === 'created') return context.json(await contractAppState(), 201)
     const failure = createDocDirectoryFailures[result]
+    return context.json({ message: failure.message }, failure.status)
+  })
+
+  app.patch('/api/document-directories/:id', async (context) => {
+    const parsed = await parseJson(context, updateDocumentDirectoryRequestSchema)
+    if ('response' in parsed) return parsed.response
+    const result = await repository.updateDocDirectory({
+      id: context.req.param('id'),
+      name: parsed.value.name,
+      parentId: parsed.value.parent_id,
+    })
+    if (result === 'updated') return context.json(await contractAppState(), 200)
+    const failure = updateDocDirectoryFailures[result]
     return context.json({ message: failure.message }, failure.status)
   })
 

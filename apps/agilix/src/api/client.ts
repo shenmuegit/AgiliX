@@ -3,6 +3,7 @@ import {
   createDocumentCommentRequestSchema,
   createDocumentDirectoryRequestSchema,
   createDocumentRequestSchema,
+  createIssueRequestSchema,
   createProjectRequestSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
@@ -10,17 +11,20 @@ import {
   recordFeishuNotificationRequestSchema,
   saveMilestoneRequestSchema,
   saveStandupRequestSchema,
+  updateDocumentDirectoryRequestSchema,
   updateIssueStatusRequestSchema,
   type AppStateResponse,
   type CreateDocumentCommentRequest,
   type CreateDocumentDirectoryRequest,
   type CreateDocumentRequest,
+  type CreateIssueRequest,
   type CreateProjectRequest,
   type FeishuQueryResponse,
   type IssueStatus as ContractIssueStatus,
   type RecordFeishuNotificationRequest,
   type SaveMilestoneRequest,
   type SaveStandupRequest,
+  type UpdateDocumentDirectoryRequest,
 } from '@agilix/contract'
 import { z } from 'zod'
 import { createDocQueryCommand, formatFeishuCommand } from '../domain/feishu'
@@ -67,10 +71,12 @@ export interface AgiliXClient {
   loadData(): Promise<SeedData>
   createContractProject(input: CreateProjectRequest): Promise<AppStateResponse>
   createProject(input: CreateProjectInput): Promise<void>
+  createContractIssue(input: CreateIssueRequest): Promise<AppStateResponse>
   moveIssueById(issueId: string, status: ContractIssueStatus): Promise<AppStateResponse>
   moveIssue(issueKey: string, status: IssueStatus): Promise<void>
   createContractDoc(input: CreateDocumentRequest): Promise<AppStateResponse>
   createContractDocDirectory(input: CreateDocumentDirectoryRequest): Promise<AppStateResponse>
+  updateContractDocDirectory(directoryId: string, input: UpdateDocumentDirectoryRequest): Promise<AppStateResponse>
   addContractDocComment(docId: string, input: CreateDocumentCommentRequest): Promise<AppStateResponse>
   saveContractStandup(standupId: string, input: SaveStandupRequest): Promise<AppStateResponse>
   saveContractMilestone(milestoneId: string, input: SaveMilestoneRequest): Promise<AppStateResponse>
@@ -425,6 +431,13 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
         body: JSON.stringify(parsed),
       })
     },
+    createContractIssue(input) {
+      const parsed = createIssueRequestSchema.parse(input)
+      return requestJson(fetcher, '/api/issues', 201, appStateResponseSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      })
+    },
     moveIssueById(issueId, status) {
       const parsed = updateIssueStatusRequestSchema.parse({ status })
       return requestJson(fetcher, `/api/issues/${issueId}/status`, 200, appStateResponseSchema, {
@@ -449,6 +462,13 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
       const parsed = createDocumentDirectoryRequestSchema.parse(input)
       return requestJson(fetcher, '/api/document-directories', 201, appStateResponseSchema, {
         method: 'POST',
+        body: JSON.stringify(parsed),
+      })
+    },
+    updateContractDocDirectory(directoryId, input) {
+      const parsed = updateDocumentDirectoryRequestSchema.parse(input)
+      return requestJson(fetcher, `/api/document-directories/${directoryId}`, 200, appStateResponseSchema, {
+        method: 'PATCH',
         body: JSON.stringify(parsed),
       })
     },

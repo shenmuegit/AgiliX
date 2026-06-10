@@ -110,6 +110,87 @@ describe('AgiliX API app', () => {
     expect(next.issues.find((item) => item.id === issue?.id)?.status).toBe('done')
   })
 
+  it('creates issues through the shared contract without accepting client ids or keys', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+    const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
+    const project = state.projects.find((item) => item.code === 'search')
+    const iteration = state.iterations.find((item) => item.project_id === project?.id)
+    const member = state.members[0]
+    const collaborator = state.members[1]
+    expect(project).toBeDefined()
+    expect(iteration).toBeDefined()
+    expect(member).toBeDefined()
+    expect(collaborator).toBeDefined()
+
+    const rejected = await app.request('/api/issues', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-issue-id',
+        key: 'SEARCH-999',
+        project_id: project?.id,
+        iteration_id: iteration?.id,
+        type: 'story',
+        title: '补齐创建工单契约',
+        description: '从真实 API 创建工作项。',
+        acceptance_criteria: '返回 app-state 且不接受客户端 id/key。',
+        priority: 'medium',
+        story_points: 3,
+        handler_member_id: member?.id,
+        epic_name: '契约',
+        labels: ['契约'],
+        collaborator_member_ids: [collaborator?.id],
+        draft: false,
+      }),
+    })
+    expect(rejected.status).toBe(400)
+
+    const created = await app.request('/api/issues', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        project_id: project?.id,
+        iteration_id: iteration?.id,
+        type: 'story',
+        title: '补齐创建工单契约',
+        description: '从真实 API 创建工作项。',
+        acceptance_criteria: '返回 app-state 且不接受客户端 id/key。',
+        priority: 'medium',
+        story_points: 3,
+        handler_member_id: member?.id,
+        epic_name: '契约',
+        labels: ['契约'],
+        collaborator_member_ids: [collaborator?.id],
+        draft: false,
+      }),
+    })
+
+    const next = appStateResponseSchema.parse(await created.json())
+    expect(created.status).toBe(201)
+    const issue = next.issues.find((item) => item.title === '补齐创建工单契约')
+    expect(issue).toEqual(expect.objectContaining({
+      id: expect.any(String),
+      key: expect.stringMatching(/^SEARCH-\d+$/),
+      project_id: project?.id,
+      iteration_id: iteration?.id,
+      handler_member_id: member?.id,
+      description: '从真实 API 创建工作项。',
+      acceptance_criteria: '返回 app-state 且不接受客户端 id/key。',
+      epic_name: '契约',
+      draft: false,
+    }))
+    expect(next.issue_labels).toContainEqual({
+      issue_id: issue?.id,
+      label: '契约',
+      sort_order: 0,
+    })
+    expect(next.issue_collaborators).toContainEqual({
+      issue_id: issue?.id,
+      member_id: collaborator?.id,
+      sort_order: 0,
+    })
+  })
+
   it('saves standup and milestone through shared contract ids', async () => {
     const app = createApp(createMemoryRepository(seedData))
     const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
@@ -270,6 +351,19 @@ describe('AgiliX API app', () => {
       doc_id: doc?.id,
       author_member_id: member?.id,
       body: '契约评论',
+    }))
+
+    const renamedDirectory = await app.request(`/api/document-directories/${directory?.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: '契约目录重命名' }),
+    })
+    const renamedState = appStateResponseSchema.parse(await renamedDirectory.json())
+    expect(renamedDirectory.status).toBe(200)
+    expect(renamedState.document_directories).toContainEqual(expect.objectContaining({
+      id: directory?.id,
+      name: '契约目录重命名',
+      parent_id: rootDirectory?.id,
     }))
   })
 

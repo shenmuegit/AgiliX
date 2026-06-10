@@ -33,12 +33,15 @@ describe('AgiliX API client', () => {
     const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === '/api/app-state') return Response.json(emptyAppStateResponse)
       if (String(input) === '/api/projects') return Response.json(emptyAppStateResponse, { status: 201 })
+      if (String(input) === '/api/issues') return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/issues/730000000000000401/status')
         return Response.json(emptyAppStateResponse)
       if (String(input) === '/api/docs')
         return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/docs/730000000000000601/comments')
         return Response.json(emptyAppStateResponse, { status: 201 })
+      if (String(input) === '/api/document-directories/730000000000000301')
+        return Response.json(emptyAppStateResponse)
       if (String(input) === '/api/feishu/notifications')
         return Response.json({
           id: '730000000000000901',
@@ -76,6 +79,21 @@ describe('AgiliX API client', () => {
       },
     })
     await client.moveIssueById('730000000000000401', 'done')
+    await client.createContractIssue({
+      project_id: '730000000000000001',
+      iteration_id: '730000000000000101',
+      type: 'story',
+      title: '补齐创建工单契约',
+      description: '从真实 API 创建工作项。',
+      acceptance_criteria: '返回 app-state 且不接受客户端 id/key。',
+      priority: 'medium',
+      story_points: 3,
+      handler_member_id: '730000000000000201',
+      epic_name: '契约',
+      labels: ['契约'],
+      collaborator_member_ids: ['730000000000000202'],
+      draft: false,
+    })
     await client.createContractDoc({
       scope: 'global',
       project_id: null,
@@ -90,6 +108,9 @@ describe('AgiliX API client', () => {
     await client.addContractDocComment('730000000000000601', {
       author_member_id: '730000000000000201',
       body: '需要补验收标准',
+    })
+    await client.updateContractDocDirectory('730000000000000301', {
+      name: '契约目录重命名',
     })
     await client.recordContractFeishuNotification({
       trigger: '站会摘要',
@@ -131,6 +152,25 @@ describe('AgiliX API client', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'done' }),
     })
+    expect(fetcher).toHaveBeenCalledWith('/api/issues', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        project_id: '730000000000000001',
+        iteration_id: '730000000000000101',
+        type: 'story',
+        title: '补齐创建工单契约',
+        description: '从真实 API 创建工作项。',
+        acceptance_criteria: '返回 app-state 且不接受客户端 id/key。',
+        priority: 'medium',
+        story_points: 3,
+        handler_member_id: '730000000000000201',
+        epic_name: '契约',
+        labels: ['契约'],
+        collaborator_member_ids: ['730000000000000202'],
+        draft: false,
+      }),
+    })
     expect(fetcher).toHaveBeenCalledWith('/api/docs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -152,6 +192,13 @@ describe('AgiliX API client', () => {
       body: JSON.stringify({
         author_member_id: '730000000000000201',
         body: '需要补验收标准',
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/document-directories/730000000000000301', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: '契约目录重命名',
       }),
     })
     expect(fetcher).toHaveBeenCalledWith('/api/feishu/notifications', {

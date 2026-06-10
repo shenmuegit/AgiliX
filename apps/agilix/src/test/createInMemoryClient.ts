@@ -3,6 +3,7 @@ import type {
   CreateDocumentCommentRequest,
   CreateDocumentDirectoryRequest,
   CreateDocumentRequest,
+  CreateIssueRequest,
   CreateProjectRequest,
   RecordFeishuNotificationRequest,
 } from '@agilix/contract'
@@ -40,6 +41,7 @@ export function createInMemoryClient() {
   let loadAppStateCalls = 0
   let loadDataCalls = 0
   const issueStatusSaves: RecordedIssueStatusSave[] = []
+  const contractIssueCreates: CreateIssueRequest[] = []
   const contractProjectCreates: CreateProjectRequest[] = []
   const contractDocCreates: CreateDocumentRequest[] = []
   const contractDocComments: CreateDocumentCommentRequest[] = []
@@ -110,6 +112,7 @@ export function createInMemoryClient() {
     loadAppStateCount(): number
     recordedIssueStatusSaves(): RecordedIssueStatusSave[]
     recordedContractProjectCreates(): CreateProjectRequest[]
+    recordedContractIssueCreates(): CreateIssueRequest[]
     recordedContractDocCreates(): CreateDocumentRequest[]
     recordedContractDocComments(): CreateDocumentCommentRequest[]
     recordedContractStandupSaves(): string[]
@@ -163,13 +166,57 @@ export function createInMemoryClient() {
       }
       return seedDataToAppState(data)
     },
+    async createContractIssue(input) {
+      const project = data.projects.find((item) => scopedId('project', item.id) === input.project_id)
+      if (!project) throw new Error(`Project not found: ${input.project_id}`)
+      const iteration = data.iterations.find((item) => scopedId('iteration', item.id) === input.iteration_id)
+      if (!iteration || iteration.projectId !== project.id)
+        throw new Error(`Iteration not found: ${input.iteration_id}`)
+      const handler = data.members.find((item) => scopedId('member', item.id) === input.handler_member_id)
+      if (!handler) throw new Error(`Issue handler member not found: ${input.handler_member_id}`)
+      const collaboratorIds = input.collaborator_member_ids.map((memberId) => {
+        const member = data.members.find((item) => scopedId('member', item.id) === memberId)
+        if (!member) throw new Error(`Issue collaborator member not found: ${memberId}`)
+        return member.id
+      })
+      const issueKey = `${project.id.toUpperCase()}-${
+        data.issues.filter((issue) => issue.projectId === project.id).length + 1
+      }`
+      contractIssueCreates.push(clone(input))
+      data = {
+        ...data,
+        issues: [
+          ...data.issues,
+          {
+            id: `issue-contract-${data.issues.length + 1}`,
+            key: issueKey,
+            projectId: project.id,
+            iterationId: iteration.id,
+            type: input.type,
+            title: input.title,
+            status: 'todo',
+            priority: input.priority,
+            assigneeId: handler.id,
+            storyPoints: input.story_points,
+            linkedDocIds: [],
+            description: input.description,
+            acceptanceCriteria: input.acceptance_criteria,
+            epicName: input.epic_name,
+            labels: input.labels,
+            collaboratorIds,
+            draft: input.draft,
+          },
+        ],
+      }
+      return seedDataToAppState(data)
+    },
     async moveIssue(issueKey: string, status: IssueStatus) {
       if (!data.issues.some((issue) => issue.key === issueKey))
         throw new Error(`Issue not found: ${issueKey}`)
       data = { ...data, issues: moveIssue(data.issues, issueKey, status) }
     },
     async moveIssueById(issueId: string, status: RecordedIssueStatusSave['status']) {
-      const issueKey = legacyScopedId(issueId, 'issue')
+      const issueKey = data.issues.find((issue) => issue.id === issueId)?.key ?? legacyScopedId(issueId, 'issue')
       if (!data.issues.some((issue) => issue.key === issueKey))
         throw new Error(`Issue not found: ${issueId}`)
       issueStatusSaves.push({ issueId, status })
@@ -222,6 +269,45 @@ export function createInMemoryClient() {
       }
       contractDocDirectories.push(clone(input))
       data = { ...data, docDirectories: [...(data.docDirectories ?? []), directory] }
+      return seedDataToAppState(data)
+    },
+    async updateContractDocDirectory(directoryId, input) {
+      const state = seedDataToAppState(data)
+      const directoryPath = appStateDirectoryPath(state.document_directories, directoryId)
+      if (!directoryPath) throw new Error(`Document directory not found: ${directoryId}`)
+      const directory = data.docDirectories?.find((item) => item.id === directoryId)
+      if (!directory) throw new Error(`Document directory not found: ${directoryId}`)
+      const parentPath =
+        input.parent_id === undefined
+          ? parentDirectoryPath(directory.path)
+          : input.parent_id === null
+            ? null
+            : appStateDirectoryPath(state.document_directories, input.parent_id)
+      if (input.parent_id !== undefined && input.parent_id !== null && !parentPath)
+        throw new Error(`Parent directory not found: ${input.parent_id}`)
+      const nextName = input.name ?? directory.name
+      const nextPath = parentPath ? `${parentPath}/${nextName}` : nextName
+      data = {
+        ...data,
+        docDirectories: (data.docDirectories ?? []).map((item) =>
+          item.id === directoryId
+            ? {
+                ...item,
+                name: nextName,
+                parentId: input.parent_id === undefined ? item.parentId : input.parent_id,
+                path: nextPath,
+              }
+            : item.path.startsWith(`${directory.path}/`)
+              ? { ...item, path: `${nextPath}${item.path.slice(directory.path.length)}` }
+              : item,
+        ),
+        docs: data.docs.map((doc) => ({
+          ...doc,
+          directory: doc.directory.startsWith(directory.path)
+            ? `${nextPath}${doc.directory.slice(directory.path.length)}`
+            : doc.directory,
+        })),
+      }
       return seedDataToAppState(data)
     },
     async createContractDoc(input) {
@@ -428,6 +514,9 @@ export function createInMemoryClient() {
     recordedContractProjectCreates() {
       return clone(contractProjectCreates)
     },
+    recordedContractIssueCreates() {
+      return clone(contractIssueCreates)
+    },
     recordedContractDocCreates() {
       return clone(contractDocCreates)
     },
@@ -541,7 +630,7 @@ export function seedDataToAppState(data: SeedData): AppStateResponse {
       online_sort_order: index,
     })),
     issues: data.issues.map((issue) => ({
-      id: scopedId('issue', issue.key),
+      id: issue.id ?? scopedId('issue', issue.key),
       key: issue.key,
       project_id: scopedId('project', issue.projectId),
       iteration_id: scopedId('iteration', issue.iterationId),
@@ -552,14 +641,26 @@ export function seedDataToAppState(data: SeedData): AppStateResponse {
       handler_member_id: scopedId('member', issue.assigneeId),
       story_points: issue.storyPoints,
       blocker_reason: issue.blockerReason ?? null,
-      description: '',
-      acceptance_criteria: '',
-      epic_name: issue.projectId,
-      draft: false,
+      description: issue.description ?? '',
+      acceptance_criteria: issue.acceptanceCriteria ?? '',
+      epic_name: issue.epicName ?? issue.projectId,
+      draft: issue.draft ?? false,
     })),
     issue_events: [],
-    issue_labels: [],
-    issue_collaborators: [],
+    issue_labels: data.issues.flatMap((issue) =>
+      (issue.labels ?? []).map((label, index) => ({
+        issue_id: issue.id ?? scopedId('issue', issue.key),
+        label,
+        sort_order: index,
+      })),
+    ),
+    issue_collaborators: data.issues.flatMap((issue) =>
+      (issue.collaboratorIds ?? []).map((memberId, index) => ({
+        issue_id: issue.id ?? scopedId('issue', issue.key),
+        member_id: scopedId('member', memberId),
+        sort_order: index,
+      })),
+    ),
     documents: data.docs.map((doc) => ({
       id: scopedId('document', doc.id),
       scope: doc.scope,
@@ -592,7 +693,8 @@ export function seedDataToAppState(data: SeedData): AppStateResponse {
     document_issue_links: data.docs.flatMap((doc) =>
       doc.linkedIssueKeys.map((issueKey) => ({
         doc_id: scopedId('document', doc.id),
-        issue_id: scopedId('issue', issueKey),
+        issue_id:
+          data.issues.find((issue) => issue.key === issueKey)?.id ?? scopedId('issue', issueKey),
       })),
     ),
     document_comments: data.docs.flatMap((doc) =>

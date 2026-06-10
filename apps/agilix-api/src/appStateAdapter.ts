@@ -106,7 +106,7 @@ export function toAppStateResponse(data: SeedData): AppStateResponse {
       online_sort_order: index,
     })),
     issues: data.issues.map((issue) => ({
-      id: contractId('issue', issue.key),
+      id: issue.id ?? contractId('issue', issue.key),
       key: issue.key,
       project_id: contractId('project', issue.projectId),
       iteration_id: contractId('iteration', issue.iterationId),
@@ -117,18 +117,26 @@ export function toAppStateResponse(data: SeedData): AppStateResponse {
       handler_member_id: contractId('member', issue.assigneeId),
       story_points: issue.storyPoints,
       blocker_reason: issue.blockerReason ?? null,
-      description: '',
-      acceptance_criteria: '',
-      epic_name: issue.projectId,
-      draft: false,
+      description: issue.description ?? '',
+      acceptance_criteria: issue.acceptanceCriteria ?? '',
+      epic_name: issue.epicName ?? issue.projectId,
+      draft: issue.draft ?? false,
     })),
     issue_events: [],
     issue_labels: data.issues.flatMap((issue) =>
-      issue.type === 'tech'
-        ? [{ issue_id: contractId('issue', issue.key), label: 'Tech', sort_order: 0 }]
-        : [],
+      (issue.labels ?? (issue.type === 'tech' ? ['Tech'] : [])).map((label, index) => ({
+        issue_id: issue.id ?? contractId('issue', issue.key),
+        label,
+        sort_order: index,
+      })),
     ),
-    issue_collaborators: [],
+    issue_collaborators: data.issues.flatMap((issue) =>
+      (issue.collaboratorIds ?? []).map((memberId, index) => ({
+        issue_id: issue.id ?? contractId('issue', issue.key),
+        member_id: contractId('member', memberId),
+        sort_order: index,
+      })),
+    ),
     documents: data.docs.map((doc) => ({
       id: contractId('document', doc.id),
       scope: doc.scope,
@@ -146,7 +154,8 @@ export function toAppStateResponse(data: SeedData): AppStateResponse {
     document_issue_links: data.docs.flatMap((doc) =>
       doc.linkedIssueKeys.map((issueKey) => ({
         doc_id: contractId('document', doc.id),
-        issue_id: contractId('issue', issueKey),
+        issue_id:
+          data.issues.find((issue) => issue.key === issueKey)?.id ?? contractId('issue', issueKey),
       })),
     ),
     document_comments: data.docs.flatMap((doc) =>

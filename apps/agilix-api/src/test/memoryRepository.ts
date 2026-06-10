@@ -5,6 +5,7 @@ import type {
   Doc,
   DocComment,
   DocDirectory,
+  Issue,
   IssueStatus,
   Milestone,
   SeedData,
@@ -12,6 +13,8 @@ import type {
 } from '@agilix/app/domain/types'
 import type {
   AgiliXRepository,
+  CreateIssueInput,
+  CreateIssueResult,
   CreateProjectResult,
   CreateDocDirectoryInput,
   CreateDocDirectoryResult,
@@ -22,6 +25,8 @@ import type {
   IssueFilters,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
+  UpdateDocDirectoryInput,
+  UpdateDocDirectoryResult,
 } from '../repository'
 import { contractId } from '../appStateAdapter'
 
@@ -68,6 +73,10 @@ function directoryRows(data: SeedData): DocDirectory[] {
     },
   )
   return [...fromDocs, ...(data.docDirectories ?? [])]
+}
+
+function replacePathPrefix(path: string, from: string, to: string) {
+  return path === from ? to : path.startsWith(`${from}/`) ? `${to}${path.slice(from.length)}` : path
 }
 
 function assertSeedData(data: SeedData) {
@@ -221,6 +230,26 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
     return 'created'
   }
 
+  function validateCreateIssue(input: CreateIssueInput): CreateIssueResult {
+    if (data.issues.some((issue) => issue.id === input.id || issue.key === input.key))
+      return 'duplicate-issue'
+    if (!data.projects.some((project) => project.id === input.projectId)) return 'project-not-found'
+    if (
+      !data.iterations.some(
+        (iteration) =>
+          iteration.id === input.iterationId && iteration.projectId === input.projectId,
+      )
+    )
+      return 'iteration-not-found'
+    if (!data.members.some((member) => member.id === input.assigneeId)) return 'handler-not-found'
+    if (!input.collaboratorIds.every((memberId) => data.members.some((member) => member.id === memberId)))
+      return 'collaborator-not-found'
+    if (new Set(input.labels).size !== input.labels.length) return 'duplicate-label'
+    if (new Set(input.collaboratorIds).size !== input.collaboratorIds.length)
+      return 'duplicate-collaborator'
+    return 'created'
+  }
+
   function validateFeishuNotificationReferences(
     input: FeishuNotificationRecord,
   ): SaveFeishuNotificationResult {
@@ -264,6 +293,13 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
     },
     async listIssues(filters: IssueFilters) {
       return clone(filterIssues(data.issues, filters))
+    },
+    async createIssue(input) {
+      const result = validateCreateIssue(input)
+      if (result !== 'created') return result
+      const issue: Issue = clone(input)
+      data.issues = [...data.issues, issue]
+      return 'created'
     },
     async moveIssue(issueKey: string, status: IssueStatus) {
       if (!data.issues.some((issue) => issue.key === issueKey)) return false
@@ -309,6 +345,48 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
       const nextDirectory: DocDirectory = clone(input)
       data.docDirectories = [...(data.docDirectories ?? []), nextDirectory]
       return 'created'
+    },
+    async updateDocDirectory(input: UpdateDocDirectoryInput): Promise<UpdateDocDirectoryResult> {
+      const directories = directoryRows(data)
+      const directory = directories.find((item) => item.id === input.id)
+      if (!directory) return 'directory-not-found'
+      const parent =
+        input.parentId === undefined || input.parentId === null
+          ? undefined
+          : directories.find((item) => item.id === input.parentId)
+      if (input.parentId !== undefined && input.parentId !== null && !parent)
+        return 'parent-directory-not-found'
+      if (parent && (parent.scope !== directory.scope || parent.projectId !== directory.projectId))
+        return 'directory-scope-mismatch'
+      const nextName = input.name ?? directory.name
+      const nextParentPath =
+        input.parentId === undefined
+          ? directory.path.split('/').slice(0, -1).join('/')
+          : parent?.path ?? ''
+      const nextPath = nextParentPath ? `${nextParentPath}/${nextName}` : nextName
+      if (nextPath !== directory.path && directories.some((item) => item.path === nextPath))
+        return 'duplicate-directory'
+      const existingExplicit = data.docDirectories ?? []
+      const nextDirectory: DocDirectory = {
+        ...directory,
+        name: nextName,
+        parentId: input.parentId === undefined ? directory.parentId : input.parentId,
+        path: nextPath,
+      }
+      data.docDirectories = existingExplicit.some((item) => item.id === input.id)
+        ? existingExplicit.map((item) =>
+            item.id === input.id
+                ? nextDirectory
+                : item.path.startsWith(directory.path)
+                  ? { ...item, path: replacePathPrefix(item.path, directory.path, nextPath) }
+                : item,
+          )
+        : [...existingExplicit, nextDirectory]
+      data.docs = data.docs.map((doc) => ({
+        ...doc,
+        directory: replacePathPrefix(doc.directory, directory.path, nextPath),
+      }))
+      return 'updated'
     },
     async addDocComment(docId: string, comment: DocComment) {
       if (comment.docId !== docId) return 'comment-doc-id-mismatch'

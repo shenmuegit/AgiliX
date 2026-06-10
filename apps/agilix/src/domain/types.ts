@@ -72,6 +72,12 @@ export interface Issue {
   storyPoints: number
   blockerReason?: string
   linkedDocIds: string[]
+  description?: string
+  acceptanceCriteria?: string
+  epicName?: string
+  labels?: string[]
+  collaboratorIds?: MemberId[]
+  draft?: boolean
 }
 
 export interface DocComment {

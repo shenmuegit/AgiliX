@@ -27,6 +27,8 @@ import type { TransactionDatabase } from './db/transaction'
 import type {
   AddDocCommentResult,
   AgiliXRepository,
+  CreateIssueInput,
+  CreateIssueResult,
   CreateDocInput,
   CreateDocResult,
   CreateProjectResult,
@@ -38,6 +40,8 @@ import type {
   IssueFilters,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
+  UpdateDocDirectoryInput,
+  UpdateDocDirectoryResult,
 } from './repository'
 import {
   docScopeSchema,
@@ -292,12 +296,15 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
     const members = await db.select().from(dbSchema.members)
     const links = await db.select().from(dbSchema.documentIssueLinks)
     const docs = await db.select().from(dbSchema.documents)
+    const labels = await db.select().from(dbSchema.issueLabels)
+    const collaborators = await db.select().from(dbSchema.issueCollaborators)
     const issues = (await db.select().from(dbSchema.issues)).map((issue): Issue => {
       const project = projects.find((item) => item.id === issue.projectId)
       if (!project) throw new Error(`Persisted project not found for issue: ${issue.key}`)
       const member = members.find((item) => item.id === issue.handlerMemberId)
       if (!member) throw new Error(`Persisted member not found for issue: ${issue.key}`)
       return {
+        id: issue.id,
         key: issue.key,
         projectId: (maps.projectReverse.get(issue.projectId) ?? project.code) as ProjectId,
         iterationId: maps.iterationReverse.get(issue.iterationId) ?? issue.iterationId,
@@ -312,6 +319,21 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
           .filter((link) => link.issueId === issue.id)
           .map((link) => maps.docReverse.get(link.docId) ?? docs.find((doc) => doc.id === link.docId)?.id)
           .filter((docId): docId is string => Boolean(docId)),
+        description: issue.description,
+        acceptanceCriteria: issue.acceptanceCriteria,
+        epicName: issue.epicName,
+        labels: labels
+          .filter((label) => label.issueId === issue.id)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((label) => label.label),
+        collaboratorIds: collaborators
+          .filter((collaborator) => collaborator.issueId === issue.id)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .map((collaborator) => {
+            const collaboratorMember = members.find((item) => item.id === collaborator.memberId)
+            return publicMemberId(maps, collaborator.memberId, collaboratorMember?.name)
+          }),
+        draft: issue.draft,
       }
     })
     return filterIssues(issues, filters)
@@ -578,12 +600,38 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
             handlerMemberId: requireMapped(maps.member, issue.assigneeId, 'member'),
             storyPoints: issue.storyPoints,
             blockerReason: issue.blockerReason ?? null,
-            description: '',
-            acceptanceCriteria: '',
-            epicName: issue.projectId,
-            draft: false,
+            description: issue.description ?? '',
+            acceptanceCriteria: issue.acceptanceCriteria ?? '',
+            epicName: issue.epicName ?? issue.projectId,
+            draft: issue.draft ?? false,
           })),
         ),
+        ...(data.issues.flatMap((issue) => issue.labels ?? []).length > 0
+          ? [
+              db.insert(dbSchema.issueLabels).values(
+                data.issues.flatMap((issue) =>
+                  (issue.labels ?? []).map((label, index) => ({
+                    issueId: requireMapped(maps.issue, issue.key, 'issue'),
+                    label,
+                    sortOrder: index,
+                  })),
+                ),
+              ),
+            ]
+          : []),
+        ...(data.issues.flatMap((issue) => issue.collaboratorIds ?? []).length > 0
+          ? [
+              db.insert(dbSchema.issueCollaborators).values(
+                data.issues.flatMap((issue) =>
+                  (issue.collaboratorIds ?? []).map((memberId, index) => ({
+                    issueId: requireMapped(maps.issue, issue.key, 'issue'),
+                    memberId: requireMapped(maps.member, memberId, 'member'),
+                    sortOrder: index,
+                  })),
+                ),
+              ),
+            ]
+          : []),
         ...(data.docs.length > 0
           ? [
               db.insert(dbSchema.documentDirectories).values(
@@ -772,6 +820,80 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
       return 'created'
     },
     listIssues,
+    async createIssue(input: CreateIssueInput): Promise<CreateIssueResult> {
+      const [duplicateById] = await db
+        .select({ id: dbSchema.issues.id })
+        .from(dbSchema.issues)
+        .where(eq(dbSchema.issues.id, input.id))
+      if (duplicateById) return 'duplicate-issue'
+      const existingIssues = await db.select({ key: dbSchema.issues.key }).from(dbSchema.issues)
+      if (existingIssues.some((issue) => issue.key === input.key)) return 'duplicate-issue'
+
+      const projectId = maps.project.get(input.projectId)
+      if (!projectId) return 'project-not-found'
+      const iterationId = maps.iteration.get(input.iterationId)
+      if (!iterationId) return 'iteration-not-found'
+      const [iteration] = await db
+        .select({ projectId: dbSchema.iterations.projectId })
+        .from(dbSchema.iterations)
+        .where(eq(dbSchema.iterations.id, iterationId))
+      if (!iteration || iteration.projectId !== projectId) return 'iteration-not-found'
+      const handlerMemberId = maps.member.get(input.assigneeId)
+      if (!handlerMemberId) return 'handler-not-found'
+      const collaboratorMemberIds: string[] = []
+      for (const memberId of input.collaboratorIds) {
+        const mappedMemberId = maps.member.get(memberId)
+        if (!mappedMemberId) return 'collaborator-not-found'
+        collaboratorMemberIds.push(mappedMemberId)
+      }
+      if (new Set(input.labels).size !== input.labels.length) return 'duplicate-label'
+      if (new Set(input.collaboratorIds).size !== input.collaboratorIds.length)
+        return 'duplicate-collaborator'
+
+      remember(maps.issue, maps.issueReverse, input.key, input.id)
+      await db.batch([
+        db.insert(dbSchema.issues).values({
+          id: input.id,
+          key: input.key,
+          projectId,
+          iterationId,
+          type: input.type,
+          title: input.title,
+          status: input.status,
+          priority: input.priority,
+          handlerMemberId,
+          storyPoints: input.storyPoints,
+          blockerReason: input.blockerReason ?? null,
+          description: input.description,
+          acceptanceCriteria: input.acceptanceCriteria,
+          epicName: input.epicName,
+          draft: input.draft,
+        }),
+        ...(input.labels.length > 0
+          ? [
+              db.insert(dbSchema.issueLabels).values(
+                input.labels.map((label, index) => ({
+                  issueId: input.id,
+                  label,
+                  sortOrder: index,
+                })),
+              ),
+            ]
+          : []),
+        ...(collaboratorMemberIds.length > 0
+          ? [
+              db.insert(dbSchema.issueCollaborators).values(
+                collaboratorMemberIds.map((memberId, index) => ({
+                  issueId: input.id,
+                  memberId,
+                  sortOrder: index,
+                })),
+              ),
+            ]
+          : []),
+      ])
+      return 'created'
+    },
     async moveIssue(issueKey: string, status: IssueStatus) {
       const [issue] = await db
         .select({ id: dbSchema.issues.id })
@@ -866,6 +988,54 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
         updatedAt: at,
       })
       return 'created'
+    },
+    async updateDocDirectory(input: UpdateDocDirectoryInput): Promise<UpdateDocDirectoryResult> {
+      const [directory] = await db
+        .select()
+        .from(dbSchema.documentDirectories)
+        .where(eq(dbSchema.documentDirectories.id, input.id))
+      if (!directory) return 'directory-not-found'
+      const oldPath = maps.directoryReverse.get(input.id) ?? directory.name
+      const parent =
+        input.parentId === undefined || input.parentId === null
+          ? undefined
+          : (await db
+              .select()
+              .from(dbSchema.documentDirectories)
+              .where(eq(dbSchema.documentDirectories.id, input.parentId)))[0]
+      if (input.parentId !== undefined && input.parentId !== null && !parent)
+        return 'parent-directory-not-found'
+      if (parent && (parent.scope !== directory.scope || parent.projectId !== directory.projectId))
+        return 'directory-scope-mismatch'
+      const parentPath =
+        input.parentId === undefined
+          ? parentDirectoryPath(oldPath)
+          : parent
+            ? maps.directoryReverse.get(parent.id) ?? parent.name
+            : null
+      if (parentPath && parentPath.startsWith(`${oldPath}/`)) return 'directory-scope-mismatch'
+      const nextName = input.name ?? directory.name
+      const nextPath = parentPath ? `${parentPath}/${nextName}` : nextName
+      const duplicateDirectoryId = maps.directoryPath.get(nextPath)
+      if (duplicateDirectoryId && duplicateDirectoryId !== input.id) return 'duplicate-directory'
+
+      const movedPaths = Array.from(maps.directoryPath.entries())
+        .filter(([path]) => path === oldPath || path.startsWith(`${oldPath}/`))
+        .map(([path, id]) => ({ path, id, nextPath: `${nextPath}${path.slice(oldPath.length)}` }))
+      for (const item of movedPaths) {
+        maps.directoryPath.delete(item.path)
+        maps.directoryPath.set(item.nextPath, item.id)
+        maps.directoryReverse.set(item.id, item.nextPath)
+      }
+      await db
+        .update(dbSchema.documentDirectories)
+        .set({
+          name: nextName,
+          parentId: input.parentId === undefined ? directory.parentId : input.parentId,
+          updatedAt: nowLabel(),
+        })
+        .where(eq(dbSchema.documentDirectories.id, input.id))
+      return 'updated'
     },
     async addDocComment(docId: string, comment: DocComment): Promise<AddDocCommentResult> {
       if (comment.docId !== docId) return 'comment-doc-id-mismatch'
@@ -1040,6 +1210,11 @@ function parentDirectoryId(maps: IdMaps, path: string) {
   const parts = path.split('/')
   if (parts.length <= 1) return null
   return requireMapped(maps.directoryPath, parts.slice(0, -1).join('/'), 'parent directory')
+}
+
+function parentDirectoryPath(path: string) {
+  const parts = path.split('/')
+  return parts.length <= 1 ? null : parts.slice(0, -1).join('/')
 }
 
 function projectIdFromDirectoryPath(data: SeedData, maps: IdMaps, path: string) {

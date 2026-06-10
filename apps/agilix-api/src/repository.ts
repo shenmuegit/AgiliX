@@ -64,6 +64,24 @@ export type CreateProjectResult =
   | 'duplicate-iteration'
   | 'project-iteration-mismatch'
   | 'active-iteration-code-mismatch'
+export type CreateIssueInput = Issue & {
+  id: string
+  description: string
+  acceptanceCriteria: string
+  epicName: string
+  labels: string[]
+  collaboratorIds: MemberId[]
+  draft: boolean
+}
+export type CreateIssueResult =
+  | 'created'
+  | 'duplicate-issue'
+  | 'project-not-found'
+  | 'iteration-not-found'
+  | 'handler-not-found'
+  | 'collaborator-not-found'
+  | 'duplicate-label'
+  | 'duplicate-collaborator'
 export type AddDocCommentResult = 'created' | 'document-not-found' | 'comment-doc-id-mismatch'
 export type CreateDocDirectoryInput = DocDirectory
 export type CreateDocDirectoryResult =
@@ -71,6 +89,17 @@ export type CreateDocDirectoryResult =
   | 'duplicate-directory'
   | 'parent-directory-not-found'
   | 'project-not-found'
+  | 'directory-scope-mismatch'
+export interface UpdateDocDirectoryInput {
+  id: string
+  name?: string
+  parentId?: string | null
+}
+export type UpdateDocDirectoryResult =
+  | 'updated'
+  | 'directory-not-found'
+  | 'parent-directory-not-found'
+  | 'duplicate-directory'
   | 'directory-scope-mismatch'
 export type SaveMilestoneResult =
   | 'saved'
@@ -90,11 +119,13 @@ export interface AgiliXRepository {
   listProjects(): Promise<Project[]>
   createProject(input: CreateProjectInput): Promise<CreateProjectResult>
   listIssues(filters: IssueFilters): Promise<Issue[]>
+  createIssue(input: CreateIssueInput): Promise<CreateIssueResult>
   moveIssue(issueKey: string, status: IssueStatus): Promise<boolean>
   listDocs(filters: DocFilters): Promise<Doc[]>
   getDoc(docId: string): Promise<Doc | undefined>
   createDoc(doc: CreateDocInput): Promise<CreateDocResult>
   createDocDirectory(input: CreateDocDirectoryInput): Promise<CreateDocDirectoryResult>
+  updateDocDirectory(input: UpdateDocDirectoryInput): Promise<UpdateDocDirectoryResult>
   addDocComment(docId: string, comment: DocComment): Promise<AddDocCommentResult>
   listStandups(filters: { projectId: ProjectId | 'all' }): Promise<Standup[]>
   saveStandup(standup: Standup): Promise<boolean>

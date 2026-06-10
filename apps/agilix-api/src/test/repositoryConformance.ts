@@ -62,6 +62,27 @@ export function describeRepositoryConformance(
         }),
       ).toBe('created')
       expect(
+        await repository.createIssue({
+          id: 'issue-conformance-created',
+          key: 'SEARCH-999',
+          projectId: 'search',
+          iterationId: 'search-s24',
+          type: 'story',
+          title: 'Repository 创建工单',
+          status: 'todo',
+          priority: 'medium',
+          assigneeId: 'lin',
+          storyPoints: 3,
+          linkedDocIds: [],
+          description: 'Repository conformance created issue',
+          acceptanceCriteria: 'Issue is listed with contract fields',
+          epicName: '契约',
+          labels: ['契约'],
+          collaboratorIds: ['chen'],
+          draft: false,
+        }),
+      ).toBe('created')
+      expect(
         await repository.saveStandup({
           ...seedData.standups[0],
           items: seedData.standups[0].items.map((item) =>
@@ -104,6 +125,14 @@ export function describeRepositoryConformance(
       expect(
         (await repository.listProjects()).find((project) => project.id === 'growth')?.name,
       ).toBe('增长实验')
+      expect(
+        (await repository.loadData()).issues.find((issue) => issue.id === 'issue-conformance-created'),
+      ).toEqual(expect.objectContaining({
+        key: 'SEARCH-999',
+        title: 'Repository 创建工单',
+        labels: ['契约'],
+        collaboratorIds: ['chen'],
+      }))
       expect(
         (await repository.loadData()).iterations.find((iteration) => iteration.id === 'growth-s01')
           ?.goal,
@@ -272,6 +301,69 @@ export function describeRepositoryConformance(
           updatedAtLabel: '刚刚',
         }),
       ).toBe('document-comments-not-empty')
+      expect(
+        await repository.createIssue({
+          id: 'issue-duplicate',
+          key: 'SRCH-186',
+          projectId: 'search',
+          iterationId: 'search-s24',
+          type: 'story',
+          title: 'Duplicate issue',
+          status: 'todo',
+          priority: 'medium',
+          assigneeId: 'lin',
+          storyPoints: 1,
+          linkedDocIds: [],
+          description: '',
+          acceptanceCriteria: '',
+          epicName: '',
+          labels: [],
+          collaboratorIds: [],
+          draft: false,
+        }),
+      ).toBe('duplicate-issue')
+      expect(
+        await repository.createIssue({
+          id: 'issue-invalid-project',
+          key: 'MISSING-999',
+          projectId: 'missing-project',
+          iterationId: 'search-s24',
+          type: 'story',
+          title: 'Invalid project issue',
+          status: 'todo',
+          priority: 'medium',
+          assigneeId: 'lin',
+          storyPoints: 1,
+          linkedDocIds: [],
+          description: '',
+          acceptanceCriteria: '',
+          epicName: '',
+          labels: [],
+          collaboratorIds: [],
+          draft: false,
+        }),
+      ).toBe('project-not-found')
+      expect(
+        await repository.createIssue({
+          id: 'issue-duplicate-label',
+          key: 'SEARCH-1000',
+          projectId: 'search',
+          iterationId: 'search-s24',
+          type: 'story',
+          title: 'Duplicate label issue',
+          status: 'todo',
+          priority: 'medium',
+          assigneeId: 'lin',
+          storyPoints: 1,
+          linkedDocIds: [],
+          description: '',
+          acceptanceCriteria: '',
+          epicName: '',
+          labels: ['契约', '契约'],
+          collaboratorIds: [],
+          draft: false,
+        }),
+      ).toBe('duplicate-label')
       expect(await repository.saveStandup({ ...seedData.standups[0], id: 'missing-standup' })).toBe(
         false,
       )
