@@ -1,9 +1,16 @@
-import type { AppStateResponse, CreateProjectRequest, RecordFeishuNotificationRequest } from '@agilix/contract'
+import type {
+  AppStateResponse,
+  CreateDocumentCommentRequest,
+  CreateDocumentDirectoryRequest,
+  CreateDocumentRequest,
+  CreateProjectRequest,
+  RecordFeishuNotificationRequest,
+} from '@agilix/contract'
 import type {
   AgiliXClient,
-  CreateDocInput,
   FeishuNotificationInput,
   FeishuReply,
+  LegacyCreateDocInput,
 } from '../api/client'
 import { buildFeishuReply, formatFeishuCommand } from '../domain/feishu'
 import { seedData } from '../domain/fixtures'
@@ -11,6 +18,7 @@ import { moveIssue } from '../domain/issues'
 import type {
   CreateProjectInput,
   DocComment,
+  DocDirectory,
   FeishuQueryCommand,
   IssueStatus,
   Milestone,
@@ -33,6 +41,9 @@ export function createInMemoryClient() {
   let loadDataCalls = 0
   const issueStatusSaves: RecordedIssueStatusSave[] = []
   const contractProjectCreates: CreateProjectRequest[] = []
+  const contractDocCreates: CreateDocumentRequest[] = []
+  const contractDocComments: CreateDocumentCommentRequest[] = []
+  const contractDocDirectories: CreateDocumentDirectoryRequest[] = []
   const contractStandupSaves: string[] = []
   const contractMilestoneSaves: string[] = []
   const standupSaves: string[] = []
@@ -99,6 +110,8 @@ export function createInMemoryClient() {
     loadAppStateCount(): number
     recordedIssueStatusSaves(): RecordedIssueStatusSave[]
     recordedContractProjectCreates(): CreateProjectRequest[]
+    recordedContractDocCreates(): CreateDocumentRequest[]
+    recordedContractDocComments(): CreateDocumentCommentRequest[]
     recordedContractStandupSaves(): string[]
     recordedContractMilestoneSaves(): string[]
     recordedContractFeishuNotifications(): string[]
@@ -184,6 +197,93 @@ export function createInMemoryClient() {
         iterations: [...data.iterations, clone(input.iteration)],
       }
     },
+    async createContractDocDirectory(input) {
+      const state = seedDataToAppState(data)
+      const parentPath =
+        input.parent_id === null ? null : appStateDirectoryPath(state.document_directories, input.parent_id)
+      if (input.parent_id !== null && !parentPath)
+        throw new Error(`Parent directory not found: ${input.parent_id}`)
+      const project =
+        input.project_id === null
+          ? undefined
+          : data.projects.find((item) => scopedId('project', item.id) === input.project_id)
+      const path = parentPath
+        ? `${parentPath}/${input.name}`
+        : input.scope === 'global'
+          ? input.name
+          : `项目文档/${project?.name}/${input.name}`
+      const directory: DocDirectory = {
+        id: scopedId('directory', path),
+        scope: input.scope,
+        projectId: project?.id,
+        parentId: input.parent_id,
+        path,
+        name: input.name,
+      }
+      contractDocDirectories.push(clone(input))
+      data = { ...data, docDirectories: [...(data.docDirectories ?? []), directory] }
+      return seedDataToAppState(data)
+    },
+    async createContractDoc(input) {
+      const state = seedDataToAppState(data)
+      const directoryPath = appStateDirectoryPath(state.document_directories, input.directory_id)
+      if (!directoryPath) throw new Error(`Document directory not found: ${input.directory_id}`)
+      const project =
+        input.project_id === null
+          ? undefined
+          : data.projects.find((item) => scopedId('project', item.id) === input.project_id)
+      const docId = `doc-contract-${data.docs.length + 1}`
+      const baseDoc = {
+        id: docId,
+        title: input.title,
+        directory: directoryPath,
+        body: input.body,
+        linkedIssueKeys: input.linked_issue_ids.map((issueId) => legacyScopedId(issueId, 'issue')),
+        comments: [],
+        updatedAtLabel: '刚刚',
+      }
+      const doc =
+        input.scope === 'global'
+          ? {
+              ...baseDoc,
+              scope: 'global' as const,
+            }
+          : (() => {
+              if (!project) throw new Error(`Project not found: ${input.project_id}`)
+              return {
+                ...baseDoc,
+                scope: 'project' as const,
+                projectId: project.id,
+              }
+            })()
+      contractDocCreates.push(clone(input))
+      data = {
+        ...data,
+        docs: [...data.docs, doc],
+      }
+      return seedDataToAppState(data)
+    },
+    async addContractDocComment(docId, input) {
+      const legacyDocId = legacyScopedId(docId, 'document')
+      if (!data.docs.some((doc) => doc.id === legacyDocId))
+        throw new Error(`Document not found: ${docId}`)
+      const comment = {
+        id: `comment-contract-${contractDocComments.length + 1}`,
+        docId: legacyDocId,
+        authorId: legacyScopedId(input.author_member_id, 'member') as DocComment['authorId'],
+        body: input.body,
+        resolved: false,
+        createdAtLabel: '刚刚',
+      }
+      contractDocComments.push(clone(input))
+      data = {
+        ...data,
+        docs: data.docs.map((doc) =>
+          doc.id === legacyDocId ? { ...doc, comments: [...doc.comments, comment] } : doc,
+        ),
+      }
+      return seedDataToAppState(data)
+    },
     async addDocComment(docId: string, comment: DocComment) {
       const legacyDocId = legacyScopedId(docId, 'document')
       const legacyCommentDocId = legacyScopedId(comment.docId, 'document')
@@ -200,7 +300,7 @@ export function createInMemoryClient() {
         ),
       }
     },
-    async createDoc(doc: CreateDocInput) {
+    async createDoc(doc: LegacyCreateDocInput) {
       if (data.docs.some((item) => item.id === doc.id))
         throw new Error(`Document already exists: ${doc.id}`)
       if (doc.comments.length > 0) throw new Error('Document comments must be empty on create')
@@ -328,6 +428,12 @@ export function createInMemoryClient() {
     recordedContractProjectCreates() {
       return clone(contractProjectCreates)
     },
+    recordedContractDocCreates() {
+      return clone(contractDocCreates)
+    },
+    recordedContractDocComments() {
+      return clone(contractDocComments)
+    },
     recordedContractStandupSaves() {
       return [...contractStandupSaves]
     },
@@ -351,8 +457,24 @@ function splitContractLines(value: string) {
   return value === '' ? [] : value.split('\n')
 }
 
+function appStateDirectoryPath(
+  directories: AppStateResponse['document_directories'],
+  directoryId: string,
+): string | undefined {
+  const directory = directories.find((item) => item.id === directoryId)
+  if (!directory) return undefined
+  if (directory.parent_id === null) return directory.name
+  const parentPath = appStateDirectoryPath(directories, directory.parent_id)
+  return parentPath ? `${parentPath}/${directory.name}` : undefined
+}
+
 export function seedDataToAppState(data: SeedData): AppStateResponse {
-  const directoryPaths = Array.from(new Set(data.docs.flatMap((doc) => directoryAncestors(doc.directory))))
+  const explicitDirectoryByPath = new Map((data.docDirectories ?? []).map((directory) => [directory.path, directory]))
+  const directoryPaths = Array.from(new Set([
+    ...data.docs.flatMap((doc) => directoryAncestors(doc.directory)),
+    ...(data.docDirectories?.map((directory) => directory.path) ?? []),
+  ]))
+  const directoryIdForPath = (path: string) => explicitDirectoryByPath.get(path)?.id ?? scopedId('directory', path)
   const firstProject = data.projects[0]
   if (!firstProject) throw new Error('At least one project is required')
   return {
@@ -442,7 +564,7 @@ export function seedDataToAppState(data: SeedData): AppStateResponse {
       id: scopedId('document', doc.id),
       scope: doc.scope,
       project_id: doc.scope === 'project' ? scopedId('project', doc.projectId) : null,
-      directory_id: scopedId('directory', doc.directory),
+      directory_id: directoryIdForPath(doc.directory),
       title: doc.title,
       content_type: 'markdown',
       body: doc.body,
@@ -453,11 +575,14 @@ export function seedDataToAppState(data: SeedData): AppStateResponse {
     })),
     document_directories: directoryPaths.map((path, index) => {
       const scope = path.startsWith('全局文档') ? ('global' as const) : ('project' as const)
+      const explicitDirectory = explicitDirectoryByPath.get(path)
       return {
-        id: scopedId('directory', path),
+        id: directoryIdForPath(path),
         scope,
         project_id: scope === 'project' ? projectIdFromDirectoryPath(data, path) : null,
-        parent_id: parentDirectoryPath(path) ? scopedId('directory', parentDirectoryPath(path) ?? '') : null,
+        parent_id:
+          explicitDirectory?.parentId ??
+          (parentDirectoryPath(path) ? directoryIdForPath(parentDirectoryPath(path) ?? '') : null),
         name: path.split('/').at(-1) ?? path,
         sort_order: index,
         created_at: '刚刚',

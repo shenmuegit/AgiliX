@@ -179,7 +179,6 @@ describe('DocsPage', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: '创建文档' }))
 
     expect(onCreateDoc).toHaveBeenCalledWith({
-      id: expect.stringMatching(/^doc-[a-z0-9]+$/),
       scope: 'project',
       projectId: 'search',
       title: '搜索发布说明',
@@ -195,9 +194,8 @@ describe('DocsPage', () => {
         '```',
       ].join('\n'),
       linkedIssueKeys: ['SRCH-186'],
-      comments: [],
-      updatedAtLabel: '刚刚',
     })
+    expect(onCreateDoc.mock.calls[0][0]).not.toHaveProperty('id')
   })
 
   it('creates a document in a newly created directory from the modal', async () => {
@@ -232,6 +230,7 @@ describe('DocsPage', () => {
         directory: '全局文档/增长实验',
       }),
     )
+    expect(onCreateDoc.mock.calls[0][0]).not.toHaveProperty('id')
   })
 
   it('manages multi-level directories on the secondary configuration page', async () => {

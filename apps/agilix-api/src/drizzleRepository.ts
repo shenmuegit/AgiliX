@@ -30,6 +30,8 @@ import type {
   CreateDocInput,
   CreateDocResult,
   CreateProjectResult,
+  CreateDocDirectoryInput,
+  CreateDocDirectoryResult,
   DocFilters,
   FeishuNotificationRecord,
   FeishuQueryRecord,
@@ -363,6 +365,33 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
     })
     const scopedDocs = filterDocs(docs, filters.projectId)
     return filters.query === '' ? scopedDocs : searchDocs(scopedDocs, filters.query)
+  }
+
+  async function listDocDirectories() {
+    const directories = await db.select().from(dbSchema.documentDirectories)
+    const projects = await db.select().from(dbSchema.projects)
+    function pathFor(directoryId: string): string {
+      const directory = directories.find((item) => item.id === directoryId)
+      if (!directory) throw new Error(`Persisted directory not found: ${directoryId}`)
+      const mapped = maps.directoryReverse.get(directory.id)
+      if (mapped) return mapped
+      if (directory.parentId === null) return directory.name
+      return `${pathFor(directory.parentId)}/${directory.name}`
+    }
+    return directories.map((directory) => {
+      const scope = docScopeSchema.parse(directory.scope)
+      const project = directory.projectId
+        ? projects.find((item) => item.id === directory.projectId)
+        : undefined
+      return {
+        id: directory.id,
+        scope,
+        projectId: project ? ((maps.projectReverse.get(project.id) ?? project.code) as ProjectId) : undefined,
+        parentId: directory.parentId,
+        path: pathFor(directory.id),
+        name: directory.name,
+      }
+    })
   }
 
   async function listStandups(filters: { projectId: ProjectId | 'all' }): Promise<Standup[]> {
@@ -806,6 +835,38 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
       ])
       return 'created'
     },
+    async createDocDirectory(input: CreateDocDirectoryInput): Promise<CreateDocDirectoryResult> {
+      if (maps.directoryPath.has(input.path)) return 'duplicate-directory'
+      const projectId =
+        input.scope === 'project'
+          ? input.projectId
+            ? maps.project.get(input.projectId)
+            : undefined
+          : null
+      if (input.scope === 'project' && !projectId) return 'project-not-found'
+      if (input.parentId !== null) {
+        const [parent] = await db
+          .select()
+          .from(dbSchema.documentDirectories)
+          .where(eq(dbSchema.documentDirectories.id, input.parentId))
+        if (!parent) return 'parent-directory-not-found'
+        if (parent.scope !== input.scope || parent.projectId !== projectId)
+          return 'directory-scope-mismatch'
+      }
+      remember(maps.directoryPath, maps.directoryReverse, input.path, input.id)
+      const at = nowLabel()
+      await db.insert(dbSchema.documentDirectories).values({
+        id: input.id,
+        scope: input.scope,
+        projectId,
+        parentId: input.parentId,
+        name: input.name,
+        sortOrder: maps.directoryPath.size,
+        createdAt: at,
+        updatedAt: at,
+      })
+      return 'created'
+    },
     async addDocComment(docId: string, comment: DocComment): Promise<AddDocCommentResult> {
       if (comment.docId !== docId) return 'comment-doc-id-mismatch'
       const internalDocId = maps.doc.get(docId) ?? docId
@@ -954,6 +1015,7 @@ export function createDrizzleRepository(db: TransactionDatabase): AgiliXReposito
           keyword: '',
         }),
         docs: await listDocs({ projectId: 'all', query: '' }),
+        docDirectories: await listDocDirectories(),
         standups: await listStandups({ projectId: 'all' }),
         milestones: await listMilestones({ projectId: 'all' }),
         feishu: {

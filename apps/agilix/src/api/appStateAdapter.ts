@@ -37,6 +37,7 @@ export function toDisplaySeedData(state: AppStateResponse): SeedData {
     navItems,
     projects: state.projects.map((project) => ({
       id: project.code,
+      contractId: project.id,
       name: project.name,
       glyph: project.glyph,
       color: project.color,
@@ -135,6 +136,17 @@ export function toDisplaySeedData(state: AppStateResponse): SeedData {
         projectId: requireProjectCode(projectCodeById, requireValue(doc.project_id, `Document project missing: ${doc.id}`)),
       }
     }),
+    docDirectories: state.document_directories.map((directory) => ({
+      id: directory.id,
+      scope: directory.scope,
+      projectId:
+        directory.project_id === null
+          ? undefined
+          : requireProjectCode(projectCodeById, directory.project_id),
+      parentId: directory.parent_id,
+      path: directoryPath(state, directory.id),
+      name: directory.name,
+    })),
     standups: state.standups.map((standup) => ({
       id: standup.id,
       projectId: requireProjectCode(projectCodeById, standup.project_id),

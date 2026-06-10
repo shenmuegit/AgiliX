@@ -1,6 +1,9 @@
 import { buildFeishuReply, parseFeishuCommand } from '@agilix/app/domain/feishu'
 import {
   appStateResponseSchema,
+  createDocumentCommentRequestSchema,
+  createDocumentDirectoryRequestSchema,
+  createDocumentRequestSchema,
   createProjectRequestSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
@@ -26,6 +29,7 @@ import type {
   AddDocCommentResult,
   AgiliXRepository,
   CreateDocResult,
+  CreateDocDirectoryResult,
   CreateProjectResult,
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
@@ -34,7 +38,6 @@ import {
   createProjectSchema,
   docCommentSchema,
   docQuerySchema,
-  docSchema,
   feishuNotificationSchema,
   issueQuerySchema,
   projectScopedQuerySchema,
@@ -52,6 +55,13 @@ const createDocFailures = {
     status: 400,
   },
 } satisfies Record<Exclude<CreateDocResult, 'created'>, JsonFailure>
+
+const createDocDirectoryFailures = {
+  'duplicate-directory': { message: 'Document directory already exists', status: 409 },
+  'parent-directory-not-found': { message: 'Parent directory not found', status: 400 },
+  'project-not-found': { message: 'Project not found', status: 400 },
+  'directory-scope-mismatch': { message: 'Directory scope mismatch', status: 400 },
+} satisfies Record<Exclude<CreateDocDirectoryResult, 'created'>, JsonFailure>
 
 const createProjectFailures = {
   'duplicate-project': { message: 'Project already exists', status: 409 },
@@ -150,6 +160,27 @@ function legacyStandupIdFromContractId(data: SeedData, standupId: string) {
 
 function legacyDocumentFromContractId(data: SeedData, documentId: string) {
   return data.docs.find((doc) => contractId('document', doc.id) === documentId)
+}
+
+function legacyDocumentIdFromContractId(data: SeedData, documentId: string) {
+  return legacyDocumentFromContractId(data, documentId)?.id
+}
+
+function documentDirectoryPathFromContractId(data: SeedData, directoryId: string) {
+  const state = toAppStateResponse(data)
+  const directory = state.document_directories.find((item) => item.id === directoryId)
+  if (!directory) return undefined
+  return documentDirectoryPath(state.document_directories, directory.id)
+}
+
+function documentDirectoryPath(
+  directories: ReturnType<typeof toAppStateResponse>['document_directories'],
+  directoryId: string,
+): string {
+  const directory = directories.find((item) => item.id === directoryId)
+  if (!directory) throw new Error(`Document directory not found: ${directoryId}`)
+  if (directory.parent_id === null) return directory.name
+  return `${documentDirectoryPath(directories, directory.parent_id)}/${directory.name}`
 }
 
 function legacyCommentIdFromContractId(data: SeedData, commentId: string) {
@@ -310,11 +341,86 @@ export function createApp(repository: AgiliXRepository) {
   })
 
   app.post('/api/docs', async (context) => {
-    const parsed = await parseJson(context, docSchema)
+    const parsed = await parseJson(context, createDocumentRequestSchema)
     if ('response' in parsed) return parsed.response
-    const result = await repository.createDoc(parsed.value)
-    if (result === 'created') return context.json(parsed.value, 201)
+    const loadedData = await repository.loadData()
+    const directory = documentDirectoryPathFromContractId(loadedData, parsed.value.directory_id)
+    if (!directory) return context.json({ message: 'Document directory not found' }, 400)
+    const project =
+      parsed.value.project_id === null
+        ? undefined
+        : loadedData.projects.find((item) => contractId('project', item.id) === parsed.value.project_id)
+    if (parsed.value.scope === 'project' && !project)
+      return context.json({ message: 'Project not found' }, 400)
+    if (parsed.value.scope === 'global' && parsed.value.project_id !== null)
+      return context.json({ message: 'Global document project_id must be null' }, 400)
+    const editorId = legacyMemberIdFromContractId(loadedData, parsed.value.editor_member_id)
+    if (!editorId) return context.json({ message: 'Editor member not found' }, 400)
+    const linkedIssueKeys = parsed.value.linked_issue_ids.map(
+      (issueId) => legacyIssueKeyFromContractId(loadedData, issueId) ?? issueId,
+    )
+
+    const createDocInput = parsed.value.scope === 'global'
+      ? {
+          id: `doc-${nextId()}`,
+          scope: 'global' as const,
+          title: parsed.value.title,
+          directory,
+          body: parsed.value.body,
+          linkedIssueKeys,
+          comments: [],
+          updatedAtLabel: new Date().toISOString(),
+        }
+      : {
+          id: `doc-${nextId()}`,
+          scope: 'project' as const,
+          projectId: project?.id ?? '',
+          title: parsed.value.title,
+          directory,
+          body: parsed.value.body,
+          linkedIssueKeys,
+          comments: [],
+          updatedAtLabel: new Date().toISOString(),
+        }
+    const result = await repository.createDoc(createDocInput)
+    if (result === 'created') return context.json(await contractAppState(), 201)
     const failure = createDocFailures[result]
+    return context.json({ message: failure.message }, failure.status)
+  })
+
+  app.post('/api/document-directories', async (context) => {
+    const parsed = await parseJson(context, createDocumentDirectoryRequestSchema)
+    if ('response' in parsed) return parsed.response
+    const loadedData = await repository.loadData()
+    if (parsed.value.scope === 'global' && parsed.value.project_id !== null)
+      return context.json({ message: 'Global directory project_id must be null' }, 400)
+    const project =
+      parsed.value.project_id === null
+        ? undefined
+        : loadedData.projects.find((item) => contractId('project', item.id) === parsed.value.project_id)
+    if (parsed.value.scope === 'project' && !project)
+      return context.json({ message: 'Project not found' }, 400)
+    const parentPath =
+      parsed.value.parent_id === null
+        ? null
+        : documentDirectoryPathFromContractId(loadedData, parsed.value.parent_id)
+    if (parsed.value.parent_id !== null && !parentPath)
+      return context.json({ message: 'Parent directory not found' }, 400)
+    const path =
+      parentPath ??
+      (parsed.value.scope === 'global'
+        ? parsed.value.name
+        : `项目文档/${project?.name}/${parsed.value.name}`)
+    const result = await repository.createDocDirectory({
+      id: nextId(),
+      scope: parsed.value.scope,
+      projectId: project?.id,
+      parentId: parsed.value.parent_id,
+      path: parentPath ? `${parentPath}/${parsed.value.name}` : path,
+      name: parsed.value.name,
+    })
+    if (result === 'created') return context.json(await contractAppState(), 201)
+    const failure = createDocDirectoryFailures[result]
     return context.json({ message: failure.message }, failure.status)
   })
 
@@ -324,12 +430,22 @@ export function createApp(repository: AgiliXRepository) {
   })
 
   app.post('/api/docs/:id/comments', async (context) => {
-    const parsed = await parseJson(context, docCommentSchema)
+    const parsed = await parseJson(context, createDocumentCommentRequestSchema)
     if ('response' in parsed) return parsed.response
-    if (parsed.value.docId !== context.req.param('id'))
-      return idMismatch(context, 'Comment docId must match route id')
-    const result = await repository.addDocComment(context.req.param('id'), parsed.value)
-    if (result === 'created') return context.json(parsed.value, 201)
+    const loadedData = await repository.loadData()
+    const docId = legacyDocumentIdFromContractId(loadedData, context.req.param('id'))
+    if (!docId) return context.json({ message: 'Document not found' }, 404)
+    const authorId = legacyMemberIdFromContractId(loadedData, parsed.value.author_member_id)
+    if (!authorId) return context.json({ message: 'Comment author not found' }, 400)
+    const result = await repository.addDocComment(docId, {
+      id: `comment-${nextId()}`,
+      docId,
+      authorId,
+      body: parsed.value.body,
+      resolved: false,
+      createdAtLabel: new Date().toISOString(),
+    })
+    if (result === 'created') return context.json(await contractAppState(), 201)
     const failure = addDocCommentFailures[result]
     return context.json({ message: failure.message }, failure.status)
   })

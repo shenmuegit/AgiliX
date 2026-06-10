@@ -51,13 +51,39 @@ export function App({ client = defaultAgiliXClient }: { client?: AgiliXClient })
   }
 
   async function commentAndRefresh(docId: string, comment: DocComment) {
-    await client.addDocComment(docId, comment)
-    await refresh()
+    setData(toDisplaySeedData(await client.addContractDocComment(docId, {
+      author_member_id: requireMemberContractId(loadedData, comment.authorId),
+      body: comment.body,
+    })))
   }
 
   async function createDocAndRefresh(doc: CreateDocInput) {
-    await client.createDoc(doc)
-    await refresh()
+    let nextData = loadedData
+    let directory = nextData.docDirectories?.find((item) => item.path === doc.directory)
+    if (!directory) {
+      const parent = requireDocDirectory(nextData, parentDirectoryPath(doc.directory))
+      const directoryState = await client.createContractDocDirectory({
+        scope: doc.scope,
+        project_id: doc.scope === 'project' ? requireProjectContractId(nextData, doc.projectId) : null,
+        parent_id: parent.id,
+        name: doc.directory.split('/').at(-1) ?? doc.directory,
+      })
+      nextData = toDisplaySeedData(directoryState)
+      directory = nextData.docDirectories?.find((item) => item.path === doc.directory)
+    }
+    if (!directory) throw new Error(`Document directory not found: ${doc.directory}`)
+
+    setData(toDisplaySeedData(await client.createContractDoc({
+      scope: doc.scope,
+      project_id: doc.scope === 'project' ? requireProjectContractId(nextData, doc.projectId) : null,
+      directory_id: directory.id,
+      title: doc.title,
+      content_type: contentTypeFromBody(doc.body),
+      body: doc.body,
+      editor_member_id: requireMemberContractId(nextData, 'zhou'),
+      linked_issue_ids: doc.linkedIssueKeys.map((issueKey) => requireIssueContractId(nextData, issueKey)),
+      sync_feishu_doc: false,
+    })))
   }
 
   async function createProjectAndRefresh(input: CreateProjectInput) {
@@ -254,6 +280,37 @@ function requireMemberContractId(data: SeedData, memberId: string) {
   const member = data.members.find((item) => item.id === memberId)
   if (!member?.contractId) throw new Error(`Member contract id not found: ${memberId}`)
   return member.contractId
+}
+
+function requireProjectContractId(data: SeedData, projectId: string) {
+  const project = data.projects.find((item) => item.id === projectId)
+  if (!project?.contractId) throw new Error(`Project contract id not found: ${projectId}`)
+  return project.contractId
+}
+
+function requireIssueContractId(data: SeedData, issueKey: string) {
+  const issue = data.issues.find((item) => item.key === issueKey)
+  return requireValue(issue?.id, `Issue contract id not found: ${issueKey}`)
+}
+
+function requireDocDirectory(data: SeedData, path: string) {
+  return requireValue(
+    data.docDirectories?.find((item) => item.path === path),
+    `Document directory not found: ${path}`,
+  )
+}
+
+function parentDirectoryPath(path: string) {
+  const parts = path.split('/')
+  if (parts.length <= 1) throw new Error(`Document directory parent not found: ${path}`)
+  return parts.slice(0, -1).join('/')
+}
+
+function contentTypeFromBody(body: string) {
+  if (body.includes('```mindmap')) return 'mindmap' as const
+  if (body.includes('```diagram')) return 'diagram' as const
+  if (body.includes('```mermaid')) return 'mermaid' as const
+  return 'markdown' as const
 }
 
 function requireFeishuGroupId(data: SeedData) {

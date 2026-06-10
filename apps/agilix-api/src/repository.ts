@@ -6,6 +6,7 @@ import type {
   Issue,
   IssueStatus,
   CreateProjectInput,
+  DocDirectory,
   MemberId,
   Milestone,
   Project,
@@ -64,6 +65,13 @@ export type CreateProjectResult =
   | 'project-iteration-mismatch'
   | 'active-iteration-code-mismatch'
 export type AddDocCommentResult = 'created' | 'document-not-found' | 'comment-doc-id-mismatch'
+export type CreateDocDirectoryInput = DocDirectory
+export type CreateDocDirectoryResult =
+  | 'created'
+  | 'duplicate-directory'
+  | 'parent-directory-not-found'
+  | 'project-not-found'
+  | 'directory-scope-mismatch'
 export type SaveMilestoneResult =
   | 'saved'
   | 'milestone-not-found'
@@ -86,6 +94,7 @@ export interface AgiliXRepository {
   listDocs(filters: DocFilters): Promise<Doc[]>
   getDoc(docId: string): Promise<Doc | undefined>
   createDoc(doc: CreateDocInput): Promise<CreateDocResult>
+  createDocDirectory(input: CreateDocDirectoryInput): Promise<CreateDocDirectoryResult>
   addDocComment(docId: string, comment: DocComment): Promise<AddDocCommentResult>
   listStandups(filters: { projectId: ProjectId | 'all' }): Promise<Standup[]>
   saveStandup(standup: Standup): Promise<boolean>

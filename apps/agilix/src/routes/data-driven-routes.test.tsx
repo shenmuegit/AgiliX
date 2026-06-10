@@ -282,6 +282,15 @@ function createClient(data: SeedData): AgiliXClient {
       throw new Error('Contract issue status updates are not used in this route test')
     }),
     moveIssue: vi.fn(async () => undefined),
+    createContractDoc: vi.fn(async () => {
+      throw new Error('Contract document creates are not used in this route test')
+    }),
+    createContractDocDirectory: vi.fn(async () => {
+      throw new Error('Contract document directory creates are not used in this route test')
+    }),
+    addContractDocComment: vi.fn(async () => {
+      throw new Error('Contract document comments are not used in this route test')
+    }),
     addDocComment: vi.fn(async () => undefined),
     createDoc: vi.fn(async () => undefined),
     saveContractStandup: vi.fn(async () => {

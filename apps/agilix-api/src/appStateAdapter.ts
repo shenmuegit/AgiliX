@@ -16,14 +16,25 @@ export function legacyIssueKeyFromContractId(data: SeedData, issueId: string) {
 }
 
 export function toAppStateResponse(data: SeedData): AppStateResponse {
-  const directoryPaths = Array.from(new Set(data.docs.flatMap((doc) => directoryAncestors(doc.directory))))
+  const explicitDirectoryByPath = new Map((data.docDirectories ?? []).map((directory) => [directory.path, directory]))
+  const directoryPaths = Array.from(new Set([
+    ...data.docs.flatMap((doc) => directoryAncestors(doc.directory)),
+    ...(data.docDirectories?.map((directory) => directory.path) ?? []),
+  ]))
+  const directoryIdForPath = (path: string) => explicitDirectoryByPath.get(path)?.id ?? contractId('directory', path)
   const directories = directoryPaths.map((path, index) => {
     const scope = path.startsWith('全局文档') ? ('global' as const) : ('project' as const)
+    const explicitDirectory = explicitDirectoryByPath.get(path)
     return {
-      id: contractId('directory', path),
+      id: directoryIdForPath(path),
       scope,
       project_id: scope === 'project' ? projectIdFromDirectoryPath(data, path) : null,
-      parent_id: parentDirectoryPath(path) ? contractId('directory', parentDirectoryPath(path) ?? '') : null,
+      parent_id:
+        explicitDirectory?.parentId ??
+        (parentDirectoryPath(path)
+          ? explicitDirectoryByPath.get(parentDirectoryPath(path) ?? '')?.id ??
+            directoryIdForPath(parentDirectoryPath(path) ?? '')
+          : null),
       name: path.split('/').at(-1) ?? path,
       sort_order: index,
       created_at: '2026-06-09T00:00:00.000Z',
@@ -122,7 +133,7 @@ export function toAppStateResponse(data: SeedData): AppStateResponse {
       id: contractId('document', doc.id),
       scope: doc.scope,
       project_id: doc.scope === 'project' ? contractId('project', doc.projectId) : null,
-      directory_id: contractId('directory', doc.directory),
+      directory_id: directoryIdForPath(doc.directory),
       title: doc.title,
       content_type: contentTypeFromDoc(doc),
       body: doc.body,

@@ -1,5 +1,8 @@
 import {
   appStateResponseSchema,
+  createDocumentCommentRequestSchema,
+  createDocumentDirectoryRequestSchema,
+  createDocumentRequestSchema,
   createProjectRequestSchema,
   feishuQueryRequestSchema,
   feishuQueryResponseSchema,
@@ -9,6 +12,9 @@ import {
   saveStandupRequestSchema,
   updateIssueStatusRequestSchema,
   type AppStateResponse,
+  type CreateDocumentCommentRequest,
+  type CreateDocumentDirectoryRequest,
+  type CreateDocumentRequest,
   type CreateProjectRequest,
   type FeishuQueryResponse,
   type IssueStatus as ContractIssueStatus,
@@ -44,10 +50,15 @@ export type FeishuNotificationInput = {
   createdAt: string
 } & FeishuNotificationPayload
 
-type CreateDocInputFor<T extends Doc> = Omit<T, 'comments'> & { comments: never[] }
+type LegacyCreateDocInputFor<T extends Doc> = Omit<T, 'comments'> & { comments: never[] }
+export type LegacyCreateDocInput = Doc extends infer D
+  ? D extends Doc
+    ? LegacyCreateDocInputFor<D>
+    : never
+  : never
 export type CreateDocInput = Doc extends infer D
   ? D extends Doc
-    ? CreateDocInputFor<D>
+    ? Omit<D, 'id' | 'comments' | 'updatedAtLabel'>
     : never
   : never
 
@@ -58,10 +69,13 @@ export interface AgiliXClient {
   createProject(input: CreateProjectInput): Promise<void>
   moveIssueById(issueId: string, status: ContractIssueStatus): Promise<AppStateResponse>
   moveIssue(issueKey: string, status: IssueStatus): Promise<void>
+  createContractDoc(input: CreateDocumentRequest): Promise<AppStateResponse>
+  createContractDocDirectory(input: CreateDocumentDirectoryRequest): Promise<AppStateResponse>
+  addContractDocComment(docId: string, input: CreateDocumentCommentRequest): Promise<AppStateResponse>
   saveContractStandup(standupId: string, input: SaveStandupRequest): Promise<AppStateResponse>
   saveContractMilestone(milestoneId: string, input: SaveMilestoneRequest): Promise<AppStateResponse>
   addDocComment(docId: string, comment: DocComment): Promise<void>
-  createDoc(doc: CreateDocInput): Promise<void>
+  createDoc(doc: LegacyCreateDocInput): Promise<void>
   saveStandup(standup: Standup): Promise<void>
   saveMilestone(milestone: Milestone): Promise<void>
   recordContractFeishuNotification(input: RecordFeishuNotificationRequest): Promise<void>
@@ -133,24 +147,35 @@ const docSchema: z.ZodType<Doc, z.ZodTypeDef, unknown> = z.discriminatedUnion('s
   z.object({ ...docBaseSchema, scope: z.literal('project'), projectId: projectIdSchema }).strict(),
 ])
 
-const createDocInputBaseSchema = {
+const docDirectorySchema = z
+  .object({
+    id: z.string().min(1),
+    scope: z.enum(['global', 'project']),
+    projectId: projectIdSchema.optional(),
+    parentId: z.string().min(1).nullable(),
+    path: z.string().min(1),
+    name: z.string().min(1),
+  })
+  .strict()
+
+const legacyCreateDocInputBaseSchema = {
   ...docBaseSchema,
   comments: z.array(z.never()).length(0),
 }
 
-const createDocInputSchema: z.ZodType<CreateDocInput, z.ZodTypeDef, unknown> = z.discriminatedUnion(
+const legacyCreateDocInputSchema: z.ZodType<LegacyCreateDocInput, z.ZodTypeDef, unknown> = z.discriminatedUnion(
   'scope',
   [
     z
       .object({
-        ...createDocInputBaseSchema,
+        ...legacyCreateDocInputBaseSchema,
         scope: z.literal('global'),
         projectId: z.undefined().optional(),
       })
       .strict(),
     z
       .object({
-        ...createDocInputBaseSchema,
+        ...legacyCreateDocInputBaseSchema,
         scope: z.literal('project'),
         projectId: projectIdSchema,
       })
@@ -158,11 +183,11 @@ const createDocInputSchema: z.ZodType<CreateDocInput, z.ZodTypeDef, unknown> = z
   ],
 )
 
-function validateCreateDocInput(doc: CreateDocInput): CreateDocInput {
+function validateCreateDocInput(doc: LegacyCreateDocInput): LegacyCreateDocInput {
   if (doc.comments.length > 0) throw new Error('Document comments must be empty on create')
   if (new Set(doc.linkedIssueKeys).size !== doc.linkedIssueKeys.length)
     throw new Error('Duplicate linked issue')
-  createDocInputSchema.parse(doc)
+  legacyCreateDocInputSchema.parse(doc)
   return doc
 }
 
@@ -316,11 +341,13 @@ const seedDataSchema: z.ZodType<SeedData, z.ZodTypeDef, unknown> = z
     iterations: z.array(iterationSchema),
     issues: z.array(issueSchema),
     docs: z.array(docSchema),
+    docDirectories: z.array(docDirectorySchema).optional(),
     standups: z.array(standupSchema),
     milestones: z.array(milestoneSchema),
     feishu: z
       .object({
         groups: z.array(z.literal('AgiliX 团队群')),
+        groupIds: z.array(z.string().min(1)).optional(),
         queryCommands: z.array(feishuCommandSchema),
         notificationTriggers: z.array(feishuNotificationTriggerSchema),
       })
@@ -409,6 +436,27 @@ export function createAgiliXClient(fetcher: Fetcher = fetch): AgiliXClient {
       return requestNoContent(fetcher, `/api/issues/${issueKey}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
+      })
+    },
+    createContractDoc(input) {
+      const parsed = createDocumentRequestSchema.parse(input)
+      return requestJson(fetcher, '/api/docs', 201, appStateResponseSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      })
+    },
+    createContractDocDirectory(input) {
+      const parsed = createDocumentDirectoryRequestSchema.parse(input)
+      return requestJson(fetcher, '/api/document-directories', 201, appStateResponseSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
+      })
+    },
+    addContractDocComment(docId, input) {
+      const parsed = createDocumentCommentRequestSchema.parse(input)
+      return requestJson(fetcher, `/api/docs/${docId}/comments`, 201, appStateResponseSchema, {
+        method: 'POST',
+        body: JSON.stringify(parsed),
       })
     },
     saveContractStandup(standupId, input) {

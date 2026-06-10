@@ -4,6 +4,7 @@ import type {
   CreateProjectInput,
   Doc,
   DocComment,
+  DocDirectory,
   IssueStatus,
   Milestone,
   SeedData,
@@ -12,6 +13,8 @@ import type {
 import type {
   AgiliXRepository,
   CreateProjectResult,
+  CreateDocDirectoryInput,
+  CreateDocDirectoryResult,
   CreateDocInput,
   DocFilters,
   FeishuNotificationRecord,
@@ -20,6 +23,7 @@ import type {
   SaveFeishuNotificationResult,
   SaveMilestoneResult,
 } from '../repository'
+import { contractId } from '../appStateAdapter'
 
 function clone<T>(value: T): T {
   if (value === undefined) return undefined as T
@@ -42,6 +46,28 @@ function assertStandupMembers(memberIds: Set<string>, standup: Standup) {
   for (const item of standup.items) {
     assertReference(memberIds, item.memberId, `Standup member not found: ${item.memberId}`)
   }
+}
+
+function directoryAncestors(path: string): string[] {
+  return path.split('/').map((_, index, parts) => parts.slice(0, index + 1).join('/'))
+}
+
+function directoryRows(data: SeedData): DocDirectory[] {
+  const fromDocs = Array.from(new Set(data.docs.flatMap((doc) => directoryAncestors(doc.directory)))).map(
+    (path): DocDirectory => {
+      const project = data.projects.find((item) => path.startsWith(`项目文档/${item.name}`))
+      const parentPath = path.split('/').length > 1 ? path.split('/').slice(0, -1).join('/') : null
+      return {
+        id: contractId('directory', path),
+        scope: path.startsWith('全局文档') ? 'global' : 'project',
+        projectId: project?.id,
+        parentId: parentPath ? contractId('directory', parentPath) : null,
+        path,
+        name: path.split('/').at(-1) ?? path,
+      }
+    },
+  )
+  return [...fromDocs, ...(data.docDirectories ?? [])]
 }
 
 function assertSeedData(data: SeedData) {
@@ -263,6 +289,25 @@ export function createMemoryRepository(seed: SeedData): AgiliXRepository {
       )
         return 'linked-issue-not-found'
       data.docs = [...data.docs, clone(doc)]
+      return 'created'
+    },
+    async createDocDirectory(input: CreateDocDirectoryInput): Promise<CreateDocDirectoryResult> {
+      const existingPaths = new Set([
+        ...data.docs.flatMap((doc) => directoryAncestors(doc.directory)),
+        ...(data.docDirectories?.map((directory) => directory.path) ?? []),
+      ])
+      if (existingPaths.has(input.path)) return 'duplicate-directory'
+      if (input.scope === 'project' && !input.projectId) return 'project-not-found'
+      if (input.projectId && !data.projects.some((project) => project.id === input.projectId))
+        return 'project-not-found'
+      if (input.parentId !== null) {
+        const parent = directoryRows(data).find((directory) => directory.id === input.parentId)
+        if (!parent) return 'parent-directory-not-found'
+        if (parent.scope !== input.scope || parent.projectId !== input.projectId)
+          return 'directory-scope-mismatch'
+      }
+      const nextDirectory: DocDirectory = clone(input)
+      data.docDirectories = [...(data.docDirectories ?? []), nextDirectory]
       return 'created'
     },
     async addDocComment(docId: string, comment: DocComment) {

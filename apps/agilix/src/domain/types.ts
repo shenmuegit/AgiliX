@@ -19,6 +19,7 @@ export type FeishuNotificationPayload =
 
 export interface Project {
   id: ProjectId
+  contractId?: string
   name: string
   glyph: string
   color: string
@@ -104,6 +105,15 @@ export type ProjectDoc = DocBase & {
 
 export type Doc = GlobalDoc | ProjectDoc
 
+export interface DocDirectory {
+  id: string
+  scope: DocScope
+  projectId?: ProjectId
+  parentId: string | null
+  path: string
+  name: string
+}
+
 export interface StandupItem {
   memberId: MemberId
   yesterday: string[]
@@ -146,6 +156,7 @@ export interface SeedData {
   iterations: Iteration[]
   issues: Issue[]
   docs: Doc[]
+  docDirectories?: DocDirectory[]
   standups: Standup[]
   milestones: Milestone[]
   feishu: FeishuConfig

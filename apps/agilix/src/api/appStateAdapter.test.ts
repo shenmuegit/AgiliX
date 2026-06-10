@@ -199,6 +199,7 @@ describe('app-state adapter', () => {
 
     expect(data.projects[0]).toEqual({
       id: 'search',
+      contractId: '1001',
       name: '搜索平台',
       glyph: '搜',
       color: 'var(--accent)',

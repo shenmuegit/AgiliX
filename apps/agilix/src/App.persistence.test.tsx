@@ -62,6 +62,9 @@ describe('App API wiring', () => {
     await userEvent.click(screen.getByRole('link', { name: '文档' }))
     await userEvent.type(await screen.findByLabelText('新增评论内容'), '补充验收标准')
     await userEvent.click(await screen.findByRole('button', { name: '提交评论' }))
+    expect(client.recordedContractDocComments()).toEqual([
+      expect.objectContaining({ body: '补充验收标准' }),
+    ])
     expect(
       (await client.loadData()).docs.find((doc) => doc.id === 'doc-result-card')?.comments.length,
     ).toBeGreaterThan(2)
@@ -78,6 +81,14 @@ describe('App API wiring', () => {
       '从表单创建的文档',
     )
     await userEvent.click(within(createDocDialog).getByRole('button', { name: '创建文档' }))
+    expect(client.recordedContractDocCreates()).toEqual([
+      expect.objectContaining({
+        scope: 'global',
+        title: '增长实验说明',
+        content_type: 'markdown',
+        body: '从表单创建的文档',
+      }),
+    ])
     await waitFor(async () =>
       expect(
         (await client.loadData()).docs.find((doc) => doc.title === '增长实验说明')?.directory,

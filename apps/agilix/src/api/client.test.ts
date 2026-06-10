@@ -35,6 +35,10 @@ describe('AgiliX API client', () => {
       if (String(input) === '/api/projects') return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/issues/730000000000000401/status')
         return Response.json(emptyAppStateResponse)
+      if (String(input) === '/api/docs')
+        return Response.json(emptyAppStateResponse, { status: 201 })
+      if (String(input) === '/api/docs/730000000000000601/comments')
+        return Response.json(emptyAppStateResponse, { status: 201 })
       if (String(input) === '/api/feishu/notifications')
         return Response.json({
           id: '730000000000000901',
@@ -72,6 +76,21 @@ describe('AgiliX API client', () => {
       },
     })
     await client.moveIssueById('730000000000000401', 'done')
+    await client.createContractDoc({
+      scope: 'global',
+      project_id: null,
+      directory_id: '730000000000000301',
+      title: '接口说明',
+      content_type: 'markdown',
+      body: '# 接口说明',
+      editor_member_id: '730000000000000201',
+      linked_issue_ids: ['730000000000000401'],
+      sync_feishu_doc: false,
+    })
+    await client.addContractDocComment('730000000000000601', {
+      author_member_id: '730000000000000201',
+      body: '需要补验收标准',
+    })
     await client.recordContractFeishuNotification({
       trigger: '站会摘要',
       target_group_id: '730000000000000501',
@@ -111,6 +130,29 @@ describe('AgiliX API client', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ status: 'done' }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/docs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        scope: 'global',
+        project_id: null,
+        directory_id: '730000000000000301',
+        title: '接口说明',
+        content_type: 'markdown',
+        body: '# 接口说明',
+        editor_member_id: '730000000000000201',
+        linked_issue_ids: ['730000000000000401'],
+        sync_feishu_doc: false,
+      }),
+    })
+    expect(fetcher).toHaveBeenCalledWith('/api/docs/730000000000000601/comments', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        author_member_id: '730000000000000201',
+        body: '需要补验收标准',
+      }),
     })
     expect(fetcher).toHaveBeenCalledWith('/api/feishu/notifications', {
       method: 'POST',

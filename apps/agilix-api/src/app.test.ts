@@ -155,6 +155,124 @@ describe('AgiliX API app', () => {
     )
   })
 
+  it('creates documents and comments through shared contracts without accepting client ids', async () => {
+    const app = createApp(createMemoryRepository(seedData))
+    const state = appStateResponseSchema.parse(await (await app.request('/api/app-state')).json())
+    const rootDirectory = state.document_directories.find(
+      (item) => item.scope === 'global' && item.parent_id === null,
+    )
+    const member = state.members[0]
+    const issue = state.issues.find((item) => item.key === 'SRCH-186')
+    expect(rootDirectory).toBeDefined()
+    expect(member).toBeDefined()
+    expect(issue).toBeDefined()
+
+    const rejectedDirectory = await app.request('/api/document-directories', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-directory-id',
+        scope: 'global',
+        project_id: null,
+        parent_id: rootDirectory?.id,
+        name: '契约目录',
+      }),
+    })
+    expect(rejectedDirectory.status).toBe(400)
+
+    const createdDirectory = await app.request('/api/document-directories', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        scope: 'global',
+        project_id: null,
+        parent_id: rootDirectory?.id,
+        name: '契约目录',
+      }),
+    })
+    const directoryState = appStateResponseSchema.parse(await createdDirectory.json())
+    expect(createdDirectory.status).toBe(201)
+    const directory = directoryState.document_directories.find((item) => item.name === '契约目录')
+    expect(directory).toEqual(expect.objectContaining({
+      scope: 'global',
+      project_id: null,
+      parent_id: rootDirectory?.id,
+    }))
+
+    const rejectedDoc = await app.request('/api/docs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-doc-id',
+        scope: 'global',
+        project_id: null,
+        directory_id: directory?.id,
+        title: '客户端 ID 文档',
+        content_type: 'markdown',
+        body: '# 不应创建',
+        editor_member_id: member?.id,
+        linked_issue_ids: [],
+        sync_feishu_doc: false,
+      }),
+    })
+    expect(rejectedDoc.status).toBe(400)
+
+    const createdDoc = await app.request('/api/docs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        scope: 'global',
+        project_id: null,
+        directory_id: directory?.id,
+        title: '契约创建文档',
+        content_type: 'markdown',
+        body: '# 契约创建文档',
+        editor_member_id: member?.id,
+        linked_issue_ids: [issue?.id],
+        sync_feishu_doc: false,
+      }),
+    })
+    const docState = appStateResponseSchema.parse(await createdDoc.json())
+    expect(createdDoc.status).toBe(201)
+    const doc = docState.documents.find((item) => item.title === '契约创建文档')
+    expect(doc).toEqual(expect.objectContaining({
+      directory_id: directory?.id,
+      editor_member_id: member?.id,
+      content_type: 'markdown',
+    }))
+    expect(docState.document_issue_links).toContainEqual({
+      doc_id: doc?.id,
+      issue_id: issue?.id,
+    })
+
+    const rejectedComment = await app.request(`/api/docs/${doc?.id}/comments`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: 'client-comment-id',
+        author_member_id: member?.id,
+        body: '不应创建',
+      }),
+    })
+    expect(rejectedComment.status).toBe(400)
+
+    const createdComment = await app.request(`/api/docs/${doc?.id}/comments`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        author_member_id: member?.id,
+        body: '契约评论',
+      }),
+    })
+    const commentState = appStateResponseSchema.parse(await createdComment.json())
+    expect(createdComment.status).toBe(201)
+    expect(commentState.document_comments).toContainEqual(expect.objectContaining({
+      doc_id: doc?.id,
+      author_member_id: member?.id,
+      body: '契约评论',
+    }))
+  })
+
   it('serves every full product module', async () => {
     const app = createApp(createMemoryRepository(seedData))
 
@@ -237,18 +355,26 @@ describe('AgiliX API app', () => {
         ?.goal,
     ).toBe('验证首批增长假设')
 
+    const docContractState = appStateResponseSchema.parse(
+      await (await app.request('/api/app-state')).json(),
+    )
+    const resultCardDoc = docContractState.documents.find((doc) => doc.title === '结果卡片重设计方案')
+    const globalDirectory = docContractState.document_directories.find(
+      (directory) => directory.scope === 'global' && directory.parent_id !== null,
+    )
+    const zhouMember = docContractState.members.find((member) => member.name === '周然')
+    expect(resultCardDoc).toBeDefined()
+    expect(globalDirectory).toBeDefined()
+    expect(zhouMember).toBeDefined()
+
     expect(
       (
-        await app.request('/api/docs/doc-result-card/comments', {
+        await app.request(`/api/docs/${resultCardDoc?.id}/comments`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'comment-api',
-            docId: 'doc-result-card',
-            authorId: 'zhou',
+            author_member_id: zhouMember?.id,
             body: 'API 新增评论',
-            resolved: false,
-            createdAtLabel: '刚刚',
           }),
         })
       ).status,
@@ -257,26 +383,26 @@ describe('AgiliX API app', () => {
       (await repository.getDoc('doc-result-card'))?.comments.map((comment) => comment.body),
     ).toContain('API 新增评论')
 
-    const createdDoc = {
-      id: 'doc-api-created',
-      scope: 'global' as const,
-      title: 'API 创建文档',
-      directory: '全局文档/待整理',
-      body: '通过 API 创建的明确文档结构',
-      linkedIssueKeys: [],
-      comments: [],
-      updatedAtLabel: '刚刚',
-    }
     expect(
       (
         await app.request('/api/docs', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(createdDoc),
+          body: JSON.stringify({
+            scope: 'global',
+            project_id: null,
+            directory_id: globalDirectory?.id,
+            title: 'API 创建文档',
+            content_type: 'markdown',
+            body: '通过 API 创建的明确文档结构',
+            editor_member_id: zhouMember?.id,
+            linked_issue_ids: [],
+            sync_feishu_doc: false,
+          }),
         })
       ).status,
     ).toBe(201)
-    expect((await repository.getDoc('doc-api-created'))?.title).toBe('API 创建文档')
+    expect((await repository.listDocs({ projectId: 'all', query: '' })).map((doc) => doc.title)).toContain('API 创建文档')
 
     const contractState = appStateResponseSchema.parse(
       await (await app.request('/api/app-state')).json(),
@@ -379,6 +505,14 @@ describe('AgiliX API app', () => {
     )
     const member = contractState.members[0]
     const milestone = contractState.milestones[0]
+    const directory = contractState.document_directories.find(
+      (item) => item.scope === 'project' && item.parent_id !== null,
+    )
+    const issue = contractState.issues.find((item) => item.key === 'SRCH-186')
+    const document = contractState.documents.find((item) => item.title === '结果卡片重设计方案')
+    expect(directory).toBeDefined()
+    expect(issue).toBeDefined()
+    expect(document).toBeDefined()
 
     expect(
       (
@@ -449,33 +583,14 @@ describe('AgiliX API app', () => {
           body: JSON.stringify({
             id: 'doc-result-card',
             scope: 'project',
-            projectId: 'search',
+            project_id: contractState.projects[0]?.id,
             title: '重复文档',
-            directory: '项目文档/搜索平台/结果页',
+            directory_id: directory?.id,
+            content_type: 'markdown',
             body: '重复 ID 不允许创建。',
-            linkedIssueKeys: [],
-            comments: [],
-            updatedAtLabel: '刚刚',
-          }),
-        })
-      ).status,
-    ).toBe(409)
-
-    expect(
-      (
-        await app.request('/api/docs', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            id: 'doc-invalid-linked-issue',
-            scope: 'project',
-            projectId: 'search',
-            title: '无效关联 Issue',
-            directory: '项目文档/搜索平台/结果页',
-            body: '关联的 issue 必须已经存在。',
-            linkedIssueKeys: ['MISSING-1'],
-            comments: [],
-            updatedAtLabel: '刚刚',
+            editor_member_id: member.id,
+            linked_issue_ids: [],
+            sync_feishu_doc: false,
           }),
         })
       ).status,
@@ -487,15 +602,35 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'doc-duplicate-linked-issue',
             scope: 'project',
-            projectId: 'search',
+            project_id: contractState.projects[0]?.id,
+            title: '无效关联 Issue',
+            directory_id: directory?.id,
+            content_type: 'markdown',
+            body: '关联的 issue 必须已经存在。',
+            editor_member_id: member.id,
+            linked_issue_ids: ['missing-issue'],
+            sync_feishu_doc: false,
+          }),
+        })
+      ).status,
+    ).toBe(400)
+
+    expect(
+      (
+        await app.request('/api/docs', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            scope: 'project',
+            project_id: contractState.projects[0]?.id,
             title: '重复关联 Issue',
-            directory: '项目文档/搜索平台/结果页',
+            directory_id: directory?.id,
+            content_type: 'markdown',
             body: '同一文档不能重复关联同一个 issue。',
-            linkedIssueKeys: ['SRCH-186', 'SRCH-186'],
-            comments: [],
-            updatedAtLabel: '刚刚',
+            editor_member_id: member.id,
+            linked_issue_ids: [issue?.id, issue?.id],
+            sync_feishu_doc: false,
           }),
         })
       ).status,
@@ -509,11 +644,14 @@ describe('AgiliX API app', () => {
           body: JSON.stringify({
             id: 'doc-create-with-comment',
             scope: 'project',
-            projectId: 'search',
+            project_id: contractState.projects[0]?.id,
             title: '创建时携带评论',
-            directory: '项目文档/搜索平台/结果页',
+            directory_id: directory?.id,
+            content_type: 'markdown',
             body: '文档创建时不能携带评论。',
-            linkedIssueKeys: [],
+            editor_member_id: member.id,
+            linked_issue_ids: [],
+            sync_feishu_doc: false,
             comments: [
               {
                 id: 'comment-create-doc',
@@ -537,11 +675,21 @@ describe('AgiliX API app', () => {
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
             id: 'comment-api',
-            docId: 'doc-result-card',
-            authorId: 'zhou',
+            author_member_id: member.id,
             body: 'API 新增评论',
-            resolved: false,
-            createdAtLabel: '刚刚',
+          }),
+        })
+      ).status,
+    ).toBe(400)
+
+    expect(
+      (
+        await app.request(`/api/docs/${document?.id}/comments`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            author_member_id: 'missing-member',
+            body: 'Missing author comment',
           }),
         })
       ).status,
@@ -553,12 +701,8 @@ describe('AgiliX API app', () => {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({
-            id: 'comment-missing',
-            docId: 'missing-doc',
-            authorId: 'zhou',
+            author_member_id: member.id,
             body: 'Missing doc comment',
-            resolved: false,
-            createdAtLabel: '刚刚',
           }),
         })
       ).status,

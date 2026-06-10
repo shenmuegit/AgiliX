@@ -105,7 +105,6 @@ export function DocsPage({
           onCreated={(doc) => {
             setQuery('')
             setActiveDirectoryKey(null)
-            setSelectedDocId(doc.id)
             setTab(doc.scope)
           }}
           projectId={projectId}
@@ -768,31 +767,24 @@ function buildCreateDocInput(form: CreateDocFormState): CreateDocInput {
   const title = requiredFormValue(form.title, '文档标题')
   const directory = requiredFormValue(form.directory, '目录')
   const body = serializeDocBody(form.contentType, requiredFormValue(form.body, '正文'))
-  const id = createDocId()
 
   if (form.scope === 'global') {
     return {
-      id,
       scope: 'global',
       title,
       directory,
       body,
       linkedIssueKeys: form.linkedIssueKeys,
-      comments: [],
-      updatedAtLabel: '刚刚',
     }
   }
 
   return {
-    id,
     scope: 'project',
     projectId: form.projectId,
     title,
     directory,
     body,
     linkedIssueKeys: form.linkedIssueKeys,
-    comments: [],
-    updatedAtLabel: '刚刚',
   }
 }
 
@@ -953,10 +945,6 @@ function fencedDocBody(language: string, body: string): string {
 
 function toggleIssueKey(keys: string[], key: string): string[] {
   return keys.includes(key) ? keys.filter((item) => item !== key) : [...keys, key]
-}
-
-function createDocId(): string {
-  return `doc-${Date.now().toString(36)}`
 }
 
 function requiredFormValue(value: string, label: string): string {
